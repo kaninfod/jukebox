@@ -5,7 +5,7 @@ GPIO.setmode(GPIO.BCM)
 
 from fastapi import FastAPI
 from app.routes.display import router as display_router
-from app.routes.ytmusic import router as ytmusic_router
+from app.routes.ytmusic import router as ytmusic_router, create_ytmusic_entry
 #from routes.rfid import router as rfid_router
 from app.mqtt import (
     start_mqtt,
@@ -34,6 +34,7 @@ def handle_new_uid(uid):
     mqtt_client.publish(f"{MQTT_ROOT}/test", display_text)
     # Show on display
     display.display_image(display_text)
+    create_ytmusic_entry(uid)  # Create or update YTMusic entry
 
 rfid_reader = RC522Reader(cs_pin=7, on_new_uid=handle_new_uid)
 
