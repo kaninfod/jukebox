@@ -42,6 +42,17 @@ rfid_reader = RC522Reader(cs_pin=7, on_new_uid=handle_new_uid)
 def startup_event():
     start_mqtt()
 
+@app.on_event("shutdown")
+def shutdown_event():
+    # Clean up GPIO resources
+    display.cleanup()
+    rfid_reader.stop()  # RC522Reader uses stop() method
+    encoder.cleanup()
+    # Note: You have two buttons defined, cleaning up both pins
+    GPIO.remove_event_detect(19)
+    GPIO.remove_event_detect(26)
+    GPIO.cleanup()
+
 @app.get("/")
 def read_root():
     return {"message": "Hello from FastAPI and Jukebox!"}
