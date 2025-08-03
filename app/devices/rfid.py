@@ -10,7 +10,18 @@ import time
 class RC522Reader:
     def __init__(self, cs_pin=7, poll_interval=1.0, on_new_uid=None):  # Increased from 0.5 to 1.0 seconds
         print("Initializing RC522 RFID Reader with polling...")
-        self.rdr = RFID(bus=0, device=1, pin_mode=GPIO.BCM)
+        
+        # Only disable warnings, don't cleanup all GPIO
+        GPIO.setwarnings(False)
+        
+        try:
+            self.rdr = RFID(bus=0, device=1, pin_mode=GPIO.BCM)
+        except RuntimeError as e:
+            print(f"Failed to initialize RFID reader: {e}")
+            print("Attempting to continue without RFID functionality...")
+            self.rdr = None
+            return
+        
         self.latest_uid = None
         self._on_new_uid = on_new_uid  # callback function
         self._poll_interval = poll_interval
@@ -19,6 +30,10 @@ class RC522Reader:
         self._thread.start()
 
     def _poll_loop(self):
+        if self.rdr is None:
+            print("RFID reader not initialized, skipping polling...")
+            return
+            
         while not self._stop_event.is_set():
             try:
                 uid = self.rdr.read_id(True)

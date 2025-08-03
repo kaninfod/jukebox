@@ -81,12 +81,11 @@ def get_ytube_music_player_volume():
 def sync_with_ytube_music_player():
     """Synchronize jukebox state with YouTube Music player"""
     try:
-        from app.devices.mqtt import (
-            publish_volume, publish_status, publish_artist, 
-            publish_album, publish_track, publish_year, publish_yt_id
-        )
-        from app.main import screen_manager
+        from app.main import get_screen_manager
         from app.database import get_ytmusic_data_by_yt_id
+        
+        # Get screen manager
+        screen_manager = get_screen_manager()
         
         entity_data = get_entity_state("media_player.ytube_music_player")
         
@@ -138,6 +137,7 @@ def sync_with_ytube_music_player():
         if screen_manager:
             home_screen = screen_manager.screens.get('home')
             if home_screen:
+                print(f"Sync: Updating display with: {media_artist} - {media_title} ({media_album})")
                 # Update screen with current media info
                 home_screen.set_track_info(
                     artist=media_artist,
@@ -154,15 +154,12 @@ def sync_with_ytube_music_player():
                 
                 # Switch to home screen and render
                 screen_manager.switch_to_screen("home")
-        
-        # Publish all information to MQTT
-        publish_artist(media_artist)
-        publish_album(media_album) 
-        publish_track(media_title)
-        publish_status(jukebox_state)
-        publish_volume(str(volume_percent))
-        publish_year(media_year)
-        publish_yt_id(yt_id)
+                screen_manager.render()  # Force render
+                print(f"Sync: Display updated and rendered")
+            else:
+                print("Sync: No home screen found in screen manager")
+        else:
+            print("Sync: No screen manager available")
         
         return {
             "status": "synchronized",
@@ -188,12 +185,11 @@ def sync_with_ytube_music_player():
 async def handle_state_change(event_data):
     """Handle state change events from Home Assistant WebSocket"""
     try:
-        from app.devices.mqtt import (
-            publish_volume, publish_status, publish_artist, 
-            publish_album, publish_track, publish_year, publish_yt_id
-        )
-        from app.main import screen_manager
+        from app.main import get_screen_manager
         from app.database import get_ytmusic_data_by_yt_id
+        
+        # Get screen manager
+        screen_manager = get_screen_manager()
         
         # Check if this is the media player we're interested in
         entity_id = event_data.get("entity_id")
@@ -250,6 +246,7 @@ async def handle_state_change(event_data):
         if screen_manager:
             home_screen = screen_manager.screens.get('home')
             if home_screen:
+                print(f"WebSocket: Updating display with: {media_artist} - {media_title} ({media_album})")
                 # Update screen with current media info
                 home_screen.set_track_info(
                     artist=media_artist,
@@ -266,15 +263,12 @@ async def handle_state_change(event_data):
                 
                 # Switch to home screen and render
                 screen_manager.switch_to_screen("home")
-        
-        # Publish all information to MQTT
-        publish_artist(media_artist)
-        publish_album(media_album) 
-        publish_track(media_title)
-        publish_status(jukebox_state)
-        publish_volume(str(volume_percent))
-        publish_year(media_year)
-        publish_yt_id(yt_id)
+                screen_manager.render()  # Force render
+                print(f"WebSocket: Display updated and rendered")
+            else:
+                print("WebSocket: No home screen found in screen manager")
+        else:
+            print("WebSocket: No screen manager available")
         
         print(f"WebSocket: Updated jukebox with: {media_artist} - {media_title} ({media_album})")
         
@@ -509,6 +503,130 @@ def play_album_by_id(album_id: str):
 def play_track_by_id(track_id: str):
     """Play a specific track by YouTube Music track ID"""
     return play_media_on_ytube_music_player(track_id, "track")
+
+
+@router.post("/homeassistant/ytube_music_player/next_track")
+def next_track_on_ytube_music_player():
+    """Skip to next track on the YouTube Music player via Home Assistant"""
+    try:
+        headers = {
+            "Authorization": f"Bearer {HA_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        # Prepare the service call payload
+        payload = {
+            "entity_id": "media_player.ytube_music_player"
+        }
+        
+        url = f"{HA_BASE_URL}/api/services/media_player/media_next_track"
+        
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        response.raise_for_status()
+        
+        return {
+            "status": "success",
+            "message": "Skipped to next track",
+            "entity_id": "media_player.ytube_music_player"
+        }
+        
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"Failed to skip to next track: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+
+@router.post("/homeassistant/ytube_music_player/previous_track")
+def previous_track_on_ytube_music_player():
+    """Skip to previous track on the YouTube Music player via Home Assistant"""
+    try:
+        headers = {
+            "Authorization": f"Bearer {HA_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        # Prepare the service call payload
+        payload = {
+            "entity_id": "media_player.ytube_music_player"
+        }
+        
+        url = f"{HA_BASE_URL}/api/services/media_player/media_previous_track"
+        
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        response.raise_for_status()
+        
+        return {
+            "status": "success",
+            "message": "Skipped to previous track",
+            "entity_id": "media_player.ytube_music_player"
+        }
+        
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"Failed to skip to previous track: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+
+@router.post("/homeassistant/ytube_music_player/play_pause")
+def play_pause_ytube_music_player():
+    """Toggle play/pause on the YouTube Music player via Home Assistant"""
+    try:
+        headers = {
+            "Authorization": f"Bearer {HA_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        # Prepare the service call payload
+        payload = {
+            "entity_id": "media_player.ytube_music_player"
+        }
+        
+        url = f"{HA_BASE_URL}/api/services/media_player/media_play_pause"
+        
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        response.raise_for_status()
+        
+        return {
+            "status": "success",
+            "message": "Toggled play/pause",
+            "entity_id": "media_player.ytube_music_player"
+        }
+        
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"Failed to toggle play/pause: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+
+@router.post("/homeassistant/ytube_music_player/stop")
+def stop_ytube_music_player():
+    """Stop playback on the YouTube Music player via Home Assistant"""
+    try:
+        headers = {
+            "Authorization": f"Bearer {HA_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        # Prepare the service call payload
+        payload = {
+            "entity_id": "media_player.ytube_music_player"
+        }
+        
+        url = f"{HA_BASE_URL}/api/services/media_player/media_stop"
+        
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        response.raise_for_status()
+        
+        return {
+            "status": "success",
+            "message": "Stopped playback",
+            "entity_id": "media_player.ytube_music_player"
+        }
+        
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"Failed to stop playback: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 
 

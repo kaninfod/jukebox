@@ -6,7 +6,6 @@ from fastapi import FastAPI
 from app.routes.ytmusic import router as ytmusic_router
 from app.routes.mediaplayer import router as mediaplayer_router
 from app.routes.homeassistant import router as homeassistant_router, start_websocket_background, sync_with_ytube_music_player
-from app.devices.mqtt import start_mqtt
 from app.ui.screens import ScreenManager
 from app.hardware import HardwareManager
 
@@ -24,13 +23,20 @@ hardware_manager = None
 display = None
 
 
+def get_screen_manager():
+    """Get the global screen manager instance"""
+    return screen_manager
+
+
+def get_hardware_manager():
+    """Get the global hardware manager instance"""
+    return hardware_manager
+
+
 @app.on_event("startup")
 def startup_event():
     """Initialize all systems on startup"""
     global screen_manager, hardware_manager, display
-    
-    # Start MQTT
-    start_mqtt()
     
     # Initialize hardware manager
     hardware_manager = HardwareManager(screen_manager)

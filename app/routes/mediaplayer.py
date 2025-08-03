@@ -1,10 +1,5 @@
 from fastapi import APIRouter, Body
 from app.ui.screens import PlayerStatus
-from app.devices.mqtt import (
-    publish_artist, publish_album, publish_year, 
-    publish_track, publish_status, publish_volume, 
-    get_all_mediaplayer_info, publish_yt_id
-)
 
 router = APIRouter()
 
@@ -26,12 +21,6 @@ def update_volume(volume: int = Body(..., embed=True)):
         # Re-render if we're on the home screen
         if screen_manager.current_screen == home_screen:
             screen_manager.render()
-        
-        # Publish to MQTT for audio system integration
-        try:
-            publish_volume(volume)
-        except Exception as e:
-            print(f"Failed to publish volume to MQTT: {e}")
     
     return {"status": "Volume updated", "volume": volume}
 

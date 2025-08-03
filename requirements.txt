@@ -1,13 +1,14 @@
 fastapi
 uvicorn[standard]
-paho-mqtt
 spidev 
 pillow
 luma.lcd
 luma.core
-RPi.GPIO
+rpi-lgpio
 pi-rc522
 ytmusicapi
 mariadb
+pymysql
+sqlalchemy
 requests
 websockets

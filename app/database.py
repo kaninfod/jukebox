@@ -6,10 +6,6 @@ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI1OGUxMjRkNjNkODU0ZGRmODVmNmY4YjV
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.models.ytmusic import YTMusicModel
-from app.devices.mqtt import (
-    publish_artist, publish_album, publish_year, 
-    publish_track, publish_status, publish_yt_id
-)
 import json
 
 
@@ -108,23 +104,13 @@ def load_ytmusic_data_to_screen(rfid: str, screen_manager):
             # Set player status to play (since we just loaded an album)
             home_screen.set_player_status("play")
             
-            # Publish all information to MQTT
             artist_name = entry.artist_name or "Unknown Artist"
             album_name = entry.album_name or "Unknown Album"
             year = entry.year or "----"
             yt_id = entry.yt_id or ""
             
-            publish_artist(artist_name)
-            publish_album(album_name)
-            publish_year(year)
-            publish_track(track_title)
-            publish_status("playing")
-            publish_yt_id(yt_id)
-            
             # Get current volume from screen
             current_volume = home_screen.volume
-            
-            # publish_full_info is called automatically by each publish function
             
             # Switch to home screen and render
             screen_manager.switch_to_screen("home")
@@ -148,14 +134,5 @@ def load_ytmusic_data_to_screen(rfid: str, screen_manager):
                 yt_id=""
             )
             home_screen.set_player_status("standby")
-            
-            # Publish fallback info to MQTT
-            publish_artist("Unknown")
-            publish_album(f"RFID: {rfid}")
-            publish_year("----")
-            publish_track("No Data Available")
-            publish_status("idle")
-            publish_yt_id("")
-            # publish_full_info is called automatically by each publish function
             
             screen_manager.switch_to_screen("home")

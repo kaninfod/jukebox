@@ -7,7 +7,12 @@ from app.devices.ili9488 import ILI9488
 from app.devices.rfid import RC522Reader
 from app.devices.pushbutton import PushButton
 from app.devices.rotaryencoder import RotaryEncoder
-from app.devices.mqtt import mqtt_client, MQTT_ROOT, publish_volume, publish_discovery
+from app.routes.homeassistant import (
+    next_track_on_ytube_music_player, 
+    previous_track_on_ytube_music_player,
+    play_pause_ytube_music_player,
+    stop_ytube_music_player
+)
 
 
 class HardwareManager:
@@ -18,12 +23,12 @@ class HardwareManager:
         self.display = None
         self.rfid_reader = None
         self.encoder = None
+        self.button0 = None
         self.button1 = None
         self.button2 = None
         self.button3 = None
         self.button4 = None
         self.button5 = None
-        self.button6 = None
 
     def initialize_hardware(self):
         """Initialize all hardware devices"""
@@ -37,25 +42,18 @@ class HardwareManager:
         self.encoder = RotaryEncoder(pin_a=6, pin_b=5, callback=self._on_rotate)
         
         # Initialize push buttons with callbacks
-        self.button1 = PushButton(17, callback=self._on_button_press) #rotary encoder button
-        self.button2 = PushButton(19, callback=self._on_button_press)
-        self.button3 = PushButton(26, callback=self._on_button_press)
-        self.button4 = PushButton(12, callback=self._on_button_press)
-        self.button5 = PushButton(14, callback=self._on_button_press)
-        self.button6 = PushButton(15, callback=self._on_button_press)
+        self.button0 = PushButton(26, callback=self._on_button0_press) # GPIO 26 -> Button 0
+        self.button1 = PushButton(19, callback=self._on_button1_press) # GPIO 19 -> Button 1  
+        self.button2 = PushButton(12, callback=self._on_button2_press) # GPIO 12 -> Button 2
+        self.button3 = PushButton(15, callback=self._on_button3_press) # GPIO 15 -> Button 3
+        self.button4 = PushButton(14, callback=self._on_button4_press) # GPIO 14 -> Button 4
+        self.button5 = PushButton(17, callback=self._on_button5_press) # GPIO 17 -> Button 5 (rotary encoder button)
 
         return self.display
     
     def _handle_new_uid(self, uid):
         """Handle new RFID tag detection"""
         print(f"****New RFID tag detected: {uid}")
-        display_text = f"RFID UID: {uid}"
-        
-        # Publish to MQTT
-        try:
-            mqtt_client.publish(f"{MQTT_ROOT}/test", display_text)
-        except Exception as e:
-            print(f"Failed to publish RFID to MQTT: {e}")
         
         # Import here to avoid circular imports
         from app.routes.ytmusic import create_ytmusic_entry
@@ -111,9 +109,34 @@ class HardwareManager:
         except Exception as e:
             print(f"Failed to check database for RFID {uid}: {e}")
     
-    def _on_button_press(self):
-        """Handle button press events"""
-        print("Button was pressed! Switching to next screen...")
+    def _on_button0_press(self):
+        """Handle button 0 press - Generic button"""
+        print("Button 0 was pressed!")
+        #self.screen_manager.next_screen()
+    
+    def _on_button1_press(self):
+        """Handle button 1 press - Previous track"""
+        result = previous_track_on_ytube_music_player()
+        print(f"Previous track: {result}")
+
+    def _on_button2_press(self):
+        """Handle button 2 press - Play/Pause"""
+        result = play_pause_ytube_music_player()
+        print(f"Play/Pause: {result}")
+    
+    def _on_button3_press(self):
+        """Handle button 3 press - Next track"""
+        result = next_track_on_ytube_music_player()
+        print(f"Next track: {result}")
+    
+    def _on_button4_press(self):
+        """Handle button 4 press - Stop"""
+        result = stop_ytube_music_player()
+        print(f"Stop: {result}")
+    
+    def _on_button5_press(self):
+        """Handle button 5 press - Rotary encoder button"""
+        print("Rotary encoder button was pressed!")
         #self.screen_manager.next_screen()
     
     def _on_rotate(self, position, direction):
@@ -133,12 +156,6 @@ class HardwareManager:
             # Re-render if we're on the home screen to show visual feedback
             if self.screen_manager.current_screen == home_screen:
                 self.screen_manager.render()
-            
-            # Publish volume change to MQTT for other components
-            try:
-                publish_volume(new_volume)
-            except Exception as e:
-                print(f"Failed to publish volume to MQTT: {e}")
             
             # Sync volume change to Home Assistant using the router function
             try:
@@ -167,12 +184,18 @@ class HardwareManager:
                 print(f"Encoder cleanup error: {e}")
         
         # Clean up buttons using their cleanup methods
+        if self.button0:
+            try:
+                self.button0.cleanup()
+            except Exception as e:
+                print(f"Button 0 cleanup error: {e}")
+            
         if self.button1:
             try:
                 self.button1.cleanup()
             except Exception as e:
                 print(f"Button 1 cleanup error: {e}")
-            
+
         if self.button2:
             try:
                 self.button2.cleanup()
@@ -196,12 +219,6 @@ class HardwareManager:
                 self.button5.cleanup()
             except Exception as e:
                 print(f"Button 5 cleanup error: {e}")
-
-        if self.button6:
-            try:
-                self.button6.cleanup()
-            except Exception as e:
-                print(f"Button 6 cleanup error: {e}")
 
         # Clean up display last
         if self.display:
