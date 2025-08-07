@@ -35,6 +35,7 @@ class Config:
     ROTARY_ENCODER_PIN_A: int = int(os.getenv("ROTARY_ENCODER_PIN_A", "6"))
     ROTARY_ENCODER_PIN_B: int = int(os.getenv("ROTARY_ENCODER_PIN_B", "5"))
     RFID_CS_PIN: int = int(os.getenv("RFID_CS_PIN", "7"))
+    NFC_CARD_SWITCH_GPIO: int = int(os.getenv("NFC_CARD_SWITCH_GPIO", "21"))
     BUTTON_0_GPIO: int = int(os.getenv("BUTTON_0_GPIO", "26"))
     BUTTON_1_GPIO: int = int(os.getenv("BUTTON_1_GPIO", "14"))
     BUTTON_2_GPIO: int = int(os.getenv("BUTTON_2_GPIO", "15"))
@@ -44,6 +45,7 @@ class Config:
     
     # Hardware Settings
     RFID_POLL_INTERVAL: float = float(os.getenv("RFID_POLL_INTERVAL", "1.0"))
+    RFID_READ_TIMEOUT: float = float(os.getenv("RFID_READ_TIMEOUT", "5.0"))
     ENCODER_BOUNCETIME: int = int(os.getenv("ENCODER_BOUNCETIME", "2"))
     BUTTON_BOUNCETIME: int = int(os.getenv("BUTTON_BOUNCETIME", "200"))
     

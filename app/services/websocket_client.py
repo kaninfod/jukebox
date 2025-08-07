@@ -53,15 +53,32 @@ async def handle_state_change(event_data):
         # Try to get additional data from database using yt_id
         db_data = get_ytmusic_data_by_yt_id(yt_id) if yt_id else None
         
-        # Use database data to fill in missing information
+        # Use database data to fill in missing information, especially for album names
         if db_data:
             print(f"WebSocket: Found database entry for yt_id: {yt_id}")
-            # Prefer database data for album, artist, year, and image if available
-            media_album = db_data.get("album_name") or media_album
-            media_artist = db_data.get("artist_name") or media_artist
+            
+            # Special handling for album name - YouTube Music HA integration rarely provides it
+            # Use database album name if:
+            # 1. HA doesn't provide album name, OR
+            # 2. HA provides generic "Unknown Album", OR  
+            # 3. Database has a more specific album name
+            if (not media_album or 
+                media_album == "Unknown Album" or 
+                (db_data.get("album_name") and db_data.get("album_name") != "Unknown Album")):
+                if db_data.get("album_name"):
+                    print(f"WebSocket: Using database album name: {db_data.get('album_name')} (HA provided: {media_album})")
+                    media_album = db_data.get("album_name")
+            
+            # Use database data for other fields if HA data is missing or generic
+            if not media_artist or media_artist == "Unknown Artist":
+                media_artist = db_data.get("artist_name") or media_artist
+            
+            # Always use database year and thumbnail if available (HA rarely provides these)
             media_year = str(db_data.get("year", "")) if db_data.get("year") else ""
-            media_image = db_data.get("thumbnail") or media_image
-            # Keep the track title from HA since it's current playing track
+            if db_data.get("thumbnail"):
+                media_image = db_data.get("thumbnail")
+            
+            # Keep the track title from HA since it's the current playing track
         else:
             media_year = ""
         
@@ -71,7 +88,8 @@ async def handle_state_change(event_data):
             "paused": "pause",      # HA "paused" -> PlayerStatus.PAUSE  
             "idle": "standby",      # HA "idle" -> PlayerStatus.STANDBY
             "off": "standby",       # HA "off" -> PlayerStatus.STANDBY
-            "unavailable": "standby" # HA "unavailable" -> PlayerStatus.STANDBY
+            "unavailable": "standby", # HA "unavailable" -> PlayerStatus.STANDBY
+            "stopped": "standby"    # HA "stopped" -> PlayerStatus.STANDBY (explicit stop command)
         }
         
         jukebox_state = state_mapping.get(state, "standby")
@@ -95,8 +113,16 @@ async def handle_state_change(event_data):
                 home_screen.set_player_status(jukebox_state)
                 home_screen.volume = volume_percent
                 
-                # Switch to home screen and render
-                screen_manager.switch_to_screen("home")
+                # Smart screen switching based on player state and content
+                if jukebox_state == "standby":
+                    # Player is stopped/idle - show appropriate screen
+                    print(f"WebSocket: Player is in standby state, showing appropriate screen")
+                    screen_manager.show_appropriate_screen()
+                else:
+                    # Player is active (playing/paused) - show home screen
+                    print(f"WebSocket: Player is active ({jukebox_state}), showing home screen")
+                    screen_manager.switch_to_screen("home")
+                
                 screen_manager.render()  # Force render
                 print(f"WebSocket: Display updated and rendered")
             else:

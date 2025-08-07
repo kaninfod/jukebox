@@ -104,15 +104,32 @@ def sync_with_ytube_music_player():
         # Try to get additional data from database using yt_id
         db_data = get_ytmusic_data_by_yt_id(yt_id) if yt_id else None
         
-        # Use database data to fill in missing information
+        # Use database data to fill in missing information, especially for album names
         if db_data:
-            print(f"Found database entry for yt_id: {yt_id}")
-            # Prefer database data for album, artist, year, and image if available
-            media_album = db_data.get("album_name") or media_album
-            media_artist = db_data.get("artist_name") or media_artist
+            print(f"Sync: Found database entry for yt_id: {yt_id}")
+            
+            # Special handling for album name - YouTube Music HA integration rarely provides it
+            # Use database album name if:
+            # 1. HA doesn't provide album name, OR
+            # 2. HA provides generic "Unknown Album", OR  
+            # 3. Database has a more specific album name
+            if (not media_album or 
+                media_album == "Unknown Album" or 
+                (db_data.get("album_name") and db_data.get("album_name") != "Unknown Album")):
+                if db_data.get("album_name"):
+                    print(f"Sync: Using database album name: {db_data.get('album_name')} (HA provided: {media_album})")
+                    media_album = db_data.get("album_name")
+            
+            # Use database data for other fields if HA data is missing or generic
+            if not media_artist or media_artist == "Unknown Artist":
+                media_artist = db_data.get("artist_name") or media_artist
+            
+            # Always use database year and thumbnail if available (HA rarely provides these)
             media_year = str(db_data.get("year", "")) if db_data.get("year") else ""
-            media_image = db_data.get("thumbnail") or media_image
-            # Keep the track title from HA since it's current playing track
+            if db_data.get("thumbnail"):
+                media_image = db_data.get("thumbnail")
+            
+            # Keep the track title from HA since it's the current playing track
         else:
             media_year = ""  # Year not typically available from HA media player
         
