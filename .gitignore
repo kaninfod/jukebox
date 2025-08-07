@@ -57,6 +57,7 @@ logs/
 .env
 .env.local
 .env.*.local
+oauth.json
 secrets.json
 
 # Temporary files

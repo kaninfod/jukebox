@@ -1,11 +1,14 @@
 import RPi.GPIO as GPIO
-#GPIO.setwarnings(False)
+GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
 
 from fastapi import FastAPI
+from app.config import config
 from app.routes.ytmusic import router as ytmusic_router
 from app.routes.mediaplayer import router as mediaplayer_router
-from app.routes.homeassistant import router as homeassistant_router, start_websocket_background, sync_with_ytube_music_player
+from app.routes.homeassistant import router as homeassistant_router, sync_with_ytube_music_player
+from app.services.websocket_client import start_websocket_background, stop_websocket
+from app.routes.system import router as system_router
 from app.ui.screens import ScreenManager
 from app.hardware import HardwareManager
 
@@ -16,6 +19,7 @@ app = FastAPI()
 app.include_router(ytmusic_router)
 app.include_router(mediaplayer_router)
 app.include_router(homeassistant_router)
+app.include_router(system_router)
 
 # Initialize screen manager (will be populated when hardware is initialized)
 screen_manager = None
@@ -38,16 +42,31 @@ def startup_event():
     """Initialize all systems on startup"""
     global screen_manager, hardware_manager, display
     
-    # Initialize hardware manager
+    # Step 0: Validate configuration
+    if not config.validate_config():
+        print("❌ Configuration validation failed. Please check your .env file.")
+        return
+    
+    # Step 1: Ensure display is powered on BEFORE any hardware initialization
+    try:
+        print("🔋 Powering on display before hardware initialization...")
+        # Set GPIO as output LOW to turn ON display (S8550 transistor)
+        GPIO.setup(config.DISPLAY_POWER_GPIO, GPIO.OUT)
+        GPIO.output(config.DISPLAY_POWER_GPIO, GPIO.LOW)
+        print("✅ Display powered on at startup (before hardware init)")
+    except Exception as e:
+        print(f"⚠️ Error controlling display power at startup: {e}")
+    
+    # Step 2: Initialize hardware manager
     hardware_manager = HardwareManager(screen_manager)
     
-    # Initialize display first
+    # Step 3: Initialize display hardware
     display = hardware_manager.initialize_hardware()
     
-    # Initialize screen manager with display
+    # Step 4: Initialize screen manager with display
     screen_manager = ScreenManager(display)
     
-    # Update hardware manager with screen manager
+    # Step 5: Update hardware manager with screen manager
     hardware_manager.screen_manager = screen_manager
     
     # Start WebSocket connection to Home Assistant

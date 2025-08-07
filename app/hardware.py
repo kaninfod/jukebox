@@ -3,6 +3,7 @@ Hardware management module for the jukebox.
 Handles initialization and callbacks for all hardware devices.
 """
 import RPi.GPIO as GPIO
+from app.config import config
 from app.devices.ili9488 import ILI9488
 from app.devices.rfid import RC522Reader
 from app.devices.pushbutton import PushButton
@@ -36,18 +37,18 @@ class HardwareManager:
         self.display = ILI9488()
         
         # Initialize RFID reader with callback
-        self.rfid_reader = RC522Reader(cs_pin=7, on_new_uid=self._handle_new_uid)
+        self.rfid_reader = RC522Reader(cs_pin=config.RFID_CS_PIN, poll_interval=config.RFID_POLL_INTERVAL, on_new_uid=self._handle_new_uid)
         
         # Initialize rotary encoder with callback
-        self.encoder = RotaryEncoder(pin_a=6, pin_b=5, callback=self._on_rotate)
+        self.encoder = RotaryEncoder(pin_a=config.ROTARY_ENCODER_PIN_A, pin_b=config.ROTARY_ENCODER_PIN_B, callback=self._on_rotate, bouncetime=config.ENCODER_BOUNCETIME)
         
         # Initialize push buttons with callbacks
-        self.button0 = PushButton(26, callback=self._on_button0_press) # GPIO 26 -> Button 0
-        self.button1 = PushButton(19, callback=self._on_button1_press) # GPIO 19 -> Button 1  
-        self.button2 = PushButton(12, callback=self._on_button2_press) # GPIO 12 -> Button 2
-        self.button3 = PushButton(15, callback=self._on_button3_press) # GPIO 15 -> Button 3
-        self.button4 = PushButton(14, callback=self._on_button4_press) # GPIO 14 -> Button 4
-        self.button5 = PushButton(17, callback=self._on_button5_press) # GPIO 17 -> Button 5 (rotary encoder button)
+        self.button0 = PushButton(config.BUTTON_0_GPIO, callback=self._on_button0_press, bouncetime=config.BUTTON_BOUNCETIME)
+        self.button1 = PushButton(config.BUTTON_1_GPIO, callback=self._on_button1_press, bouncetime=config.BUTTON_BOUNCETIME)
+        self.button2 = PushButton(config.BUTTON_2_GPIO, callback=self._on_button2_press, bouncetime=config.BUTTON_BOUNCETIME)
+        self.button3 = PushButton(config.BUTTON_3_GPIO, callback=self._on_button3_press, bouncetime=config.BUTTON_BOUNCETIME)
+        self.button4 = PushButton(config.BUTTON_4_GPIO, callback=self._on_button4_press, bouncetime=config.BUTTON_BOUNCETIME)
+        self.button5 = PushButton(config.BUTTON_5_GPIO, callback=self._on_button5_press, bouncetime=config.BUTTON_BOUNCETIME)
 
         return self.display
     
@@ -139,7 +140,7 @@ class HardwareManager:
         print("Rotary encoder button was pressed!")
         #self.screen_manager.next_screen()
     
-    def _on_rotate(self, position, direction):
+    def _on_rotate(self, direction, position):
         """Handle rotary encoder rotation"""
         #print(f"Rotary encoder moved to {position}, direction: {'CW' if direction > 0 else 'CCW'}")
         

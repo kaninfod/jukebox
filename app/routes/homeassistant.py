@@ -1,37 +1,31 @@
 """
 Home Assistant integration routes for the jukebox.
-Handles fetching state from Home Assistant entities.
+Handles fetching state from Home Assistant entities and media player control.
 """
 from fastapi import APIRouter, HTTPException
 import requests
-import json
-import asyncio
-import websockets
-import threading
+from app.config import config
+
+# Import WebSocket functionality from service
+from app.services.websocket_client import (
+    start_websocket_background, 
+    start_websocket, 
+    websocket_status, 
+    stop_websocket
+)
 
 router = APIRouter()
-
-# Home Assistant configuration
-HA_BASE_URL = "http://192.168.68.100:8123"
-HA_WS_URL = "ws://192.168.68.100:8123/api/websocket"
-HA_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI1OGUxMjRkNjNkODU0ZGRmODVmNmY4YjVmYWNiMWRjMCIsImlhdCI6MTc1NDA2Nzk0MCwiZXhwIjoyMDY5NDI3OTQwfQ.UMME9LQrS2NzEkscVi-ZTneCJ_pJ3DXK6sD-3BEo7g4"
-
-# WebSocket connection state
-websocket_connection = None
-websocket_task = None
-is_websocket_running = False
-
 
 @router.get("/homeassistant/entity/{entity_id}")
 def get_entity_state(entity_id: str):
     """Get the state of a Home Assistant entity"""
     try:
         headers = {
-            "Authorization": f"Bearer {HA_TOKEN}",
+            "Authorization": f"Bearer {config.HA_TOKEN}",
             "Content-Type": "application/json"
         }
         
-        url = f"{HA_BASE_URL}/api/states/{entity_id}"
+        url = f"{config.HA_BASE_URL}/api/states/{entity_id}"
         
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
@@ -55,14 +49,14 @@ def get_entity_state(entity_id: str):
 @router.get("/homeassistant/ytube_music_player")
 def get_ytube_music_player_state():
     """Get the state of the YouTube Music player entity"""
-    return get_entity_state("media_player.ytube_music_player")
+    return get_entity_state(config.MEDIA_PLAYER_ENTITY_ID)
 
 
 @router.get("/homeassistant/ytube_music_player/volume")
 def get_ytube_music_player_volume():
     """Get just the volume level of the YouTube Music player"""
     try:
-        entity_data = get_entity_state("media_player.ytube_music_player")
+        entity_data = get_entity_state(config.MEDIA_PLAYER_ENTITY_ID)
         volume_level = entity_data.get("attributes", {}).get("volume_level", 0)
         
         # Convert from 0-1 range to 0-100 percentage
@@ -87,7 +81,7 @@ def sync_with_ytube_music_player():
         # Get screen manager
         screen_manager = get_screen_manager()
         
-        entity_data = get_entity_state("media_player.ytube_music_player")
+        entity_data = get_entity_state(config.MEDIA_PLAYER_ENTITY_ID)
         
         # Get current state and attributes
         state = entity_data.get("state", "idle")
@@ -182,226 +176,26 @@ def sync_with_ytube_music_player():
         raise HTTPException(status_code=500, detail=f"Failed to sync: {str(e)}")
 
 
-async def handle_state_change(event_data):
-    """Handle state change events from Home Assistant WebSocket"""
-    try:
-        from app.main import get_screen_manager
-        from app.database import get_ytmusic_data_by_yt_id
-        
-        # Get screen manager
-        screen_manager = get_screen_manager()
-        
-        # Check if this is the media player we're interested in
-        entity_id = event_data.get("entity_id")
-        if entity_id != "media_player.ytube_music_player":
-            return
-            
-        new_state = event_data.get("new_state", {})
-        state = new_state.get("state", "idle")
-        attributes = new_state.get("attributes", {})
-        
-        print(f"WebSocket: Media player state changed to: {state}")
-        
-        # Extract media information from Home Assistant
-        media_title = attributes.get("media_title", "Unknown Track")
-        media_artist = attributes.get("media_artist", "Unknown Artist")
-        media_album = attributes.get("media_album_name", "Unknown Album")
-        media_image = attributes.get("entity_picture")
-        media_id = attributes.get("_media_id", "")
-        
-        # Extract YouTube ID
-        yt_id = media_id if media_id else ""
-        
-        # Extract volume and convert to percentage
-        volume_level = attributes.get("volume_level", 0.75)
-        volume_percent = int(volume_level * 100)
-        
-        # Try to get additional data from database using yt_id
-        db_data = get_ytmusic_data_by_yt_id(yt_id) if yt_id else None
-        
-        # Use database data to fill in missing information
-        if db_data:
-            print(f"WebSocket: Found database entry for yt_id: {yt_id}")
-            # Prefer database data for album, artist, year, and image if available
-            media_album = db_data.get("album_name") or media_album
-            media_artist = db_data.get("artist_name") or media_artist
-            media_year = str(db_data.get("year", "")) if db_data.get("year") else ""
-            media_image = db_data.get("thumbnail") or media_image
-            # Keep the track title from HA since it's current playing track
-        else:
-            media_year = ""
-        
-        # Map Home Assistant media player states to jukebox PlayerStatus enum values
-        state_mapping = {
-            "playing": "play",      # HA "playing" -> PlayerStatus.PLAY
-            "paused": "pause",      # HA "paused" -> PlayerStatus.PAUSE  
-            "idle": "standby",      # HA "idle" -> PlayerStatus.STANDBY
-            "off": "standby",       # HA "off" -> PlayerStatus.STANDBY
-            "unavailable": "standby" # HA "unavailable" -> PlayerStatus.STANDBY
-        }
-        
-        jukebox_state = state_mapping.get(state, "standby")
-        
-        # Update the display if screen manager is available
-        if screen_manager:
-            home_screen = screen_manager.screens.get('home')
-            if home_screen:
-                print(f"WebSocket: Updating display with: {media_artist} - {media_title} ({media_album})")
-                # Update screen with current media info
-                home_screen.set_track_info(
-                    artist=media_artist,
-                    album=media_album,
-                    year=media_year,
-                    track=media_title,
-                    image_url=media_image,
-                    yt_id=yt_id
-                )
-                
-                # Update player status and volume on screen
-                home_screen.set_player_status(jukebox_state)
-                home_screen.volume = volume_percent
-                
-                # Switch to home screen and render
-                screen_manager.switch_to_screen("home")
-                screen_manager.render()  # Force render
-                print(f"WebSocket: Display updated and rendered")
-            else:
-                print("WebSocket: No home screen found in screen manager")
-        else:
-            print("WebSocket: No screen manager available")
-        
-        print(f"WebSocket: Updated jukebox with: {media_artist} - {media_title} ({media_album})")
-        
-    except Exception as e:
-        print(f"WebSocket: Error handling state change: {e}")
-
-
-async def websocket_client():
-    """WebSocket client to connect to Home Assistant"""
-    global websocket_connection, is_websocket_running
-    
-    try:
-        print("WebSocket: Connecting to Home Assistant...")
-        
-        async with websockets.connect(HA_WS_URL) as websocket:
-            websocket_connection = websocket
-            is_websocket_running = True
-            
-            # Step 1: Receive auth_required message
-            auth_required = await websocket.recv()
-            print(f"WebSocket: {auth_required}")
-            
-            # Step 2: Send authentication
-            auth_message = {
-                "type": "auth",
-                "access_token": HA_TOKEN
-            }
-            await websocket.send(json.dumps(auth_message))
-            
-            # Step 3: Receive auth_ok
-            auth_response = await websocket.recv()
-            print(f"WebSocket: {auth_response}")
-            
-            # Step 4: Subscribe to state_changed events for our entity
-            subscribe_message = {
-                "id": 1,
-                "type": "subscribe_events",
-                "event_type": "state_changed"
-            }
-            await websocket.send(json.dumps(subscribe_message))
-            
-            # Step 5: Receive subscription confirmation
-            subscribe_response = await websocket.recv()
-            print(f"WebSocket: {subscribe_response}")
-            
-            print("WebSocket: Connected and subscribed to state changes")
-            
-            # Step 6: Listen for events
-            async for message in websocket:
-                # Check if we should stop (for graceful shutdown)
-                if not is_websocket_running:
-                    print("WebSocket: Shutdown requested, stopping message loop")
-                    break
-                    
-                try:
-                    data = json.loads(message)
-                    
-                    # Check if this is a state_changed event
-                    if (data.get("type") == "event" and 
-                        data.get("event", {}).get("event_type") == "state_changed"):
-                        
-                        event_data = data.get("event", {}).get("data", {})
-                        await handle_state_change(event_data)
-                        
-                except json.JSONDecodeError:
-                    print(f"WebSocket: Invalid JSON received: {message}")
-                except Exception as e:
-                    print(f"WebSocket: Error processing message: {e}")
-                    
-    except Exception as e:
-        print(f"WebSocket: Connection error: {e}")
-    finally:
-        is_websocket_running = False
-        websocket_connection = None
-        print("WebSocket: Disconnected")
-
-
-def start_websocket_background():
-    """Start WebSocket client in background thread"""
-    def run_websocket():
-        asyncio.new_event_loop().run_until_complete(websocket_client())
-    
-    global websocket_task
-    if not is_websocket_running:
-        websocket_task = threading.Thread(target=run_websocket, daemon=True)
-        websocket_task.start()
-        return True
-    return False
-
-
+# WebSocket management endpoints
 @router.get("/homeassistant/websocket/start")
-def start_websocket():
+def start_websocket_endpoint():
     """Start WebSocket connection to Home Assistant"""
     try:
-        if is_websocket_running:
-            return {"status": "already_running", "message": "WebSocket is already connected"}
-        
-        success = start_websocket_background()
-        if success:
-            return {"status": "starting", "message": "WebSocket connection initiated"}
-        else:
-            return {"status": "failed", "message": "Failed to start WebSocket"}
-            
+        return start_websocket()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to start WebSocket: {str(e)}")
 
 
 @router.get("/homeassistant/websocket/status")
-def websocket_status():
+def websocket_status_endpoint():
     """Get WebSocket connection status"""
-    return {
-        "is_running": is_websocket_running,
-        "connection_active": websocket_connection is not None
-    }
+    return websocket_status()
 
 
 @router.get("/homeassistant/websocket/stop")
-def stop_websocket():
+def stop_websocket_endpoint():
     """Stop WebSocket connection"""
-    global is_websocket_running, websocket_connection, websocket_task
-    
-    print("Stopping WebSocket connection...")
-    is_websocket_running = False
-    
-    # Don't try to close the websocket during shutdown - just mark it as stopped
-    # The connection will be closed when the process terminates
-    websocket_connection = None
-    
-    # Wait a moment for the background thread to notice the flag change
-    import time
-    time.sleep(0.1)
-    
-    return {"status": "stopped", "message": "WebSocket connection terminated"}
+    return stop_websocket()
 
 
 @router.post("/homeassistant/ytube_music_player/play_media")
@@ -409,18 +203,18 @@ def play_media_on_ytube_music_player(media_content_id: str, media_content_type: 
     """Play media on the YouTube Music player via Home Assistant"""
     try:
         headers = {
-            "Authorization": f"Bearer {HA_TOKEN}",
+            "Authorization": f"Bearer {config.HA_TOKEN}",
             "Content-Type": "application/json"
         }
         
         # Prepare the service call payload
         payload = {
-            "entity_id": "media_player.ytube_music_player",
+            "entity_id": config.MEDIA_PLAYER_ENTITY_ID,
             "media_content_id": media_content_id,
             "media_content_type": media_content_type
         }
         
-        url = f"{HA_BASE_URL}/api/services/media_player/play_media"
+        url = f"{config.HA_BASE_URL}/api/services/media_player/play_media"
         
         response = requests.post(url, headers=headers, json=payload, timeout=10)
         response.raise_for_status()
@@ -430,7 +224,7 @@ def play_media_on_ytube_music_player(media_content_id: str, media_content_type: 
             "message": "Media playback started",
             "media_content_id": media_content_id,
             "media_content_type": media_content_type,
-            "entity_id": "media_player.ytube_music_player"
+            "entity_id": config.MEDIA_PLAYER_ENTITY_ID
         }
         
     except requests.exceptions.RequestException as e:
@@ -448,17 +242,17 @@ def set_volume_on_ytube_music_player(volume_level: float):
             raise HTTPException(status_code=400, detail="Volume level must be between 0.0 and 1.0")
         
         headers = {
-            "Authorization": f"Bearer {HA_TOKEN}",
+            "Authorization": f"Bearer {config.HA_TOKEN}",
             "Content-Type": "application/json"
         }
         
         # Prepare the service call payload
         payload = {
-            "entity_id": "media_player.ytube_music_player",
+            "entity_id": config.MEDIA_PLAYER_ENTITY_ID,
             "volume_level": volume_level
         }
         
-        url = f"{HA_BASE_URL}/api/services/media_player/volume_set"
+        url = f"{config.HA_BASE_URL}/api/services/media_player/volume_set"
         
         response = requests.post(url, headers=headers, json=payload, timeout=10)
         response.raise_for_status()
@@ -471,7 +265,7 @@ def set_volume_on_ytube_music_player(volume_level: float):
             "message": "Volume set successfully",
             "volume_level": volume_level,
             "volume_percent": volume_percent,
-            "entity_id": "media_player.ytube_music_player"
+            "entity_id": config.MEDIA_PLAYER_ENTITY_ID
         }
         
     except requests.exceptions.RequestException as e:
@@ -510,16 +304,16 @@ def next_track_on_ytube_music_player():
     """Skip to next track on the YouTube Music player via Home Assistant"""
     try:
         headers = {
-            "Authorization": f"Bearer {HA_TOKEN}",
+            "Authorization": f"Bearer {config.HA_TOKEN}",
             "Content-Type": "application/json"
         }
         
         # Prepare the service call payload
         payload = {
-            "entity_id": "media_player.ytube_music_player"
+            "entity_id": config.MEDIA_PLAYER_ENTITY_ID
         }
         
-        url = f"{HA_BASE_URL}/api/services/media_player/media_next_track"
+        url = f"{config.HA_BASE_URL}/api/services/media_player/media_next_track"
         
         response = requests.post(url, headers=headers, json=payload, timeout=10)
         response.raise_for_status()
@@ -527,7 +321,7 @@ def next_track_on_ytube_music_player():
         return {
             "status": "success",
             "message": "Skipped to next track",
-            "entity_id": "media_player.ytube_music_player"
+            "entity_id": config.MEDIA_PLAYER_ENTITY_ID
         }
         
     except requests.exceptions.RequestException as e:
@@ -541,16 +335,16 @@ def previous_track_on_ytube_music_player():
     """Skip to previous track on the YouTube Music player via Home Assistant"""
     try:
         headers = {
-            "Authorization": f"Bearer {HA_TOKEN}",
+            "Authorization": f"Bearer {config.HA_TOKEN}",
             "Content-Type": "application/json"
         }
         
         # Prepare the service call payload
         payload = {
-            "entity_id": "media_player.ytube_music_player"
+            "entity_id": config.MEDIA_PLAYER_ENTITY_ID
         }
         
-        url = f"{HA_BASE_URL}/api/services/media_player/media_previous_track"
+        url = f"{config.HA_BASE_URL}/api/services/media_player/media_previous_track"
         
         response = requests.post(url, headers=headers, json=payload, timeout=10)
         response.raise_for_status()
@@ -558,7 +352,7 @@ def previous_track_on_ytube_music_player():
         return {
             "status": "success",
             "message": "Skipped to previous track",
-            "entity_id": "media_player.ytube_music_player"
+            "entity_id": config.MEDIA_PLAYER_ENTITY_ID
         }
         
     except requests.exceptions.RequestException as e:
@@ -572,16 +366,16 @@ def play_pause_ytube_music_player():
     """Toggle play/pause on the YouTube Music player via Home Assistant"""
     try:
         headers = {
-            "Authorization": f"Bearer {HA_TOKEN}",
+            "Authorization": f"Bearer {config.HA_TOKEN}",
             "Content-Type": "application/json"
         }
         
         # Prepare the service call payload
         payload = {
-            "entity_id": "media_player.ytube_music_player"
+            "entity_id": config.MEDIA_PLAYER_ENTITY_ID
         }
         
-        url = f"{HA_BASE_URL}/api/services/media_player/media_play_pause"
+        url = f"{config.HA_BASE_URL}/api/services/media_player/media_play_pause"
         
         response = requests.post(url, headers=headers, json=payload, timeout=10)
         response.raise_for_status()
@@ -589,7 +383,7 @@ def play_pause_ytube_music_player():
         return {
             "status": "success",
             "message": "Toggled play/pause",
-            "entity_id": "media_player.ytube_music_player"
+            "entity_id": config.MEDIA_PLAYER_ENTITY_ID
         }
         
     except requests.exceptions.RequestException as e:
@@ -603,16 +397,16 @@ def stop_ytube_music_player():
     """Stop playback on the YouTube Music player via Home Assistant"""
     try:
         headers = {
-            "Authorization": f"Bearer {HA_TOKEN}",
+            "Authorization": f"Bearer {config.HA_TOKEN}",
             "Content-Type": "application/json"
         }
         
         # Prepare the service call payload
         payload = {
-            "entity_id": "media_player.ytube_music_player"
+            "entity_id": config.MEDIA_PLAYER_ENTITY_ID
         }
         
-        url = f"{HA_BASE_URL}/api/services/media_player/media_stop"
+        url = f"{config.HA_BASE_URL}/api/services/media_player/media_stop"
         
         response = requests.post(url, headers=headers, json=payload, timeout=10)
         response.raise_for_status()
@@ -620,13 +414,12 @@ def stop_ytube_music_player():
         return {
             "status": "success",
             "message": "Stopped playback",
-            "entity_id": "media_player.ytube_music_player"
+            "entity_id": config.MEDIA_PLAYER_ENTITY_ID
         }
         
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=500, detail=f"Failed to stop playback: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
-
 
 

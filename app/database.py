@@ -1,11 +1,11 @@
 """
 Database operations for the jukebox.
 Handles YTMusic data loading and database interactions.
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI1OGUxMjRkNjNkODU0ZGRmODVmNmY4YjVmYWNiMWRjMCIsImlhdCI6MTc1NDA2Nzk0MCwiZXhwIjoyMDY5NDI3OTQwfQ.UMME9LQrS2NzEkscVi-ZTneCJ_pJ3DXK6sD-3BEo7g4
 """
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.models.ytmusic import YTMusicModel
+from app.config import config
 import json
 
 
@@ -55,7 +55,7 @@ def get_ytmusic_data_by_yt_id(yt_id: str):
 
 
 # Database setup for loading YTMusic data
-SQLALCHEMY_DATABASE_URL = "mysql+pymysql://dbuser:4AllData@192.168.68.102:3306/hingedb"
+SQLALCHEMY_DATABASE_URL = config.get_database_url()
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

@@ -12,3 +12,4 @@ pymysql
 sqlalchemy
 requests
 websockets
+python-dotenv
