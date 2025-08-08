@@ -48,7 +48,7 @@ class HardwareManager:
         self.rfid_reader = RC522Reader(
             cs_pin=config.RFID_CS_PIN, 
             on_new_uid=self._handle_new_uid,
-            switch_pin=config.NFC_CARD_SWITCH_GPIO,  # Temporarily set to Button4 GPIO in .env
+            switch_pin= config.BUTTON_0_GPIO, #config.NFC_CARD_SWITCH_GPIO,  # Temporarily set to Button4 GPIO in .env
             screen_manager=self.screen_manager
         )
         
@@ -56,13 +56,13 @@ class HardwareManager:
         self.encoder = RotaryEncoder(pin_a=config.ROTARY_ENCODER_PIN_A, pin_b=config.ROTARY_ENCODER_PIN_B, callback=self._on_rotate, bouncetime=config.ENCODER_BOUNCETIME)
         
         # Initialize push buttons with callbacks
-        self.button0 = PushButton(config.BUTTON_0_GPIO, callback=self._on_button0_press, bouncetime=config.BUTTON_BOUNCETIME)
+        #self.button0 = PushButton(config.BUTTON_0_GPIO, callback=self._on_button0_press, bouncetime=config.BUTTON_BOUNCETIME)
         self.button1 = PushButton(config.BUTTON_1_GPIO, callback=self._on_button1_press, bouncetime=config.BUTTON_BOUNCETIME)
         self.button2 = PushButton(config.BUTTON_2_GPIO, callback=self._on_button2_press, bouncetime=config.BUTTON_BOUNCETIME)
         self.button3 = PushButton(config.BUTTON_3_GPIO, callback=self._on_button3_press, bouncetime=config.BUTTON_BOUNCETIME)
         # Button4 is temporarily used as NFC card switch, so not initializing as regular button
         # self.button4 = PushButton(config.BUTTON_4_GPIO, callback=self._on_button4_press, bouncetime=config.BUTTON_BOUNCETIME)
-        self.button4 = None  # Temporarily disabled - GPIO used by RFID switch
+        
         self.button5 = PushButton(config.BUTTON_5_GPIO, callback=self._on_button5_press, bouncetime=config.BUTTON_BOUNCETIME)
 
         return self.display

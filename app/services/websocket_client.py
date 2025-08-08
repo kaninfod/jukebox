@@ -2,21 +2,34 @@
 WebSocket client for Home Assistant integration.
 Handles real-time state updates from Home Assistant.
 """
+
+
 import json
 import asyncio
 import websockets
 import threading
+import signal
+from typing import Any, Dict, Optional
 from app.config import config
 
-from app.config import config
 
 # WebSocket connection state
 websocket_connection = None
 websocket_task = None
 is_websocket_running = False
+websocket_lock = threading.Lock()
+
+# Signal handler for graceful shutdown
+def _signal_handler(signum, frame):
+    print(f"WebSocket: Received signal {signum}, shutting down...")
+    stop_websocket()
+
+# Register signal handlers
+signal.signal(signal.SIGINT, _signal_handler)
+signal.signal(signal.SIGTERM, _signal_handler)
 
 
-async def handle_state_change(event_data):
+async def handle_state_change(event_data: Dict[str, Any]) -> None:
     """Handle state change events from Home Assistant WebSocket"""
     try:
         from app.main import get_screen_manager
@@ -27,7 +40,10 @@ async def handle_state_change(event_data):
         
         # Check if this is the media player we're interested in
         entity_id = event_data.get("entity_id")
-        if entity_id != config.MEDIA_PLAYER_ENTITY_ID:
+        # Allow dynamic entity ID via config or runtime override
+        media_player_entity_id = getattr(config, "MEDIA_PLAYER_ENTITY_ID", None)
+        # If you want to support runtime override, you could use a global or context variable here
+        if entity_id != media_player_entity_id:
             return
             
         new_state = event_data.get("new_state", {})
@@ -136,77 +152,84 @@ async def handle_state_change(event_data):
         print(f"WebSocket: Error handling state change: {e}")
 
 
-async def websocket_client():
-    """WebSocket client to connect to Home Assistant"""
+async def websocket_client() -> None:
+    backoff = 1
+    max_backoff = 60
     global websocket_connection, is_websocket_running
-    
-    try:
-        print("WebSocket: Connecting to Home Assistant...")
+    while True:
+        try:
+            print("WebSocket: Connecting to Home Assistant...")
+            async with websockets.connect(config.HA_WS_URL) as websocket:
+                with websocket_lock:
+                    websocket_connection = websocket
+                    is_websocket_running = True
+                
+                # Step 1: Receive auth_required message
+                auth_required = await websocket.recv()
+                print(f"WebSocket: {auth_required}")
+                
+                # Step 2: Send authentication
+                auth_message = {
+                    "type": "auth",
+                    "access_token": config.HA_TOKEN
+                }
+                await websocket.send(json.dumps(auth_message))
+                
+                # Step 3: Receive auth_ok
+                auth_response = await websocket.recv()
+                print(f"WebSocket: {auth_response}")
+                
+                # Step 4: Subscribe to state_changed events for our entity
+                subscribe_message = {
+                    "id": 1,
+                    "type": "subscribe_events",
+                    "event_type": "state_changed"
+                }
+                await websocket.send(json.dumps(subscribe_message))
+                
+                # Step 5: Receive subscription confirmation
+                subscribe_response = await websocket.recv()
+                print(f"WebSocket: {subscribe_response}")
+                
+                print("WebSocket: Connected and subscribed to state changes")
+                
+                # Step 6: Listen for events
+                async for message in websocket:
+                    # Check if we should stop (for graceful shutdown)
+                    if not is_websocket_running:
+                        print("WebSocket: Shutdown requested, stopping message loop")
+                        break
+                        
+                    try:
+                        data = json.loads(message)
+                        
+                        # Check if this is a state_changed event
+                        if (data.get("type") == "event" and 
+                            data.get("event", {}).get("event_type") == "state_changed"):
+                            
+                            event_data = data.get("event", {}).get("data", {})
+                            await handle_state_change(event_data)
+                            
+                    except json.JSONDecodeError:
+                        print(f"WebSocket: Invalid JSON received: {message}")
+                    except Exception as e:
+                        print(f"WebSocket: Error processing message: {e}")
         
-        async with websockets.connect(config.HA_WS_URL) as websocket:
-            websocket_connection = websocket
-            is_websocket_running = True
-            
-            # Step 1: Receive auth_required message
-            auth_required = await websocket.recv()
-            print(f"WebSocket: {auth_required}")
-            
-            # Step 2: Send authentication
-            auth_message = {
-                "type": "auth",
-                "access_token": config.HA_TOKEN
-            }
-            await websocket.send(json.dumps(auth_message))
-            
-            # Step 3: Receive auth_ok
-            auth_response = await websocket.recv()
-            print(f"WebSocket: {auth_response}")
-            
-            # Step 4: Subscribe to state_changed events for our entity
-            subscribe_message = {
-                "id": 1,
-                "type": "subscribe_events",
-                "event_type": "state_changed"
-            }
-            await websocket.send(json.dumps(subscribe_message))
-            
-            # Step 5: Receive subscription confirmation
-            subscribe_response = await websocket.recv()
-            print(f"WebSocket: {subscribe_response}")
-            
-            print("WebSocket: Connected and subscribed to state changes")
-            
-            # Step 6: Listen for events
-            async for message in websocket:
-                # Check if we should stop (for graceful shutdown)
-                if not is_websocket_running:
-                    print("WebSocket: Shutdown requested, stopping message loop")
-                    break
-                    
-                try:
-                    data = json.loads(message)
-                    
-                    # Check if this is a state_changed event
-                    if (data.get("type") == "event" and 
-                        data.get("event", {}).get("event_type") == "state_changed"):
-                        
-                        event_data = data.get("event", {}).get("data", {})
-                        await handle_state_change(event_data)
-                        
-                except json.JSONDecodeError:
-                    print(f"WebSocket: Invalid JSON received: {message}")
-                except Exception as e:
-                    print(f"WebSocket: Error processing message: {e}")
-                    
-    except Exception as e:
-        print(f"WebSocket: Connection error: {e}")
-    finally:
-        is_websocket_running = False
-        websocket_connection = None
-        print("WebSocket: Disconnected")
+        except Exception as e:
+            print(f"WebSocket: Connection error: {e}")
+            print(f"WebSocket: Reconnecting in {backoff} seconds...")
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, max_backoff)
+        finally:
+            with websocket_lock:
+                is_websocket_running = False
+                websocket_connection = None
+            print("WebSocket: Disconnected")
+        if not is_websocket_running:
+            break
 
 
-def start_websocket_background():
+def start_websocket_background() -> bool:
     """Start WebSocket client in background thread"""
     def run_websocket():
         asyncio.new_event_loop().run_until_complete(websocket_client())
@@ -219,7 +242,7 @@ def start_websocket_background():
     return False
 
 
-def start_websocket():
+def start_websocket() -> Dict[str, str]:
     """Start WebSocket connection to Home Assistant"""
     try:
         if is_websocket_running:
@@ -235,27 +258,22 @@ def start_websocket():
         return {"status": "error", "message": f"Failed to start WebSocket: {str(e)}"}
 
 
-def websocket_status():
+def websocket_status() -> Dict[str, Any]:
     """Get WebSocket connection status"""
-    return {
-        "is_running": is_websocket_running,
-        "connection_active": websocket_connection is not None
-    }
+    with websocket_lock:
+        return {
+            "is_running": is_websocket_running,
+            "connection_active": websocket_connection is not None
+        }
 
 
-def stop_websocket():
+def stop_websocket() -> Dict[str, str]:
     """Stop WebSocket connection"""
     global is_websocket_running, websocket_connection, websocket_task
-    
     print("Stopping WebSocket connection...")
-    is_websocket_running = False
-    
-    # Don't try to close the websocket during shutdown - just mark it as stopped
-    # The connection will be closed when the process terminates
-    websocket_connection = None
-    
-    # Wait a moment for the background thread to notice the flag change
+    with websocket_lock:
+        is_websocket_running = False
+        websocket_connection = None
     import time
     time.sleep(0.1)
-    
     return {"status": "stopped", "message": "WebSocket connection terminated"}
