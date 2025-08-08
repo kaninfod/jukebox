@@ -22,6 +22,7 @@ class Screen:
         self.width = width
         self.height = height
         self.name = "Base Screen"
+        self.dirty = True  # Mark as needing redraw initially
     
     def draw(self, draw_context, fonts, context=None):
         """Override this method in subclasses"""
@@ -138,6 +139,7 @@ class HomeScreen(Screen):
     def set_volume(self, volume):
         """Set volume (0-100)"""
         self.volume = max(0, min(100, volume))
+        self.dirty = True
     
     def set_player_status(self, status):
         """Set player status"""
@@ -149,6 +151,7 @@ class HomeScreen(Screen):
                 self.player_status = PlayerStatus(status)
             except ValueError:
                 self.player_status = PlayerStatus.STANDBY
+        self.dirty = True
     
     def set_track_info(self, artist="", album="", year="", track="", image_url=None, yt_id=""):
         """Set current track information"""
@@ -161,6 +164,7 @@ class HomeScreen(Screen):
         if image_url != self.album_image_url:
             self.album_image_url = image_url
             self._load_album_image()
+        self.dirty = True
     
     def _load_album_image(self):
         """Load album image from URL"""
@@ -386,24 +390,28 @@ class RfidLoadingScreen(Screen):
         """Set status to reading RFID"""
         self.status = RfidLoadingStatus.READING
         self.message = "Reading NFC card..."
+        self.dirty = True
         
     def set_loading_album(self, album_name):
         """Set status to loading album"""
         self.status = RfidLoadingStatus.LOADING_ALBUM
         self.album_name = album_name
         self.message = f"Loading album: {album_name}"
+        self.dirty = True
         
     def set_new_rfid(self, rfid_id):
         """Set status to new RFID detected"""
         self.status = RfidLoadingStatus.NEW_RFID
         self.rfid_id = rfid_id
         self.message = f"New NFC card detected!\nID: {rfid_id[:8]}...\nAdding to system..."
+        self.dirty = True
         
     def set_error(self, error_message):
         """Set status to error"""
         self.status = RfidLoadingStatus.ERROR
         self.error_message = error_message
         self.message = f"Error: {error_message}"
+        self.dirty = True
     
     def _draw_status_icon(self, draw, x, y, size, fonts):
         """Draw status-specific icon using symbol font"""
@@ -534,6 +542,7 @@ class ErrorScreen(Screen):
 
     def set_error(self, error_message):
         self.error_message = error_message
+        self.dirty = True
 
     def draw(self, draw_context, fonts, context=None):
         draw_context.rectangle([0, 0, self.width, self.height], fill="red")
@@ -578,6 +587,10 @@ class ScreenManager:
         
         # Initialize default screens
         self._init_screens()
+
+        self.last_player_status = None
+        self.last_track_info = None
+        self.last_rfid_id = None
     
     def _load_fonts(self):
         """Load different font sizes for UI elements"""
@@ -613,13 +626,39 @@ class ScreenManager:
     
     def switch_to_screen(self, screen_name):
         """Switch to a specific screen by name (no render)"""
-        if screen_name in self.screens:
-            old_screen = self.current_screen.name if self.current_screen else "None"
-            self.current_screen = self.screens[screen_name]
-            self.current_screen_index = self.screen_order.index(screen_name)
-            print(f"🖥️  SCREEN CHANGE: {old_screen} → {self.current_screen.name}")
+        if self.current_screen and self.current_screen.name == screen_name:
+            print(f"Screen already {screen_name}; skipping switch.")
+            return
+        old_screen = self.current_screen.name if self.current_screen else "None"
+        self.current_screen = self.screens[screen_name]
+        self.current_screen_index = self.screen_order.index(screen_name)
+        print(f"🖥️  SCREEN CHANGE: {old_screen} → {self.current_screen.name}")
         # No render here!
 
+    def update_player_status(self, new_status):
+        if new_status != self.last_player_status:
+            self.last_player_status = new_status
+            print(f"Player status changed to {new_status}; updating screen.")
+            self.show_appropriate_screen()
+        else:
+            print("No change in player status; skipping update.")
+
+    def update_track_info(self, new_track_info):
+        if new_track_info != self.last_track_info:
+            self.last_track_info = new_track_info
+            print("Track info changed; updating screen.")
+            self.show_appropriate_screen()
+        else:
+            print("No change in track info; skipping update.")
+
+    def update_rfid_id(self, new_rfid_id):
+        if new_rfid_id != self.last_rfid_id:
+            self.last_rfid_id = new_rfid_id
+            print(f"RFID ID changed to {new_rfid_id}; updating screen.")
+            # Call RFID-related screen logic here
+        else:
+            print("No change in RFID ID; skipping update.")
+    
     def show_appropriate_screen(self, context=None):
         """Show idle screen if no music or music is stopped, otherwise home screen"""
         home_screen = self.screens.get("home")
@@ -664,9 +703,9 @@ class ScreenManager:
             self.switch_to_screen("error")
             self.render(context)
 
-    def render(self, context=None):
-        """Render the current screen to the display, passing UIContext"""
-        if self.current_screen:
+    def render(self, context=None, force=False):
+        """Render the current screen only if dirty or forced"""
+        if self.current_screen and (self.current_screen.dirty or force):
             # Create a new image for drawing
             image = Image.new('RGB', (self.display.device.width, self.display.device.height), 'white')
             draw = ImageDraw.Draw(image)
@@ -688,3 +727,4 @@ class ScreenManager:
             
             # Display the image
             self.display.device.display(image)
+            self.current_screen.dirty = False  # Reset dirty flag after rendering
