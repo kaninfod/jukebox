@@ -526,12 +526,34 @@ class RfidLoadingScreen(Screen):
             info_x = (self.width - info_width) // 2
             draw_context.text((info_x, info_y), info_text, fill="red", font=small_font)
 
+class ErrorScreen(Screen):
+    def __init__(self, width=480, height=320, error_message=""):
+        super().__init__(width, height)
+        self.name = "Error"
+        self.error_message = error_message
+
+    def set_error(self, error_message):
+        self.error_message = error_message
+
+    def draw(self, draw_context, fonts, context=None):
+        draw_context.rectangle([0, 0, self.width, self.height], fill="red")
+        error_font = fonts.get('title', None)
+        text_bbox = draw_context.textbbox((0, 0), self.error_message, font=error_font)
+        text_width = text_bbox[2] - text_bbox[0]
+        text_height = text_bbox[3] - text_bbox[1]
+        text_x = (self.width - text_width) // 2
+        text_y = (self.height - text_height) // 2
+        draw_context.text((text_x, text_y), self.error_message, fill="white", font=error_font)
+
+# Update the screen factory to include ErrorScreen
+
 def screen_factory():
     """Centralized factory for creating all screens"""
     return {
         "idle": IdleScreen(),
         "home": HomeScreen(),
         "rfid_loading": RfidLoadingScreen(),
+        "error": ErrorScreen(),
         # Add more screens here as needed
     }
 
@@ -632,6 +654,14 @@ class ScreenManager:
         if rfid_screen:
             rfid_screen.set_error(error_message)
             self.switch_to_screen("rfid_loading")
+            self.render(context)
+
+    def show_error_screen(self, error_message, context=None):
+        """Show error screen"""
+        error_screen = self.screens.get("error")
+        if error_screen:
+            error_screen.set_error(error_message)
+            self.switch_to_screen("error")
             self.render(context)
 
     def render(self, context=None):
