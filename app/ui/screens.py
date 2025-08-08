@@ -23,7 +23,7 @@ class Screen:
         self.height = height
         self.name = "Base Screen"
     
-    def draw(self, draw_context, fonts):
+    def draw(self, draw_context, fonts, context=None):
         """Override this method in subclasses"""
         pass
 
@@ -34,7 +34,7 @@ class IdleScreen(Screen):
         super().__init__(width, height)
         self.name = "Idle Screen"
     
-    def draw(self, draw_context, fonts):
+    def draw(self, draw_context, fonts, context=None):
         """Draw the idle/welcome screen"""
         # Clear background to white
         draw_context.rectangle([0, 0, self.width, self.height], fill="white")
@@ -273,7 +273,7 @@ class HomeScreen(Screen):
         
         draw.text((icon_x, icon_y), icon, fill="black", font=symbol_font)
     
-    def draw(self, draw_context, fonts):
+    def draw(self, draw_context, fonts, context=None):
         """Draw the home screen"""
         # Clear background to white
         draw_context.rectangle([0, 0, self.width, self.height], fill="white")
@@ -465,7 +465,7 @@ class RfidLoadingScreen(Screen):
         
         draw.text((text_x, text_y), progress_text, fill="black", font=small_font)
     
-    def draw(self, draw_context, fonts):
+    def draw(self, draw_context, fonts, context=None):
         """Draw the RFID loading screen"""
         # Clear background to white
         draw_context.rectangle([0, 0, self.width, self.height], fill="white")
@@ -526,6 +526,22 @@ class RfidLoadingScreen(Screen):
             info_x = (self.width - info_width) // 2
             draw_context.text((info_x, info_y), info_text, fill="red", font=small_font)
 
+def screen_factory():
+    """Centralized factory for creating all screens"""
+    return {
+        "idle": IdleScreen(),
+        "home": HomeScreen(),
+        "rfid_loading": RfidLoadingScreen(),
+        # Add more screens here as needed
+    }
+
+class UIContext:
+    """Centralized UI state/context for all screens"""
+    def __init__(self, player_status=None, track_info=None, rfid_status=None):
+        self.player_status = player_status
+        self.track_info = track_info or {}
+        self.rfid_status = rfid_status or {}
+
 class ScreenManager:
     """Manages different screens and screen switching"""
     def __init__(self, display):
@@ -559,12 +575,10 @@ class ScreenManager:
         return fonts
     
     def _init_screens(self):
-        """Initialize all screens"""
-        self.add_screen("idle", IdleScreen())
-        self.add_screen("home", HomeScreen())
-        self.add_screen("rfid_loading", RfidLoadingScreen())
-        # Add more screens here later
-        
+        """Initialize all screens using the factory"""
+        screen_dict = screen_factory()
+        for name, screen in screen_dict.items():
+            self.add_screen(name, screen)
         # Set default screen to idle
         if self.screen_order:
             self.current_screen = self.screens[self.screen_order[0]]
@@ -576,71 +590,16 @@ class ScreenManager:
             self.screen_order.append(name)
     
     def switch_to_screen(self, screen_name):
-        """Switch to a specific screen by name"""
+        """Switch to a specific screen by name (no render)"""
         if screen_name in self.screens:
+            old_screen = self.current_screen.name if self.current_screen else "None"
             self.current_screen = self.screens[screen_name]
             self.current_screen_index = self.screen_order.index(screen_name)
-            self.render()
-    
-    def next_screen(self):
-        """Switch to the next screen"""
-        if self.screen_order:
-            self.current_screen_index = (self.current_screen_index + 1) % len(self.screen_order)
-            screen_name = self.screen_order[self.current_screen_index]
-            self.current_screen = self.screens[screen_name]
-            self.render()
-    
-    def previous_screen(self):
-        """Switch to the previous screen"""
-        if self.screen_order:
-            self.current_screen_index = (self.current_screen_index - 1) % len(self.screen_order)
-            screen_name = self.screen_order[self.current_screen_index]
-            self.current_screen = self.screens[screen_name]
-            self.render()
-    
-    def get_current_screen(self):
-        """Get the current screen object"""
-        return self.current_screen
-    
-    def show_rfid_reading(self):
-        """Show RFID reading screen"""
-        rfid_screen = self.screens.get("rfid_loading")
-        if rfid_screen:
-            rfid_screen.set_reading()
-            self.switch_to_screen("rfid_loading")
-    
-    def show_rfid_loading_album(self, album_name):
-        """Show RFID loading album screen"""
-        rfid_screen = self.screens.get("rfid_loading")
-        if rfid_screen:
-            rfid_screen.set_loading_album(album_name)
-            self.switch_to_screen("rfid_loading")
-    
-    def show_rfid_new_card(self, rfid_id):
-        """Show new RFID card detected screen"""
-        rfid_screen = self.screens.get("rfid_loading")
-        if rfid_screen:
-            rfid_screen.set_new_rfid(rfid_id)
-            self.switch_to_screen("rfid_loading")
-    
-    def show_rfid_error(self, error_message):
-        """Show RFID error screen"""
-        rfid_screen = self.screens.get("rfid_loading")
-        if rfid_screen:
-            rfid_screen.set_error(error_message)
-            self.switch_to_screen("rfid_loading")
-    
-    def return_to_home(self):
-        """Return to home screen"""
-        self.switch_to_screen("home")
-    
-    def show_idle_screen(self):
-        """Show idle/welcome screen"""
-        self.switch_to_screen("idle")
-    
-    def show_appropriate_screen(self):
+            print(f"🖥️  SCREEN CHANGE: {old_screen} → {self.current_screen.name}")
+        # No render here!
+
+    def show_appropriate_screen(self, context=None):
         """Show idle screen if no music or music is stopped, otherwise home screen"""
-        # Check if home screen has meaningful data and is actively playing
         home_screen = self.screens.get("home")
         if (home_screen and 
             home_screen.artist_name and 
@@ -648,26 +607,42 @@ class ScreenManager:
             home_screen.artist_name != "Unknown Artist" and
             home_screen.album_name != "Unknown Album" and
             home_screen.player_status in [PlayerStatus.PLAY, PlayerStatus.PAUSE]):
-            # Show home screen if we have real data and music is active (playing or paused)
             print("ScreenManager: Showing home screen - music is active")
             self.switch_to_screen("home")
         else:
-            # Show idle screen if no meaningful data or music is stopped/standby
             if home_screen and home_screen.player_status == PlayerStatus.STANDBY:
                 print("ScreenManager: Showing idle screen - music is stopped")
             else:
                 print("ScreenManager: Showing idle screen - no meaningful data")
             self.switch_to_screen("idle")
-    
-    def render(self):
-        """Render the current screen to the display"""
+        # Explicitly render after switching
+        self.render(context)
+
+    def show_rfid_loading_album(self, album_name, context=None):
+        """Show RFID loading album screen"""
+        rfid_screen = self.screens.get("rfid_loading")
+        if rfid_screen:
+            rfid_screen.set_loading_album(album_name)
+            self.switch_to_screen("rfid_loading")
+            self.render(context)
+
+    def show_rfid_error(self, error_message, context=None):
+        """Show RFID error screen"""
+        rfid_screen = self.screens.get("rfid_loading")
+        if rfid_screen:
+            rfid_screen.set_error(error_message)
+            self.switch_to_screen("rfid_loading")
+            self.render(context)
+
+    def render(self, context=None):
+        """Render the current screen to the display, passing UIContext"""
         if self.current_screen:
             # Create a new image for drawing
             image = Image.new('RGB', (self.display.device.width, self.display.device.height), 'white')
             draw = ImageDraw.Draw(image)
             
             # Draw the current screen
-            self.current_screen.draw(draw, self.fonts)
+            self.current_screen.draw(draw, self.fonts, context)
             
             # If this is the home screen and it has an album image, paste it
             if (hasattr(self.current_screen, 'album_image') and 

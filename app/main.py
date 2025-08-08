@@ -80,7 +80,9 @@ def startup_event():
     except Exception as e:
         print(f"Failed to sync with YouTube Music player on startup: {e}")
     
-    # Render the initial screen
+    # Show appropriate screen based on current state (idle if no music)
+    print("🚀 STARTUP: Calling show_appropriate_screen()")
+    screen_manager.show_appropriate_screen()
     screen_manager.render()
 
 
