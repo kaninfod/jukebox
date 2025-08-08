@@ -1,3 +1,8 @@
+#general
+
+._*
+
+
 # Python
 __pycache__/
 *.py[cod]
