@@ -1,3 +1,14 @@
+def get_ytmusic_entry_by_rfid(rfid: str):
+    """Get YTMusicModel entry from database by RFID"""
+    try:
+        db = SessionLocal()
+        try:
+            return db.query(YTMusicModel).filter(YTMusicModel.rfid == rfid).first()
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"Failed to get YTMusic entry for RFID {rfid}: {e}")
+        return None
 """
 Database operations for the jukebox.
 Handles YTMusic data loading and database interactions.
@@ -92,17 +103,17 @@ def load_ytmusic_data_to_screen(rfid: str, screen_manager):
                 track_title = tracks_data[0].get('title', 'No Track')
             
             # Update the home screen with album data
-            home_screen.set_track_info(
-                artist=entry.artist_name or "Unknown Artist",
-                album=entry.album_name or "Unknown Album", 
-                year=entry.year,
-                track=track_title,
-                image_url=entry.thumbnail,
-                yt_id=entry.yt_id
-            )
+            # home_screen.set_track_info(
+            #     artist=entry.artist_name or "Unknown Artist",
+            #     album=entry.album_name or "Unknown Album", 
+            #     year=entry.year,
+            #     track=track_title,
+            #     image_url=entry.thumbnail,
+            #     yt_id=entry.yt_id
+            # )
             
-            # Set player status to play (since we just loaded an album)
-            home_screen.set_player_status("play")
+            # # Set player status to play (since we just loaded an album)
+            # home_screen.set_player_status("play")
             
             artist_name = entry.artist_name or "Unknown Artist"
             album_name = entry.album_name or "Unknown Album"

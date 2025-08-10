@@ -1,3 +1,16 @@
+import logging
+logger = logging.getLogger(__name__)
+# Icon definitions for use throughout the app
+ICON_DEFINITIONS = [
+    {"name": "contactless", "path": "/home/pi/shared/jukebox/icons/contactless.png", "width": 80, "height": 80},
+    {"name": "library_music", "path": "/home/pi/shared/jukebox/icons/library_music.png", "width": 80, "height": 80},
+    {"name": "add_circle", "path": "/home/pi/shared/jukebox/icons/add_circle.png", "width": 80, "height": 80},
+    {"name": "error", "path": "/home/pi/shared/jukebox/icons/error.png", "width": 80, "height": 80},
+    {"name": "play_circle", "path": "/home/pi/shared/jukebox/icons/play_circle.png", "width": 80, "height": 80},
+    {"name": "pause_circle", "path": "/home/pi/shared/jukebox/icons/pause_circle.png", "width": 80, "height": 80},
+    {"name": "stop_circle", "path": "/home/pi/shared/jukebox/icons/stop_circle.png", "width": 80, "height": 80},
+    {"name": "standby_settings", "path": "/home/pi/shared/jukebox/icons/standby_settings.png", "width": 80, "height": 80},
+]
 """
 Configuration management for the jukebox application.
 Loads environment variables and provides centralized access to configuration settings.
@@ -10,6 +23,14 @@ from typing import Optional
 load_dotenv()
 
 class Config:
+    # Font configuration: name, path, size
+    FONT_DEFINITIONS = [
+        {"name": "title", "path": "/home/pi/shared/jukebox/fonts/opensans/OpenSans-Regular.ttf", "size": 20},
+        {"name": "info", "path": "/home/pi/shared/jukebox/fonts/opensans/OpenSans-Regular.ttf", "size": 18},
+        {"name": "small", "path": "/home/pi/shared/jukebox/fonts/opensans/OpenSans-Regular.ttf", "size": 12},
+        {"name": "symbols", "path": "/home/pi/shared/jukebox/fonts/symbolfont/symbolfont.ttf", "size": 24},
+        {"name": "mdi", "path": "/home/pi/shared/jukebox/fonts/mdi/MaterialSymbolsRounded.ttf", "size": 24}
+    ]
     """Central configuration class for the jukebox application"""
     
     # Home Assistant Configuration
@@ -75,10 +96,10 @@ class Config:
                 missing_vars.append(var)
         
         if missing_vars:
-            print(f"❌ Missing required environment variables: {', '.join(missing_vars)}")
+            logger.error(f"❌ Missing required environment variables: {', '.join(missing_vars)}")
             return False
         
-        print("✅ All required configuration variables are present")
+        logger.info("✅ All required configuration variables are present")
         return True
 
 # Create a global config instance

@@ -1,9 +1,12 @@
+
 from pirc522 import RFID
 import RPi.GPIO as GPIO
 import threading
 import time
 from app.config import config
+import logging
 
+logger = logging.getLogger(__name__)
 
 class RC522Reader:
     def __init__(self, cs_pin=7, on_new_uid=None, switch_pin=None, screen_manager=None):
@@ -16,7 +19,7 @@ class RC522Reader:
             switch_pin: GPIO pin for the card insertion switch (None for button-triggered mode)
             screen_manager: ScreenManager instance for showing loading feedback
         """
-        print("Initializing RC522 RFID Reader with switch-triggered reading...")
+        logger.info("Initializing RC522 RFID Reader with switch-triggered reading...")
         
         self.cs_pin = cs_pin
         self.on_new_uid = on_new_uid
@@ -34,17 +37,18 @@ class RC522Reader:
         try:
             self.rdr = RFID(bus=0, device=1, pin_mode=GPIO.BCM)
             self.initialized = True
-            print("RFID reader initialized successfully")
+            logger.info("RFID reader initialized successfully")
             
             # Set up switch pin if provided
             if self.switch_pin:
                 GPIO.setup(self.switch_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+                #TODO bouncetime should come from config
                 GPIO.add_event_detect(self.switch_pin, GPIO.FALLING, callback=self._on_switch_activated, bouncetime=200)
-                print(f"RFID switch monitoring started on GPIO {self.switch_pin}")
+                logger.info(f"RFID switch monitoring started on GPIO {self.switch_pin}")
                 
         except Exception as e:
-            print(f"Failed to initialize RFID reader: {e}")
-            print("Attempting to continue without RFID functionality...")
+            logger.error(f"Failed to initialize RFID reader: {e}")
+            logger.warning("Attempting to continue without RFID functionality...")
             self.initialized = False
     
     def _on_switch_activated(self, channel):
@@ -52,7 +56,7 @@ class RC522Reader:
         if not self.initialized or self.reading_active:
             return
         
-        print("🃏 Card insertion detected - starting RFID read...")
+        logger.info("🃏 Card insertion detected - starting RFID read...")
         
         # Show RFID reading screen if screen manager is available
         if self.screen_manager:
@@ -63,14 +67,14 @@ class RC522Reader:
     def start_reading(self):
         """Start RFID reading process with timeout"""
         if not self.initialized:
-            print("RFID reader not initialized, cannot start reading")
+            logger.error("RFID reader not initialized, cannot start reading")
             return False
             
         if self.reading_active:
-            print("RFID reading already in progress")
+            logger.warning("RFID reading already in progress")
             return False
         
-        print(f"Starting RFID read with {config.RFID_READ_TIMEOUT}s timeout...")
+        logger.info(f"Starting RFID read with {config.RFID_READ_TIMEOUT}s timeout...")
         self.reading_active = True
         self.stop_reading = False
         
@@ -95,7 +99,7 @@ class RC522Reader:
                     
                     if uid is not None:
                         # Successfully read tag
-                        print(f"✅ RFID read successful after {read_attempts} attempts: {uid}")
+                        logger.info(f"✅ RFID read successful after {read_attempts} attempts: {uid}")
                         
                         # Stop reading and call callback
                         self._stop_reading_internal()
@@ -105,7 +109,7 @@ class RC522Reader:
                         return
                     
                     # Small delay between attempts
-                    time.sleep(0.1)
+                    time.sleep(0.2)
                     
                 except Exception as e:
                     # Suppress common RFID communication errors (E1, E2, etc.)
@@ -119,8 +123,11 @@ class RC522Reader:
             
             # Show error screen if screen manager is available
             if self.screen_manager:
-                self.screen_manager.show_rfid_error("Card read timeout. Please try again.")
-            
+                self.screen_manager.show_rfid_screen({
+                    "status": "error",
+                    "error_message": "Card read timeout. Please try again."
+                })
+        
             self._stop_reading_internal()
             
         except Exception as e:
@@ -128,7 +135,10 @@ class RC522Reader:
             
             # Show error screen if screen manager is available
             if self.screen_manager:
-                self.screen_manager.show_rfid_error(f"Reading error: {str(e)}")
+                self.screen_manager.show_rfid_screen({
+                    "status": "error",
+                    "error_message": f"Reading error: {str(e)}"
+                })
             
             self._stop_reading_internal()
     

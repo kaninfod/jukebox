@@ -1,5 +1,5 @@
 import RPi.GPIO as GPIO
-GPIO.setwarnings(False)
+GPIO.setwarnings(True)
 GPIO.setmode(GPIO.BCM)
 
 from fastapi import FastAPI
@@ -11,6 +11,8 @@ from app.services.websocket_client import start_websocket_background, stop_webso
 from app.routes.system import router as system_router
 from app.ui.screens import ScreenManager
 from app.hardware import HardwareManager
+import logging
+
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -25,6 +27,18 @@ app.include_router(system_router)
 screen_manager = None
 hardware_manager = None
 display = None
+
+logging.basicConfig(
+    level=logging.DEBUG,  # or DEBUG for more verbosity
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        handlers=[
+        logging.StreamHandler(),                # Console
+        logging.FileHandler("jukebox.log")      # File
+    ]
+)
+# Suppress noisy logs from third-party libraries
+for lib in ["requests", "PIL", "urllib3", "websockets"]:
+    logging.getLogger(lib).setLevel(logging.WARNING)
 
 
 def get_screen_manager():
@@ -44,18 +58,18 @@ def startup_event():
     
     # Step 0: Validate configuration
     if not config.validate_config():
-        print("❌ Configuration validation failed. Please check your .env file.")
+        logging.error("❌ Configuration validation failed. Please check your .env file.")
         return
     
     # Step 1: Ensure display is powered on BEFORE any hardware initialization
     try:
-        print("🔋 Powering on display before hardware initialization...")
+        logging.info("🔋 Powering on display before hardware initialization...")
         # Set GPIO as output LOW to turn ON display (S8550 transistor)
         GPIO.setup(config.DISPLAY_POWER_GPIO, GPIO.OUT)
         GPIO.output(config.DISPLAY_POWER_GPIO, GPIO.LOW)
-        print("✅ Display powered on at startup (before hardware init)")
+        logging.info("✅ Display powered on at startup (before hardware init)")
     except Exception as e:
-        print(f"⚠️ Error controlling display power at startup: {e}")
+        logging.warning(f"⚠️ Error controlling display power at startup: {e}")
     
     # Step 2: Initialize hardware manager
     hardware_manager = HardwareManager(screen_manager)
@@ -71,19 +85,25 @@ def startup_event():
     
     # Start WebSocket connection to Home Assistant
     start_websocket_background()
-    print("Started WebSocket connection to Home Assistant")
+    logging.info("Started WebSocket connection to Home Assistant")
     
     # Sync with current YouTube Music player state
+    # try:
+    #     sync_result = sync_with_ytube_music_player()
+    #     logging.info(f"Initial sync with YouTube Music player: {sync_result.get('status', 'unknown')}")
+    # except Exception as e:
+    #     logging.error(f"Failed to sync with YouTube Music player on startup: {e}")
+            # Always sync with YouTube Music player before deciding which screen to show
     try:
-        sync_result = sync_with_ytube_music_player()
-        print(f"Initial sync with YouTube Music player: {sync_result.get('status', 'unknown')}")
+        context = sync_with_ytube_music_player()
     except Exception as e:
-        print(f"Failed to sync with YouTube Music player on startup: {e}")
-    
+        logging.error(f"Error syncing with YouTube Music player before screen selection: {e}")
+        
+        
     # Show appropriate screen based on current state (idle if no music)
-    print("🚀 STARTUP: Calling show_appropriate_screen()")
-    screen_manager.show_appropriate_screen()
-    screen_manager.render()
+    logging.info(f"🚀 STARTUP: Calling show_appropriate_screen with context: {context}")
+    screen_manager.show_appropriate_screen(context)
+    #screen_manager.render()
 
 
 @app.on_event("shutdown")
@@ -93,9 +113,9 @@ def shutdown_event():
     try:
         from app.routes.homeassistant import stop_websocket
         stop_websocket()
-        print("Stopped WebSocket connection to Home Assistant")
+        logging.info("Stopped WebSocket connection to Home Assistant")
     except Exception as e:
-        print(f"Error stopping WebSocket: {e}")
+        logging.error(f"Error stopping WebSocket: {e}")
     
     # Clean up hardware
     if hardware_manager:

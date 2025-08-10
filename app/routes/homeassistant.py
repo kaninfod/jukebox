@@ -133,42 +133,48 @@ def sync_with_ytube_music_player():
         else:
             media_year = ""  # Year not typically available from HA media player
         
-        # Map Home Assistant media player states to jukebox PlayerStatus enum values
-        state_mapping = {
-            "playing": "play",      # HA "playing" -> PlayerStatus.PLAY
-            "paused": "pause",      # HA "paused" -> PlayerStatus.PAUSE  
-            "idle": "standby",      # HA "idle" -> PlayerStatus.STANDBY
-            "off": "standby",       # HA "off" -> PlayerStatus.STANDBY
-            "unavailable": "standby" # HA "unavailable" -> PlayerStatus.STANDBY
-        }
-        
-        jukebox_state = state_mapping.get(state, "standby")
-        
-        # Update the display if screen manager is available
+
+        context = {
+                "artist": media_artist,
+                "album": media_album,
+                "year": media_year,
+                "track": media_title,
+                "image_url": media_image,
+                "yt_id": yt_id,
+                "volume": volume_percent,
+                "state": state
+            }
+
+        return context
         if screen_manager:
             home_screen = screen_manager.screens.get('home')
-            if home_screen:
-                print(f"Sync: Updating display with: {media_artist} - {media_title} ({media_album})")
-                # Update screen with current media info
-                home_screen.set_track_info(
-                    artist=media_artist,
-                    album=media_album,
-                    year=media_year,
-                    track=media_title,
-                    image_url=media_image,
-                    yt_id=yt_id
-                )
+            screen_manager.switch_to_screen("home")
+            screen_manager.render(context=context, force=True)
+
+        # if screen_manager:
+        #     home_screen = screen_manager.screens.get('home')
+        #     if home_screen:
+        #         print(f"Sync: Updating display with: {media_artist} - {media_title} ({media_album})")
+        #         # Update screen with current media info
+        #         home_screen.set_track_info(
+        #             artist=media_artist,
+        #             album=media_album,
+        #             year=media_year,
+        #             track=media_title,
+        #             image_url=media_image,
+        #             yt_id=yt_id
+        #         )
                 
-                # Update player status and volume on screen
-                home_screen.set_player_status(jukebox_state)
-                home_screen.volume = volume_percent
+        #         # Update player status and volume on screen
+        #         home_screen.set_player_status(jukebox_state)
+        #         home_screen.volume = volume_percent
                 
-                # Switch to home screen and render
-                screen_manager.switch_to_screen("home")
-                screen_manager.render()  # Force render
-                print(f"Sync: Display updated and rendered")
-            else:
-                print("Sync: No home screen found in screen manager")
+        #         # Switch to home screen and render
+        #         screen_manager.switch_to_screen("home")
+        #         screen_manager.render()  # Force render
+        #         print(f"Sync: Display updated and rendered")
+        #     else:
+        #         print("Sync: No home screen found in screen manager")
         else:
             print("Sync: No screen manager available")
         

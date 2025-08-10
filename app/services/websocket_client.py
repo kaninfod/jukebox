@@ -11,7 +11,8 @@ import threading
 import signal
 from typing import Any, Dict, Optional
 from app.config import config
-
+import logging
+logger = logging.getLogger(__name__)
 
 # WebSocket connection state
 websocket_connection = None
@@ -21,7 +22,7 @@ websocket_lock = threading.Lock()
 
 # Signal handler for graceful shutdown
 def _signal_handler(signum, frame):
-    print(f"WebSocket: Received signal {signum}, shutting down...")
+    logger.info(f"WebSocket: Received signal {signum}, shutting down...")
     stop_websocket()
 
 # Register signal handlers
@@ -50,12 +51,12 @@ async def handle_state_change(event_data: Dict[str, Any]) -> None:
         state = new_state.get("state", "idle")
         attributes = new_state.get("attributes", {})
         
-        print(f"WebSocket: Media player state changed to: {state}")
+        logger.info(f"WebSocket: Media player state changed to: {state}")
         
         # Extract media information from Home Assistant
-        media_title = attributes.get("media_title", "Unknown Track")
-        media_artist = attributes.get("media_artist", "Unknown Artist")
-        media_album = attributes.get("media_album_name", "Unknown Album")
+        media_title = attributes.get("media_title", "")
+        media_artist = attributes.get("media_artist", "")
+        media_album = attributes.get("media_album_name", "")
         media_image = attributes.get("entity_picture")
         media_id = attributes.get("_media_id", "")
         
@@ -66,90 +67,25 @@ async def handle_state_change(event_data: Dict[str, Any]) -> None:
         volume_level = attributes.get("volume_level", 0.75)
         volume_percent = int(volume_level * 100)
         
-        # Try to get additional data from database using yt_id
-        db_data = get_ytmusic_data_by_yt_id(yt_id) if yt_id else None
-        
-        # Use database data to fill in missing information, especially for album names
-        if db_data:
-            print(f"WebSocket: Found database entry for yt_id: {yt_id}")
-            
-            # Special handling for album name - YouTube Music HA integration rarely provides it
-            # Use database album name if:
-            # 1. HA doesn't provide album name, OR
-            # 2. HA provides generic "Unknown Album", OR  
-            # 3. Database has a more specific album name
-            if (not media_album or 
-                media_album == "Unknown Album" or 
-                (db_data.get("album_name") and db_data.get("album_name") != "Unknown Album")):
-                if db_data.get("album_name"):
-                    print(f"WebSocket: Using database album name: {db_data.get('album_name')} (HA provided: {media_album})")
-                    media_album = db_data.get("album_name")
-            
-            # Use database data for other fields if HA data is missing or generic
-            if not media_artist or media_artist == "Unknown Artist":
-                media_artist = db_data.get("artist_name") or media_artist
-            
-            # Always use database year and thumbnail if available (HA rarely provides these)
-            media_year = str(db_data.get("year", "")) if db_data.get("year") else ""
-            if db_data.get("thumbnail"):
-                media_image = db_data.get("thumbnail")
-            
-            # Keep the track title from HA since it's the current playing track
-        else:
-            media_year = ""
-        
-        # Map Home Assistant media player states to jukebox PlayerStatus enum values
-        state_mapping = {
-            "playing": "play",      # HA "playing" -> PlayerStatus.PLAY
-            "paused": "pause",      # HA "paused" -> PlayerStatus.PAUSE  
-            "idle": "standby",      # HA "idle" -> PlayerStatus.STANDBY
-            "off": "standby",       # HA "off" -> PlayerStatus.STANDBY
-            "unavailable": "standby", # HA "unavailable" -> PlayerStatus.STANDBY
-            "stopped": "standby"    # HA "stopped" -> PlayerStatus.STANDBY (explicit stop command)
-        }
-        
-        jukebox_state = state_mapping.get(state, "standby")
-        
         # Update the display if screen manager is available
         if screen_manager:
             home_screen = screen_manager.screens.get('home')
-            if home_screen:
-                print(f"WebSocket: Updating display with: {media_artist} - {media_title} ({media_album})")
-                # Update screen with current media info
-                home_screen.set_track_info(
-                    artist=media_artist,
-                    album=media_album,
-                    year=media_year,
-                    track=media_title,
-                    image_url=media_image,
-                    yt_id=yt_id
-                )
-                
-                # Update player status and volume on screen
-                home_screen.set_player_status(jukebox_state)
-                home_screen.volume = volume_percent
-                
-                # Smart screen switching based on player state and content
-                if jukebox_state == "standby":
-                    # Player is stopped/idle - show appropriate screen
-                    print(f"WebSocket: Player is in standby state, showing appropriate screen")
-                    screen_manager.show_appropriate_screen()
-                else:
-                    # Player is active (playing/paused) - show home screen
-                    print(f"WebSocket: Player is active ({jukebox_state}), showing home screen")
-                    screen_manager.switch_to_screen("home")
-                
-                screen_manager.render()  # Force render
-                print(f"WebSocket: Display updated and rendered")
-            else:
-                print("WebSocket: No home screen found in screen manager")
+            context = {
+                "artist": media_artist,
+                "album": media_album,
+                "year": "",
+                "track": media_title,
+                "image_url": media_image,
+                "yt_id": yt_id,
+                "volume": volume_percent,
+                "state": state
+            }
+            screen_manager.show_appropriate_screen(context)
+            logger.info(f"WS will update with context: {context}") 
         else:
-            print("WebSocket: No screen manager available")
-        
-        print(f"WebSocket: Updated jukebox with: {media_artist} - {media_title} ({media_album})")
-        
+            logger.warning("WebSocket: No screen manager available")
     except Exception as e:
-        print(f"WebSocket: Error handling state change: {e}")
+        logger.error(f"WebSocket: Error handling state change: {e}")
 
 
 async def websocket_client() -> None:
@@ -158,7 +94,7 @@ async def websocket_client() -> None:
     global websocket_connection, is_websocket_running
     while True:
         try:
-            print("WebSocket: Connecting to Home Assistant...")
+            logger.info("WebSocket: Connecting to Home Assistant...")
             async with websockets.connect(config.HA_WS_URL) as websocket:
                 with websocket_lock:
                     websocket_connection = websocket
@@ -166,7 +102,7 @@ async def websocket_client() -> None:
                 
                 # Step 1: Receive auth_required message
                 auth_required = await websocket.recv()
-                print(f"WebSocket: {auth_required}")
+                logger.debug(f"WebSocket: {auth_required}")
                 
                 # Step 2: Send authentication
                 auth_message = {
@@ -177,7 +113,7 @@ async def websocket_client() -> None:
                 
                 # Step 3: Receive auth_ok
                 auth_response = await websocket.recv()
-                print(f"WebSocket: {auth_response}")
+                logger.debug(f"WebSocket: {auth_response}")
                 
                 # Step 4: Subscribe to state_changed events for our entity
                 subscribe_message = {
@@ -189,15 +125,15 @@ async def websocket_client() -> None:
                 
                 # Step 5: Receive subscription confirmation
                 subscribe_response = await websocket.recv()
-                print(f"WebSocket: {subscribe_response}")
+                logger.debug(f"WebSocket: {subscribe_response}")
                 
-                print("WebSocket: Connected and subscribed to state changes")
+                logger.info("WebSocket: Connected and subscribed to state changes")
                 
                 # Step 6: Listen for events
                 async for message in websocket:
                     # Check if we should stop (for graceful shutdown)
                     if not is_websocket_running:
-                        print("WebSocket: Shutdown requested, stopping message loop")
+                        logger.info("WebSocket: Shutdown requested, stopping message loop")
                         break
                         
                     try:
@@ -211,20 +147,20 @@ async def websocket_client() -> None:
                             await handle_state_change(event_data)
                             
                     except json.JSONDecodeError:
-                        print(f"WebSocket: Invalid JSON received: {message}")
+                        logger.warning(f"WebSocket: Invalid JSON received: {message}")
                     except Exception as e:
-                        print(f"WebSocket: Error processing message: {e}")
+                        logger.error(f"WebSocket: Error processing message: {e}")
         
         except Exception as e:
-            print(f"WebSocket: Connection error: {e}")
-            print(f"WebSocket: Reconnecting in {backoff} seconds...")
+            logger.error(f"WebSocket: Connection error: {e}")
+            logger.info(f"WebSocket: Reconnecting in {backoff} seconds...")
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, max_backoff)
         finally:
             with websocket_lock:
                 is_websocket_running = False
                 websocket_connection = None
-            print("WebSocket: Disconnected")
+            logger.info("WebSocket: Disconnected")
         if not is_websocket_running:
             break
 
@@ -270,7 +206,7 @@ def websocket_status() -> Dict[str, Any]:
 def stop_websocket() -> Dict[str, str]:
     """Stop WebSocket connection"""
     global is_websocket_running, websocket_connection, websocket_task
-    print("Stopping WebSocket connection...")
+    logger.info("Stopping WebSocket connection...")
     with websocket_lock:
         is_websocket_running = False
         websocket_connection = None
