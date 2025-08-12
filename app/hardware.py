@@ -17,7 +17,9 @@ from app.routes.homeassistant import (
     play_pause_ytube_music_player,
     stop_ytube_music_player
 )
+from app.ui.screens.rfid_loading import RfidLoadingStatus
 import logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,10 +43,10 @@ class HardwareManager:
         # Initialize display
         self.display = ILI9488()
         
-        # Ensure display is powered on and backlight is enabled
-        logger.info("💡 Ensuring display power and backlight are on...")
-        self.display.power_on()
-        self.display.turn_on_backlight()
+        # # Ensure display is powered on and backlight is enabled
+        # logger.info("💡 Ensuring display power and backlight are on...")
+        # self.display.power_on()
+        # self.display.turn_on_backlight()
         
         # Initialize RFID reader with switch-triggered mode (temporarily using button4 as switch)
         # TODO: Replace with actual microswitch when hardware is ready
@@ -83,7 +85,7 @@ class HardwareManager:
             # Existing RFID with complete data - show loading album screen
             logger.info(f"Found existing RFID with complete data: {existing_entry.artist_name} - {existing_entry.album_name}")
             context = {
-                "status": "loading_album",
+                "status": RfidLoadingStatus.LOADING_ALBUM,
                 "album_name": f"{existing_entry.artist_name} - {existing_entry.album_name}"
             }
             self.screen_manager.show_rfid_screen(context)

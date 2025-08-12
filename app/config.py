@@ -28,8 +28,7 @@ class Config:
         {"name": "title", "path": "/home/pi/shared/jukebox/fonts/opensans/OpenSans-Regular.ttf", "size": 20},
         {"name": "info", "path": "/home/pi/shared/jukebox/fonts/opensans/OpenSans-Regular.ttf", "size": 18},
         {"name": "small", "path": "/home/pi/shared/jukebox/fonts/opensans/OpenSans-Regular.ttf", "size": 12},
-        {"name": "symbols", "path": "/home/pi/shared/jukebox/fonts/symbolfont/symbolfont.ttf", "size": 24},
-        {"name": "mdi", "path": "/home/pi/shared/jukebox/fonts/mdi/MaterialSymbolsRounded.ttf", "size": 24}
+        {"name": "symbols", "path": "/home/pi/shared/jukebox/fonts/symbolfont/symbolfont.ttf", "size": 24}
     ]
     """Central configuration class for the jukebox application"""
     

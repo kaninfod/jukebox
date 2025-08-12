@@ -3,25 +3,33 @@ GPIO.setwarnings(True)
 GPIO.setmode(GPIO.BCM)
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+
 from app.config import config
 from app.routes.ytmusic import router as ytmusic_router
 from app.routes.mediaplayer import router as mediaplayer_router
 from app.routes.homeassistant import router as homeassistant_router, sync_with_ytube_music_player
+from app.routes.pngs import router as pngs_router
 from app.services.websocket_client import start_websocket_background, stop_websocket
 from app.routes.system import router as system_router
 from app.ui.screens import ScreenManager
 from app.hardware import HardwareManager
-import logging
+import logging, os
 
 
 # Initialize FastAPI app
 app = FastAPI()
+
+
+# Mount static folder
+app.mount("/pngs-static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "..", "tests")), name="pngs-static")
 
 # Include routers
 app.include_router(ytmusic_router)
 app.include_router(mediaplayer_router)
 app.include_router(homeassistant_router)
 app.include_router(system_router)
+app.include_router(pngs_router, prefix="/pngs")
 
 # Initialize screen manager (will be populated when hardware is initialized)
 screen_manager = None
@@ -61,15 +69,15 @@ def startup_event():
         logging.error("❌ Configuration validation failed. Please check your .env file.")
         return
     
-    # Step 1: Ensure display is powered on BEFORE any hardware initialization
-    try:
-        logging.info("🔋 Powering on display before hardware initialization...")
-        # Set GPIO as output LOW to turn ON display (S8550 transistor)
-        GPIO.setup(config.DISPLAY_POWER_GPIO, GPIO.OUT)
-        GPIO.output(config.DISPLAY_POWER_GPIO, GPIO.LOW)
-        logging.info("✅ Display powered on at startup (before hardware init)")
-    except Exception as e:
-        logging.warning(f"⚠️ Error controlling display power at startup: {e}")
+    # # Step 1: Ensure display is powered on BEFORE any hardware initialization
+    # try:
+    #     logging.info("🔋 Powering on display before hardware initialization...")
+    #     # Set GPIO as output LOW to turn ON display (S8550 transistor)
+    #     GPIO.setup(config.DISPLAY_POWER_GPIO, GPIO.OUT)
+    #     GPIO.output(config.DISPLAY_POWER_GPIO, GPIO.LOW)
+    #     logging.info("✅ Display powered on at startup (before hardware init)")
+    # except Exception as e:
+    #     logging.warning(f"⚠️ Error controlling display power at startup: {e}")
     
     # Step 2: Initialize hardware manager
     hardware_manager = HardwareManager(screen_manager)
