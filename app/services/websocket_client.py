@@ -12,6 +12,8 @@ import signal
 from typing import Any, Dict, Optional
 from app.config import config
 import logging
+import asyncio
+from app.services.jukebox_mediaplayer import JukeboxMediaPlayer, PlayerStatus
 logger = logging.getLogger(__name__)
 
 # WebSocket connection state
@@ -30,60 +32,68 @@ signal.signal(signal.SIGINT, _signal_handler)
 signal.signal(signal.SIGTERM, _signal_handler)
 
 
-async def handle_state_change(event_data: Dict[str, Any]) -> None:
-    """Handle state change events from Home Assistant WebSocket"""
+_advance_task = None  # Debounce task for advancing track
+
+async def _debounced_advance_next_track():
+    await asyncio.sleep(1)  # 1 second debounce
     try:
-        from app.main import get_screen_manager
-        from app.database import get_ytmusic_data_by_yt_id
-        
-        # Get screen manager
-        screen_manager = get_screen_manager()
-        
+        from app.main import playback_manager
+        if playback_manager and playback_manager.player:
+            playback_manager.player.next_track()
+            logger.info("Advanced to next track after debounce.")
+    except Exception as e:
+        logger.warning(f"Debounced advance failed: {e}")
+
+async def handle_state_change(event_data: Dict[str, Any]) -> None:
+    """Handle state change events from Home Assistant WebSocket (only state changes)."""
+    try:
         # Check if this is the media player we're interested in
         entity_id = event_data.get("entity_id")
-        # Allow dynamic entity ID via config or runtime override
         media_player_entity_id = getattr(config, "MEDIA_PLAYER_ENTITY_ID", None)
-        # If you want to support runtime override, you could use a global or context variable here
         if entity_id != media_player_entity_id:
             return
-            
+
         new_state = event_data.get("new_state", {})
+        old_state = event_data.get("old_state", {})
         state = new_state.get("state", "idle")
-        attributes = new_state.get("attributes", {})
-        
+        old_status = old_state.get("state", None)
+
+        # Only act if the state value actually changed
+        if state == old_status:
+            return
+
         logger.info(f"WebSocket: Media player state changed to: {state}")
-        
-        # Extract media information from Home Assistant
-        media_title = attributes.get("media_title", "")
-        media_artist = attributes.get("media_artist", "")
-        media_album = attributes.get("media_album_name", "")
-        media_image = attributes.get("entity_picture")
-        media_id = attributes.get("_media_id", "")
-        
-        # Extract YouTube ID
-        yt_id = media_id if media_id else ""
-        
-        # Extract volume and convert to percentage
-        volume_level = attributes.get("volume_level", 0.75)
-        volume_percent = int(volume_level * 100)
-        
-        # Update the display if screen manager is available
-        if screen_manager:
-            home_screen = screen_manager.screens.get('home')
-            context = {
-                "artist": media_artist,
-                "album": media_album,
-                "year": "",
-                "track": media_title,
-                "image_url": media_image,
-                "yt_id": yt_id,
-                "volume": volume_percent,
-                "state": state
-            }
-            screen_manager.show_appropriate_screen(context)
-            logger.info(f"WS will update with context: {context}") 
-        else:
-            logger.warning("WebSocket: No screen manager available")
+
+        # Map HA state to PlayerStatus enum
+        status_map = {
+            "playing": PlayerStatus.PLAY,
+            "paused": PlayerStatus.PAUSE,
+            "idle": PlayerStatus.STOP,
+            "unavailable": PlayerStatus.STANDBY,
+            "off": PlayerStatus.OFF
+        }
+        player_status = status_map.get(state, PlayerStatus.STOP)
+
+        # Update the JukeboxMediaPlayer status using the global playback_manager
+        global _advance_task
+        try:
+            from app.main import playback_manager
+            if playback_manager and playback_manager.player:
+                playback_manager.player.status = player_status
+                logger.info(f"Updated JukeboxMediaPlayer status to {player_status.value}")
+                # Debounced advance to next track if state changed from playing to idle
+                if old_status == "playing" and state == "idle":
+                    # Cancel any previous debounce
+                    if _advance_task and not _advance_task.done():
+                        _advance_task.cancel()
+                    loop = asyncio.get_event_loop()
+                    _advance_task = loop.create_task(_debounced_advance_next_track())
+                elif state == "playing":
+                    # Cancel debounce if playback resumes
+                    if _advance_task and not _advance_task.done():
+                        _advance_task.cancel()
+        except Exception as e:
+            logger.warning(f"Could not update JukeboxMediaPlayer status: {e}")
     except Exception as e:
         logger.error(f"WebSocket: Error handling state change: {e}")
 

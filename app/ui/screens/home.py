@@ -1,17 +1,11 @@
 import logging
+from app.services import jukebox_mediaplayer
 from app.ui.theme import UITheme as theme
 from app.ui.screens.base import Screen
 from enum import Enum
+from app.services.jukebox_mediaplayer import PlayerStatus
 
 logger = logging.getLogger(__name__)
-
-
-class PlayerStatus(Enum):
-    PLAY = "playing"
-    PAUSE = "paused"
-    STOP = "idle"
-    STANDBY = "unavailable"
-    OFF = "off"
 
 import requests
 from PIL import Image, ImageDraw, ImageFont
@@ -33,30 +27,45 @@ class HomeScreen(Screen):
         self.album_image = None
         self.context = {}
         self.dirty = True
+        self.jukebox_mediaplayer = None
 
     def set_volume(self, volume):
         """Set volume (0-100)"""
         self.volume = max(0, min(100, volume))
         self.dirty = True
 
-    # def set_player_status(self, status):
-    #     """Set player status"""
-    #     if isinstance(status, PlayerStatus):
-    #         self.player_status = status
-    #     else:
-    #         # Convert string to enum
-    #         try:
-    #             self.player_status = PlayerStatus(status)
-    #         except ValueError:
-    #             self.player_status = PlayerStatus.STANDBY
-    #     self.dirty = True
-
     def draw(self, draw_context, fonts, context=None, image=None):
         if not self.dirty:
             logger.debug("HomeScreen is not dirty, skipping draw.")
             return {"dirty": self.dirty}
 
-        self._set_context(context)
+
+        self.jukebox_mediaplayer = context
+
+        # Fetch all state from the player
+        if self.jukebox_mediaplayer is not None:
+            self.artist_name = self.jukebox_mediaplayer.artist
+            self.track_title = self.jukebox_mediaplayer.title
+            self.album_image_url = self.jukebox_mediaplayer.image_url
+            self.volume = self.jukebox_mediaplayer.current_volume
+            self.album_name = self.jukebox_mediaplayer.album
+            self.album_year = self.jukebox_mediaplayer.year
+            try:
+                self.player_status = self.jukebox_mediaplayer.status
+            except (ValueError, TypeError, KeyError):
+                self.player_status = PlayerStatus.STANDBY
+        else:
+            # self.yt_id = ""
+            self.artist_name = "Unknown Artist"
+            self.track_title = "No Track"
+            self.album_image_url = None
+            self.volume = 0
+            self.player_status = PlayerStatus.STANDBY
+            self.album_name = "Unknown Album"
+            self.album_year = "----"
+
+
+        logger.debug(f"Drawing HomeScreen with status: {self.player_status}, volume: {self.volume}, artist: {self.artist_name}, album: {self.album_name}, year: {self.album_year}, track: {self.track_title}, image: {self.album_image_url}")
         self._draw_background(draw_context)
         self._draw_screen_title(draw_context, fonts)
         self._draw_album_image(draw_context, image)
@@ -66,34 +75,15 @@ class HomeScreen(Screen):
         self._draw_volume_bar(draw_context, fonts)
         self._draw_status_icon(draw_context, fonts, image)
         self.dirty = False
-        return {"dirty": self.dirty, "context": self.context}
+        return {"dirty": self.dirty}
 
-    def is_dirty(self, context):
-        # Check if the new context is different from the last drawn context
-        self.dirty = context != self.context
-        logger.debug(f"Checking if HomeScreen is dirty with new context: {self.dirty}")
+    def is_dirty(self):
+        # Always redraw on event for now; can be optimized if needed
+        logger.debug("HomeScreen is_dirty called; returning True for event-driven redraw.")
+        self.dirty = True
         return self.dirty
     
-    def _set_context(self, context):
-        self.context = context or {}
-        self.yt_id = context.get("yt_id", "")
-        
-        db_data = self._get_album_name_from_db(self.yt_id)
-        if db_data:
-            self.album_name = db_data.get("album_name", "Unknown Album")
-            self.album_year = db_data.get("year", "")
-            logger.debug(f"Set album name from DB: {self.album_name}, year: {self.album_year}")
-
-        self.artist_name = context.get("artist", "")
-        self.track_title = context.get("track", "")
-        self.album_image_url = context.get("image_url", "")
-        
-        self.volume = context.get("volume", 0)
-        state_value = context.get("state")
-        try:
-            self.player_status = PlayerStatus(state_value)
-        except (ValueError, TypeError, KeyError):
-            self.player_status = PlayerStatus.STANDBY
+    # _set_context is no longer needed; all state is fetched from the player
 
     def _draw_background(self, draw_context):
         draw_context.rectangle([0, 0, self.width, self.height], fill=self.theme.colors["background"])
@@ -108,7 +98,7 @@ class HomeScreen(Screen):
         image_size = 120
         self._load_album_image()
    
-        if self.album_image is not None:
+        if self.album_image is not None and image is not None:
             try:
                 draw_context.rectangle([image_x, image_y, image_x + image_size, image_y + image_size], outline=self.theme.colors["highlight"], fill=None)
                 draw_context.text((image_x + 30, image_y + 55), "LOADED", fill=self.theme.colors["highlight"])
@@ -194,19 +184,15 @@ class HomeScreen(Screen):
         logger.debug(f"Current player status icon: {icon_name}")
         icon_def = next((icon for icon in ICON_DEFINITIONS if icon["name"] == icon_name), None)
 
-        if icon_def:    
+        if icon_def:
             try:
                 icon_img = ScreenManager.get_icon_png(icon_def["path"])
             except Exception as e:
                 logger.error(f"Failed to load icon PNG: {e}")
-        if icon_img:
+        if icon_img and image is not None:
             # Resize icon to fit specified size
             icon_img = icon_img.resize((status_icon_size, status_icon_size), resample=Image.LANCZOS)
-            if image is not None:
-                image.paste(icon_img, (status_x, status_y), icon_img)
-            else:
-                # Fallback: try draw.im.paste for custom draw wrappers
-                draw_context.im.paste(icon_img, (status_x, status_y), icon_img)
+            image.paste(icon_img, (status_x, status_y), icon_img)
         else:
             # Fallback: draw a circle and a question mark
             draw_context.ellipse([status_x, status_y, status_x + status_icon_size, status_y + status_icon_size], fill="gray", outline="black", width=2)

@@ -1,3 +1,80 @@
+from sqlalchemy.orm import Session
+from app.models.ytmusic import YTMusicModel, Base
+from app.config import config
+import json
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+# Database setup
+SQLALCHEMY_DATABASE_URL = config.get_database_url()
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def create_ytmusic_entry(rfid: str):
+    """Create a new YTMusicModel entry with only RFID."""
+    try:
+        db = SessionLocal()
+        try:
+            Base.metadata.create_all(bind=engine)
+            existing_entry = db.query(YTMusicModel).filter(YTMusicModel.rfid == rfid).first()
+            if existing_entry:
+                return {"status": "RFID already exists", "rfid": rfid}
+            db_entry = YTMusicModel(
+                rfid=rfid,
+                album_name=None,
+                artist_name=None,
+                year=None,
+                yt_id=None,
+                thumbnail=None,
+                tracks=None
+            )
+            db.add(db_entry)
+            db.commit()
+            return {"status": "RFID created", "rfid": rfid}
+        finally:
+            db.close()
+    except Exception as e:
+        return {"status": "Database unavailable", "rfid": rfid, "message": f"RFID detected but not saved: {e}"}
+
+def list_ytmusic_entries():
+    db = SessionLocal()
+    try:
+        return db.query(YTMusicModel).all()
+    finally:
+        db.close()
+
+def get_ytmusic_entry_by_rfid(rfid: str):
+    db = SessionLocal()
+    try:
+        return db.query(YTMusicModel).filter(YTMusicModel.rfid == rfid).first()
+    finally:
+        db.close()
+
+def update_ytmusic_entry(rfid: str, album_data: dict):
+    db = SessionLocal()
+    try:
+        db_entry = db.query(YTMusicModel).filter(YTMusicModel.rfid == rfid).first()
+        if not db_entry:
+            return None
+        for key, value in album_data.items():
+            setattr(db_entry, key, value)
+        db.commit()
+        db.refresh(db_entry)
+        return db_entry
+    finally:
+        db.close()
+
+def delete_ytmusic_entry(rfid: str):
+    db = SessionLocal()
+    try:
+        db_entry = db.query(YTMusicModel).filter(YTMusicModel.rfid == rfid).first()
+        if not db_entry:
+            return False
+        db.delete(db_entry)
+        db.commit()
+        return True
+    finally:
+        db.close()
 def get_ytmusic_entry_by_rfid(rfid: str):
     """Get YTMusicModel entry from database by RFID"""
     try:

@@ -11,6 +11,8 @@ from app.routes.mediaplayer import router as mediaplayer_router
 from app.routes.homeassistant import router as homeassistant_router, sync_with_ytube_music_player
 from app.routes.pngs import router as pngs_router
 from app.services.websocket_client import start_websocket_background, stop_websocket
+from app.services.playback_manager import PlaybackManager
+from app.services.jukebox_mediaplayer import JukeboxMediaPlayer
 from app.routes.system import router as system_router
 from app.ui.screens import ScreenManager
 from app.hardware import HardwareManager
@@ -31,10 +33,13 @@ app.include_router(homeassistant_router)
 app.include_router(system_router)
 app.include_router(pngs_router, prefix="/pngs")
 
-# Initialize screen manager (will be populated when hardware is initialized)
+
+# Global instances for shared access
 screen_manager = None
 hardware_manager = None
 display = None
+playback_manager = None
+jukebox_mediaplayer = None
 
 logging.basicConfig(
     level=logging.DEBUG,  # or DEBUG for more verbosity
@@ -62,7 +67,7 @@ def get_hardware_manager():
 @app.on_event("startup")
 def startup_event():
     """Initialize all systems on startup"""
-    global screen_manager, hardware_manager, display
+    global screen_manager, hardware_manager, display, playback_manager, jukebox_mediaplayer
     
     # Step 0: Validate configuration
     if not config.validate_config():
@@ -79,17 +84,31 @@ def startup_event():
     # except Exception as e:
     #     logging.warning(f"⚠️ Error controlling display power at startup: {e}")
     
+
     # Step 2: Initialize hardware manager
     hardware_manager = HardwareManager(screen_manager)
-    
+
     # Step 3: Initialize display hardware
     display = hardware_manager.initialize_hardware()
-    
+
     # Step 4: Initialize screen manager with display
     screen_manager = ScreenManager(display)
-    
-    # Step 5: Update hardware manager with screen manager
+
+    # Step 5: Initialize global PlaybackManager and JukeboxMediaPlayer
+    playback_manager = PlaybackManager(screen_manager=screen_manager)
+    jukebox_mediaplayer = playback_manager.player  # Will be set after load_rfid
+
+    # Step 6: Update hardware manager with screen manager and playback manager
     hardware_manager.screen_manager = screen_manager
+    hardware_manager.playback_manager = playback_manager
+
+    # Register screen manager as a listener to the jukebox mediaplayer for event-driven UI updates
+    if jukebox_mediaplayer and screen_manager:
+        try:
+            screen_manager.register_player(jukebox_mediaplayer)
+            logging.info("ScreenManager registered as listener to JukeboxMediaPlayer.")
+        except Exception as e:
+            logging.warning(f"Failed to register screen manager as player listener: {e}")
     
     # Start WebSocket connection to Home Assistant
     start_websocket_background()
@@ -109,8 +128,8 @@ def startup_event():
         
         
     # Show appropriate screen based on current state (idle if no music)
-    logging.info(f"🚀 STARTUP: Calling show_appropriate_screen with context: {context}")
-    screen_manager.show_appropriate_screen(context)
+    logging.info(f"🚀 STARTUP: Calling show_appropriate_screen")
+    screen_manager.show_appropriate_screen()
     #screen_manager.render()
 
 

@@ -5,7 +5,7 @@ class Screen:
         self.name = "Base Screen"
         self.dirty = True
 
-    def draw(self, draw_context, fonts, context=None, image=None):
+    def draw(self, draw_context, fonts, jukebox_mediaplayer=None):
         pass
 
     def is_dirty(self, context):

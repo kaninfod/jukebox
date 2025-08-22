@@ -14,8 +14,8 @@ class ILI9488:
         # Note: The backlight turns OFF during device initialization and the 
         # device.backlight() method doesn't seem to work with our hardware setup
         self.serial = spi(port=0, device=0, gpio_CS=8, gpio_DC=23, gpio_RST=24, bus_speed_hz=32000000)
-        self.device = ili9488(self.serial, rotate=0, gpio_LIGHT=config.DISPLAY_BACKLIGHT_GPIO, active_low=False)
-        
+        self.device = ili9488(self.serial, rotate=2, gpio_LIGHT=config.DISPLAY_BACKLIGHT_GPIO, active_low=False)
+        self.canvas = canvas(self.device)
         # Try to turn backlight on, but this may not work with our hardware
         try:
             logger.info("Attempting to draw to display")

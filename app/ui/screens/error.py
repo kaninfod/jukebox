@@ -2,17 +2,15 @@ from app.ui.theme import UITheme
 from app.ui.screens.base import Screen
 
 class ErrorScreen(Screen):
-    def __init__(self, theme, width=480, height=320, error_message=""):
-        super().__init__(width, height)
+    def __init__(self, theme):
+        super().__init__()
         self.theme = theme
         self.name = "Error"
-        self.error_message = error_message
-
-    def set_error(self, error_message):
-        self.error_message = error_message
-        self.dirty = True
+        self.error_message = ""
 
     def draw(self, draw_context, fonts, context=None, image=None):
+        if context:
+            self.error_message = context.get("error_message", "Unknown error occurred")
         draw_context.rectangle([0, 0, self.width, self.height], fill=self.theme.colors["error"])
         error_font = self.theme.fonts["title"]
         text_bbox = draw_context.textbbox((0, 0), self.error_message, font=error_font)

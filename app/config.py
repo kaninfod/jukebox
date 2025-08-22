@@ -9,7 +9,7 @@ ICON_DEFINITIONS = [
     {"name": "play_circle", "path": "/home/pi/shared/jukebox/icons/play_circle.png", "width": 80, "height": 80},
     {"name": "pause_circle", "path": "/home/pi/shared/jukebox/icons/pause_circle.png", "width": 80, "height": 80},
     {"name": "stop_circle", "path": "/home/pi/shared/jukebox/icons/stop_circle.png", "width": 80, "height": 80},
-    {"name": "standby_settings", "path": "/home/pi/shared/jukebox/icons/standby_settings.png", "width": 80, "height": 80},
+    {"name": "standby_settings", "path": "/home/pi/shared/jukebox/icons/power_settings.png", "width": 80, "height": 80},
 ]
 """
 Configuration management for the jukebox application.
@@ -23,6 +23,9 @@ from typing import Optional
 load_dotenv()
 
 class Config:
+    # YouTube Music API Credentials
+    YTMUSIC_CLIENT_ID: str = os.getenv("YTMUSIC_CLIENT_ID", "194320065459-49q3ijtt8auu3oafbqu0bo9ajr9er40b.apps.googleusercontent.com")
+    YTMUSIC_CLIENT_SECRET: str = os.getenv("YTMUSIC_CLIENT_SECRET", "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")
     # Font configuration: name, path, size
     FONT_DEFINITIONS = [
         {"name": "title", "path": "/home/pi/shared/jukebox/fonts/opensans/OpenSans-Regular.ttf", "size": 20},
@@ -55,8 +58,8 @@ class Config:
     ROTARY_ENCODER_PIN_A: int = int(os.getenv("ROTARY_ENCODER_PIN_A", "6"))
     ROTARY_ENCODER_PIN_B: int = int(os.getenv("ROTARY_ENCODER_PIN_B", "5"))
     RFID_CS_PIN: int = int(os.getenv("RFID_CS_PIN", "7"))
-    NFC_CARD_SWITCH_GPIO: int = int(os.getenv("NFC_CARD_SWITCH_GPIO", "21"))
-    BUTTON_0_GPIO: int = int(os.getenv("BUTTON_0_GPIO", "26"))
+    NFC_CARD_SWITCH_GPIO: int = int(os.getenv("NFC_CARD_SWITCH_GPIO", "26"))
+    #BUTTON_0_GPIO: int = int(os.getenv("BUTTON_0_GPIO", "26"))
     BUTTON_1_GPIO: int = int(os.getenv("BUTTON_1_GPIO", "14"))
     BUTTON_2_GPIO: int = int(os.getenv("BUTTON_2_GPIO", "15"))
     BUTTON_3_GPIO: int = int(os.getenv("BUTTON_3_GPIO", "12"))
@@ -70,7 +73,7 @@ class Config:
     BUTTON_BOUNCETIME: int = int(os.getenv("BUTTON_BOUNCETIME", "200"))
     
     # Media Player Configuration
-    MEDIA_PLAYER_ENTITY_ID: str = os.getenv("MEDIA_PLAYER_ENTITY_ID", "media_player.ytube_music_player")
+    MEDIA_PLAYER_ENTITY_ID: str = os.getenv("MEDIA_PLAYER_ENTITY_ID", "media_player.living_room")
     
     # Application Settings
     DEBUG_MODE: bool = os.getenv("DEBUG_MODE", "false").lower() == "true"
