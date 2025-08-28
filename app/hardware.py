@@ -4,30 +4,19 @@ Hardware management module for the jukebox.
 Handles initialization and callbacks for all hardware devices.
 """
 import RPi.GPIO as GPIO
-import time
-import threading
 from app.config import config
 from app.devices.ili9488 import ILI9488
 from app.devices.rfid import RC522Reader
 from app.devices.pushbutton import PushButton
 from app.devices.rotaryencoder import RotaryEncoder
-from app.routes.homeassistant import (
-    next_track_on_ytube_music_player, 
-    previous_track_on_ytube_music_player,
-    play_pause_ytube_music_player,
-    stop_ytube_music_player
-)
-from app.ui.screens.rfid_loading import RfidStatus
-
 import logging
 
 logger = logging.getLogger(__name__)
 
-
 class HardwareManager:
     """Manages all hardware devices and their interactions"""
     
-    def __init__(self, screen_manager):
+    def __init__(self, screen_manager=None):
         self.screen_manager = screen_manager
         self.playback_manager = None
         self.display = None
@@ -39,6 +28,7 @@ class HardwareManager:
         self.button3 = None
         self.button4 = None
         self.button5 = None
+        logger.info("HardwareManager initialized")
 
     def initialize_hardware(self):
         """Initialize all hardware devices"""
@@ -65,9 +55,7 @@ class HardwareManager:
         self.button1 = PushButton(config.BUTTON_1_GPIO, callback=self._on_button1_press, bouncetime=config.BUTTON_BOUNCETIME)
         self.button2 = PushButton(config.BUTTON_2_GPIO, callback=self._on_button2_press, bouncetime=config.BUTTON_BOUNCETIME)
         self.button3 = PushButton(config.BUTTON_3_GPIO, callback=self._on_button3_press, bouncetime=config.BUTTON_BOUNCETIME)
-        # Button4 is temporarily used as NFC card switch, so not initializing as regular button
         # self.button4 = PushButton(config.BUTTON_4_GPIO, callback=self._on_button4_press, bouncetime=config.BUTTON_BOUNCETIME)
-
         self.button5 = PushButton(config.BUTTON_5_GPIO, callback=self._on_button5_press, bouncetime=config.BUTTON_BOUNCETIME)
 
         return self.display
@@ -79,25 +67,25 @@ class HardwareManager:
             return
         logger.info("🃏 Card insertion detected - starting RFID read...")
         # Show RFID reading screen if screen manager is available
-        if self.screen_manager:
-            self.screen_manager.show_rfid_reading_screen()
+        from app.ui.screens.rfid_loading import RfidReadingScreen
+        RfidReadingScreen.show()
         # Start reading and handle result in callback
         def rfid_result_callback(result):
             # Called from RFID reader thread when done
             _callback_result_status = result.get('status')
             logger.info(f"RFID read result: {_callback_result_status}")
-            if not self.screen_manager:
-                return
             if _callback_result_status == "success":
                 # Let the normal new UID handler take over (already called by RC522Reader)
                 pass
             elif _callback_result_status == "timeout":
-                self.screen_manager.show_error_screen({
+                from app.ui.screens.error import ErrorScreen
+                ErrorScreen.show({
                     "status": "error",
                     "error_message": result.get("error_message", "Card read timeout.")
                 })
             elif _callback_result_status == "error":
-                self.screen_manager.show_rfid_error_screen({
+                from app.ui.screens.rfid_loading import RfidErrorScreen
+                RfidErrorScreen.show({
                     "status": "error",
                     "error_message": result.get("error_message", "RFID error.")
                 })
@@ -107,8 +95,8 @@ class HardwareManager:
     def _handle_new_uid(self, uid):
         try:
             from app.main import playback_manager
+            logger.info(f"New RFID UID sent to playback_manager: {uid}")
             result = playback_manager.load_rfid(rfid=uid)
-
         except Exception as e:
             logger.error(f"Failed to call playback manager: {e}")
             return
@@ -116,39 +104,47 @@ class HardwareManager:
     def _on_button0_press(self):
         """Handle button 0 press - Generic button"""
         logger.info("Button 0 was pressed!")
+        from app.ui.event_bus import ui_event_bus, UIEvent
+        ui_event_bus.emit(UIEvent(type="button_pressed", payload={"button": 0, "action": "generic"}))
     
     def _on_button1_press(self):
         """Handle button 1 press - Previous track"""
-        result = self.playback_manager.player.previous_track()
-        logger.info(f"Previous track: {result}")
+        from app.ui.event_bus import ui_event_bus, UIEvent
+        ui_event_bus.emit(UIEvent(type="button_pressed", payload={"button": 1, "action": "previous_track"}))
 
     def _on_button2_press(self):
         """Handle button 2 press - Play/Pause"""
-        result = self.playback_manager.player.play_pause()
-        logger.info(f"Play/Pause: {result}")
-    
+        from app.ui.event_bus import ui_event_bus, UIEvent
+        ui_event_bus.emit(UIEvent(type="button_pressed", payload={"button": 2, "action": "play_pause"}))
+
     def _on_button3_press(self):
         """Handle button 3 press - Next track"""
-        result = self.playback_manager.player.next_track()
-        logger.info(f"Next track: {result}")
+        from app.ui.event_bus import ui_event_bus, UIEvent
+        ui_event_bus.emit(UIEvent(type="button_pressed", payload={"button": 3, "action": "next_track"}))
     
     def _on_button4_press(self):
         """Handle button 4 press - TEMPORARILY DISABLED (used as NFC card switch)"""
         logger.info("Button 4 press detected")
+        from app.ui.event_bus import ui_event_bus, UIEvent
+        ui_event_bus.emit(UIEvent(type="button_pressed", payload={"button": 4, "action": "nfc_switch"}))
     
     def _on_button5_press(self):
         """Handle button 5 press - Rotary encoder button"""
         logger.info("Rotary encoder button was pressed!")
-        #self.screen_manager.next_screen()
-    
+        from app.ui.event_bus import ui_event_bus, UIEvent
+        ui_event_bus.emit(UIEvent(type="clear_error", payload={"button": "rotary_encoder"}))
+
     def _on_rotate(self, direction, position):
         """Handle rotary encoder rotation"""
         #logger.debug(f"Rotary encoder moved to {position}, direction: {'CW' if direction > 0 else 'CCW'}")
+        from app.ui.event_bus import ui_event_bus, UIEvent
+        
         if direction > 0:
-            self.playback_manager.player.volume_up()
+            ui_event_bus.emit(UIEvent(type="RotaryEncoder", payload={"direction": "CW", "action": "volume_up"}))
         else:
-            self.playback_manager.player.volume_down()
-    
+            ui_event_bus.emit(UIEvent(type="RotaryEncoder", payload={"direction": "CCW", "action": "volume_down"}))
+
+
     def cleanup(self):
         """Clean up GPIO resources"""
         # Clean up individual devices first (while GPIO mode is still set)               

@@ -12,6 +12,13 @@ from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 
 class HomeScreen(Screen):
+    @staticmethod
+    def show():
+        """Emit an event to show the home screen via the event bus."""
+        from app.ui.event_bus import ui_event_bus, UIEvent
+        ui_event_bus.emit(UIEvent(type="show_home"))
+        logger.info("UIEventBus: Emitted show_home event from HomeScreen.show()")
+
     def __init__(self, theme):
         super().__init__()
         self.theme = theme
@@ -40,30 +47,24 @@ class HomeScreen(Screen):
             return {"dirty": self.dirty}
 
 
-        self.jukebox_mediaplayer = context
+        self.context = context
 
-        # Fetch all state from the player
-        if self.jukebox_mediaplayer is not None:
-            self.artist_name = self.jukebox_mediaplayer.artist
-            self.track_title = self.jukebox_mediaplayer.title
-            self.album_image_url = self.jukebox_mediaplayer.image_url
-            self.volume = self.jukebox_mediaplayer.current_volume
-            self.album_name = self.jukebox_mediaplayer.album
-            self.album_year = self.jukebox_mediaplayer.year
+        # Extract state from unified context dict, supporting nested 'current_track'
+        if self.context is not None:
+            track = self.context.get('current_track', {})
+            self.artist_name = track.get('artist') or self.context.get('artist', 'Unknown Artist')
+            self.track_title = track.get('title') or self.context.get('title', 'No Track')
+            # Prefer album_cover_filename from context (cached filename from DB)
+            self.album_image_url = self.context.get('album_cover_filename')
+            self.volume = self.context.get('volume', 0)
+            self.album_name = track.get('album') or self.context.get('album', 'Unknown Album')
+            self.album_year = track.get('year') or self.context.get('year', '----')
+            status_str = self.context.get('status', PlayerStatus.STANDBY.value)
             try:
-                self.player_status = self.jukebox_mediaplayer.status
-            except (ValueError, TypeError, KeyError):
+                self.player_status = PlayerStatus(status_str)
+            except ValueError:
                 self.player_status = PlayerStatus.STANDBY
-        else:
-            # self.yt_id = ""
-            self.artist_name = "Unknown Artist"
-            self.track_title = "No Track"
-            self.album_image_url = None
-            self.volume = 0
-            self.player_status = PlayerStatus.STANDBY
-            self.album_name = "Unknown Album"
-            self.album_year = "----"
-
+            logger.debug(f"Context data: artist={self.artist_name}, album={self.album_name}, year={self.album_year}, track={self.track_title}, volume={self.volume}, status={self.player_status}, image_url={self.album_image_url}")
 
         logger.debug(f"Drawing HomeScreen with status: {self.player_status}, volume: {self.volume}, artist: {self.artist_name}, album: {self.album_name}, year: {self.album_year}, track: {self.track_title}, image: {self.album_image_url}")
         self._draw_background(draw_context)
@@ -171,7 +172,7 @@ class HomeScreen(Screen):
         volume_x = self.width - volume_bar_width - self.theme.layout["padding"]
         volume_bar_height = self.theme.home_layout["volume_bar"]["height"]
         volume_y = self.theme.layout["padding"]
-        status_x = volume_x
+        status_x = volume_x - 8
         status_y = volume_y + volume_bar_height + 40
         
         icon_map = {
@@ -183,7 +184,7 @@ class HomeScreen(Screen):
         icon_name = icon_map.get(self.player_status, "?")
         logger.debug(f"Current player status icon: {icon_name}")
         icon_def = next((icon for icon in ICON_DEFINITIONS if icon["name"] == icon_name), None)
-
+        logger.debug(f"Icon definition found: {icon_def} & {icon_name}")
         if icon_def:
             try:
                 icon_img = ScreenManager.get_icon_png(icon_def["path"])
@@ -199,32 +200,24 @@ class HomeScreen(Screen):
             draw_context.text((status_x + status_icon_size // 2 - 8, status_y + status_icon_size // 2 - 8), "?", fill="white")
 
     def _load_album_image(self):
-        """Load album image from URL"""
+        """Load album image from local cache if available."""
+        from app.config import config
+        import os
+        from PIL import Image
         if not self.album_image_url:
             self.album_image = None
             return
-        try:
-            logger.info(f"Loading image from: {self.album_image_url}")
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-            response = requests.get(self.album_image_url, timeout=10, headers=headers)
-            logger.debug(f"Response status: {response.status_code}")
-            if response.status_code == 200:
-                logger.debug(f"Image data length: {len(response.content)} bytes")
-                image = Image.open(BytesIO(response.content))
-                logger.debug(f"Original image size: {image.size}, mode: {image.mode}")
-                if image.mode != 'RGBA':
-                    image = image.convert('RGBA')
-                self.album_image = image.resize((120, 120), Image.Resampling.LANCZOS)
-                logger.info(f"Resized image to: {self.album_image.size}")
-            else:
-                logger.warning(f"Failed to load image: HTTP {response.status_code}")
+        cache_dir = getattr(config, "ALBUM_COVER_CACHE_PATH", "album_covers")
+        local_path = os.path.join(cache_dir, self.album_image_url)
+        if os.path.exists(local_path):
+            try:
+                self.album_image = Image.open(local_path)
+                logger.info(f"Loaded cached album image: {local_path}")
+            except Exception as e:
+                logger.error(f"Failed to load cached album image: {e}")
                 self.album_image = None
-        except Exception as e:
-            logger.error(f"Failed to load album image: {e}")
-            import traceback
-            traceback.print_exc()
+        else:
+            logger.info(f"Album cover not cached: {local_path}")
             self.album_image = None
 
     def _wrap_text(self, draw, text, font, max_width):
@@ -265,21 +258,3 @@ class HomeScreen(Screen):
                 "artist_name": db_data.get("artist_name", "Unknown Artist"),
                 "year": db_data.get("year", ""),
             }
-        
-        
-            if (not media_album or 
-                media_album == "Unknown Album" or 
-                (db_data.get("album_name") and db_data.get("album_name") != "Unknown Album")):
-                #if db_data.get("album_name"):
-                logger.debug(f"WebSocket: Using database album name: {db_data.get('album_name')} (HA provided: {media_album})")
-                media_album = db_data.get("album_name")
-            
-            # Use database data for other fields if HA data is missing or generic
-            if not media_artist or media_artist == "Unknown Artist":
-                media_artist = db_data.get("artist_name") or media_artist
-            
-            # Always use database year and thumbnail if available (HA rarely provides these)
-            media_year = str(db_data.get("year", "")) if db_data.get("year") else ""
-            if db_data.get("thumbnail"):
-                media_image = db_data.get("thumbnail")
-

@@ -17,6 +17,13 @@ class RfidStatus(Enum):
 # --- Individual Screen Classes ---
 
 class RfidReadingScreen(Screen):
+    @staticmethod
+    def show(context=None):
+        """Emit an event to show the RFID reading screen via the event bus."""
+        from app.ui.event_bus import ui_event_bus, UIEvent
+        ui_event_bus.emit(UIEvent(type="show_rfid_reading", payload=context or {}))
+        import logging
+        logging.getLogger(__name__).info("UIEventBus: Emitted show_rfid_reading event from RfidReadingScreen.show()")
     def __init__(self, theme, width=480, height=320):
         super().__init__(width, height)
         self.theme = theme
@@ -81,6 +88,13 @@ class RfidReadingScreen(Screen):
 
 
 class RfidLoadingScreen(Screen):
+    @staticmethod
+    def show(context=None):
+        """Emit an event to show the RFID loading screen via the event bus."""
+        from app.ui.event_bus import ui_event_bus, UIEvent
+        ui_event_bus.emit(UIEvent(type="show_rfid_loading", payload=context or {}))
+        import logging
+        logging.getLogger(__name__).info("UIEventBus: Emitted show_rfid_loading event from RfidLoadingScreen.show()")
     def __init__(self, theme, width=480, height=320):
         super().__init__(width, height)
         self.theme = theme
@@ -142,6 +156,13 @@ class RfidLoadingScreen(Screen):
 
 
 class RfidNewRfidScreen(Screen):
+    @staticmethod
+    def show(context=None):
+        """Emit an event to show the RFID new screen via the event bus."""
+        from app.ui.event_bus import ui_event_bus, UIEvent
+        ui_event_bus.emit(UIEvent(type="show_rfid_new", payload=context or {}))
+        import logging
+        logging.getLogger(__name__).info("UIEventBus: Emitted show_rfid_new event from RfidNewRfidScreen.show()")
     def __init__(self, theme, width=480, height=320):
         super().__init__(width, height)
         self.theme = theme
@@ -209,6 +230,13 @@ class RfidNewRfidScreen(Screen):
 
 
 class RfidErrorScreen(Screen):
+    @staticmethod
+    def show(context=None):
+        """Emit an event to show the RFID error screen via the event bus."""
+        from app.ui.event_bus import ui_event_bus, UIEvent
+        ui_event_bus.emit(UIEvent(type="show_rfid_error", payload=context or {}))
+        import logging
+        logging.getLogger(__name__).info("UIEventBus: Emitted show_rfid_error event from RfidErrorScreen.show()")
     def __init__(self, theme, width=480, height=320):
         super().__init__(width, height)
         self.theme = theme

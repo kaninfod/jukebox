@@ -31,23 +31,10 @@ def _signal_handler(signum, frame):
 signal.signal(signal.SIGINT, _signal_handler)
 signal.signal(signal.SIGTERM, _signal_handler)
 
-
-_advance_task = None  # Debounce task for advancing track
-
-async def _debounced_advance_next_track():
-    await asyncio.sleep(1)  # 1 second debounce
-    try:
-        from app.main import playback_manager
-        if playback_manager and playback_manager.player:
-            playback_manager.player.next_track()
-            logger.info("Advanced to next track after debounce.")
-    except Exception as e:
-        logger.warning(f"Debounced advance failed: {e}")
-
 async def handle_state_change(event_data: Dict[str, Any]) -> None:
     """Handle state change events from Home Assistant WebSocket (only state changes)."""
     try:
-        # Check if this is the media player we're interested in
+        # Only handle events for our media player
         entity_id = event_data.get("entity_id")
         media_player_entity_id = getattr(config, "MEDIA_PLAYER_ENTITY_ID", None)
         if entity_id != media_player_entity_id:
@@ -57,43 +44,26 @@ async def handle_state_change(event_data: Dict[str, Any]) -> None:
         old_state = event_data.get("old_state", {})
         state = new_state.get("state", "idle")
         old_status = old_state.get("state", None)
+        ha_volume = new_state.get("attributes", {}).get("volume_level")
+        old_volume = old_state.get("attributes", {}).get("volume_level") if old_state else None
 
-        # Only act if the state value actually changed
-        if state == old_status:
-            return
+        # 1. Track ended event (playing → idle)
+        if old_status == "playing" and state == "idle":
+            try:
+                from app.ui.event_bus import ui_event_bus, UIEvent
+                ui_event_bus.emit(UIEvent(type="ha_state_changed", payload={"from": old_status, "to": state}))
+                logger.info("Emitted 'ha_state_changed' event.")
+            except Exception as e:
+                logger.warning(f"Could not emit ha_state_changed event: {e}")
 
-        logger.info(f"WebSocket: Media player state changed to: {state}")
-
-        # Map HA state to PlayerStatus enum
-        status_map = {
-            "playing": PlayerStatus.PLAY,
-            "paused": PlayerStatus.PAUSE,
-            "idle": PlayerStatus.STOP,
-            "unavailable": PlayerStatus.STANDBY,
-            "off": PlayerStatus.OFF
-        }
-        player_status = status_map.get(state, PlayerStatus.STOP)
-
-        # Update the JukeboxMediaPlayer status using the global playback_manager
-        global _advance_task
-        try:
-            from app.main import playback_manager
-            if playback_manager and playback_manager.player:
-                playback_manager.player.status = player_status
-                logger.info(f"Updated JukeboxMediaPlayer status to {player_status.value}")
-                # Debounced advance to next track if state changed from playing to idle
-                if old_status == "playing" and state == "idle":
-                    # Cancel any previous debounce
-                    if _advance_task and not _advance_task.done():
-                        _advance_task.cancel()
-                    loop = asyncio.get_event_loop()
-                    _advance_task = loop.create_task(_debounced_advance_next_track())
-                elif state == "playing":
-                    # Cancel debounce if playback resumes
-                    if _advance_task and not _advance_task.done():
-                        _advance_task.cancel()
-        except Exception as e:
-            logger.warning(f"Could not update JukeboxMediaPlayer status: {e}")
+        # 2. Volume change event
+        if ha_volume is not None and ha_volume != old_volume:
+            try:
+                from app.ui.event_bus import ui_event_bus, UIEvent
+                ui_event_bus.emit(UIEvent(type="ha_volume_changed", payload={"volume": ha_volume}))
+                logger.info(f"Emitted 'ha_volume_changed' event: {ha_volume}")
+            except Exception as e:
+                logger.warning(f"Could not emit ha_volume_changed event: {e}")
     except Exception as e:
         logger.error(f"WebSocket: Error handling state change: {e}")
 
@@ -223,3 +193,7 @@ def stop_websocket() -> Dict[str, str]:
     import time
     time.sleep(0.1)
     return {"status": "stopped", "message": "WebSocket connection terminated"}
+
+def cleanup():
+    logger.info("WebSocketClient cleanup called")
+    # Add any additional cleanup logic here if needed

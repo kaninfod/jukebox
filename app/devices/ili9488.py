@@ -15,13 +15,13 @@ class ILI9488:
         # device.backlight() method doesn't seem to work with our hardware setup
         self.serial = spi(port=0, device=0, gpio_CS=8, gpio_DC=23, gpio_RST=24, bus_speed_hz=32000000)
         self.device = ili9488(self.serial, rotate=2, gpio_LIGHT=config.DISPLAY_BACKLIGHT_GPIO, active_low=False)
-        self.canvas = canvas(self.device)
+        #self.canvas = canvas(self.device)
         # Try to turn backlight on, but this may not work with our hardware
         try:
-            logger.info("Attempting to draw to display")
-            with canvas(self.device) as draw:
-                draw.rectangle(self.device.bounding_box, outline="white", fill="black")
-                draw.text((30, 40), "Hello World", fill="red")
+            # logger.info("Attempting to draw to display")
+            # with canvas(self.device) as draw:
+            #     draw.rectangle(self.device.bounding_box, outline="white", fill="black")
+            #     draw.text((30, 40), "Hello World", fill="red")
             self.power_on()  # Ensure backlight is on if control fails
             logger.info("Display: Power turned on")
             self.turn_on_backlight()  
@@ -33,6 +33,8 @@ class ILI9488:
         except (OSError, ImportError) as e:
             logger.warning(f"Font loading failed: {e}, using default font")
             self.font = ImageFont.load_default()
+
+        logger.info("ILI9488 display initialized")
 
 
     def cleanup(self):
@@ -85,7 +87,7 @@ class ILI9488:
         except Exception as e:
             logger.error(f"Display: Hardware power ON failed: {e}")
 
-    def display_image(self, text: str):
-        with canvas(self.device) as draw:
-            draw.rectangle(self.device.bounding_box, outline="green", fill="white")
-            draw.text((30, 40), text, font=self.font, fill="green")
+    # def display_image(self, text: str):
+    #     with canvas(self.device) as draw:
+    #         draw.rectangle(self.device.bounding_box, outline="green", fill="white")
+    #         draw.text((30, 40), text, font=self.font, fill="green")

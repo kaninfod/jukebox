@@ -1,6 +1,9 @@
 import RPi.GPIO as GPIO
 import threading
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 class RotaryEncoder:
     def __init__(self, pin_a, pin_b, callback=None, bouncetime=2):
@@ -22,8 +25,8 @@ class RotaryEncoder:
             GPIO.add_event_detect(self.pin_b, GPIO.BOTH, callback=self._update, bouncetime=bouncetime)
             self.initialized = True
         except RuntimeError as e:
-            print(f"Failed to initialize rotary encoder: {e}")
-            print("Attempting to continue without rotary encoder functionality...")
+            logger.error(f"Failed to initialize rotary encoder: {e}")
+            logger.warning("Attempting to continue without rotary encoder functionality...")
             self.initialized = False
 
     def _update(self, channel):
@@ -55,7 +58,7 @@ class RotaryEncoder:
                 
                 self.last_state = state
             except Exception as e:
-                print(f"Error reading rotary encoder: {e}")
+                logger.error(f"Error reading rotary encoder: {e}")
 
     def get_position(self):
         return self.position
@@ -67,4 +70,4 @@ class RotaryEncoder:
                 GPIO.remove_event_detect(self.pin_a)
                 GPIO.remove_event_detect(self.pin_b)
         except Exception as e:
-            print(f"Encoder cleanup error: {e}")
+            logger.error(f"Encoder cleanup error: {e}")

@@ -10,6 +10,7 @@ ICON_DEFINITIONS = [
     {"name": "pause_circle", "path": "/home/pi/shared/jukebox/icons/pause_circle.png", "width": 80, "height": 80},
     {"name": "stop_circle", "path": "/home/pi/shared/jukebox/icons/stop_circle.png", "width": 80, "height": 80},
     {"name": "standby_settings", "path": "/home/pi/shared/jukebox/icons/power_settings.png", "width": 80, "height": 80},
+    {"name": "klangmeister", "path": "/home/pi/shared/jukebox/icons/klangmeister.png", "width": 480, "height": 320},
 ]
 """
 Configuration management for the jukebox application.
@@ -31,7 +32,8 @@ class Config:
         {"name": "title", "path": "/home/pi/shared/jukebox/fonts/opensans/OpenSans-Regular.ttf", "size": 20},
         {"name": "info", "path": "/home/pi/shared/jukebox/fonts/opensans/OpenSans-Regular.ttf", "size": 18},
         {"name": "small", "path": "/home/pi/shared/jukebox/fonts/opensans/OpenSans-Regular.ttf", "size": 12},
-        {"name": "symbols", "path": "/home/pi/shared/jukebox/fonts/symbolfont/symbolfont.ttf", "size": 24}
+        {"name": "symbols", "path": "/home/pi/shared/jukebox/fonts/symbolfont/symbolfont.ttf", "size": 24},
+        {"name": "oswald_semi_bold", "path": "/home/pi/shared/jukebox/fonts/Oswald-SemiBold.ttf", "size": 24}
     ]
     """Central configuration class for the jukebox application"""
     
@@ -46,7 +48,9 @@ class Config:
     DB_USERNAME: str = os.getenv("DB_USERNAME", "dbuser")
     DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")
     DB_NAME: str = os.getenv("DB_NAME", "hingedb")
-    
+
+    ALBUM_COVER_CACHE_PATH: str = os.getenv("ALBUM_COVER_CACHE_PATH", "album_covers")
+
     # YouTube Music OAuth
     YOUTUBE_ACCESS_TOKEN: str = os.getenv("YOUTUBE_ACCESS_TOKEN", "")
     YOUTUBE_REFRESH_TOKEN: str = os.getenv("YOUTUBE_REFRESH_TOKEN", "")

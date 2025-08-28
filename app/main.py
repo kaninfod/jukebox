@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import config
 from app.routes.ytmusic import router as ytmusic_router
 from app.routes.mediaplayer import router as mediaplayer_router
-from app.routes.homeassistant import router as homeassistant_router, sync_with_ytube_music_player
+from app.routes.homeassistant import router as homeassistant_router #, sync_with_ytube_music_player
 from app.routes.pngs import router as pngs_router
 from app.services.websocket_client import start_websocket_background, stop_websocket
 from app.services.playback_manager import PlaybackManager
@@ -17,6 +17,7 @@ from app.routes.system import router as system_router
 from app.ui.screens import ScreenManager
 from app.hardware import HardwareManager
 import logging, os
+from app.logging_config import setup_logging
 
 
 # Initialize FastAPI app
@@ -39,20 +40,12 @@ screen_manager = None
 hardware_manager = None
 display = None
 playback_manager = None
+
 jukebox_mediaplayer = None
 
-logging.basicConfig(
-    level=logging.DEBUG,  # or DEBUG for more verbosity
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        handlers=[
-        logging.StreamHandler(),                # Console
-        logging.FileHandler("jukebox.log")      # File
-    ]
-)
-# Suppress noisy logs from third-party libraries
-for lib in ["requests", "PIL", "urllib3", "websockets"]:
-    logging.getLogger(lib).setLevel(logging.WARNING)
-
+def get_jukebox_mediaplayer():
+    """Get the global JukeboxMediaPlayer instance"""
+    return jukebox_mediaplayer
 
 def get_screen_manager():
     """Get the global screen manager instance"""
@@ -86,7 +79,7 @@ def startup_event():
     
 
     # Step 2: Initialize hardware manager
-    hardware_manager = HardwareManager(screen_manager)
+    hardware_manager = HardwareManager()
 
     # Step 3: Initialize display hardware
     display = hardware_manager.initialize_hardware()
@@ -95,20 +88,22 @@ def startup_event():
     screen_manager = ScreenManager(display)
 
     # Step 5: Initialize global PlaybackManager and JukeboxMediaPlayer
-    playback_manager = PlaybackManager(screen_manager=screen_manager)
-    jukebox_mediaplayer = playback_manager.player  # Will be set after load_rfid
+    from app.services.jukebox_mediaplayer import JukeboxMediaPlayer
+    if not jukebox_mediaplayer:
+        jukebox_mediaplayer = JukeboxMediaPlayer([])
+    playback_manager = PlaybackManager(screen_manager=screen_manager, player=jukebox_mediaplayer)
 
     # Step 6: Update hardware manager with screen manager and playback manager
     hardware_manager.screen_manager = screen_manager
     hardware_manager.playback_manager = playback_manager
 
     # Register screen manager as a listener to the jukebox mediaplayer for event-driven UI updates
-    if jukebox_mediaplayer and screen_manager:
-        try:
-            screen_manager.register_player(jukebox_mediaplayer)
-            logging.info("ScreenManager registered as listener to JukeboxMediaPlayer.")
-        except Exception as e:
-            logging.warning(f"Failed to register screen manager as player listener: {e}")
+    # if jukebox_mediaplayer and screen_manager:
+    #     try:
+    #         screen_manager.register_player(jukebox_mediaplayer)
+    #         logging.info("ScreenManager registered as listener to JukeboxMediaPlayer.")
+    #     except Exception as e:
+    #         logging.warning(f"Failed to register screen manager as player listener: {e}")
     
     # Start WebSocket connection to Home Assistant
     start_websocket_background()
@@ -121,16 +116,18 @@ def startup_event():
     # except Exception as e:
     #     logging.error(f"Failed to sync with YouTube Music player on startup: {e}")
             # Always sync with YouTube Music player before deciding which screen to show
-    try:
-        context = sync_with_ytube_music_player()
-    except Exception as e:
-        logging.error(f"Error syncing with YouTube Music player before screen selection: {e}")
+    #try:
+    #    context = sync_with_ytube_music_player()
+    #except Exception as e:
+    #    logging.error(f"Error syncing with YouTube Music player before screen selection: {e}")
         
         
     # Show appropriate screen based on current state (idle if no music)
-    logging.info(f"🚀 STARTUP: Calling show_appropriate_screen")
-    screen_manager.show_appropriate_screen()
+    logging.info(f"🚀 STARTUP: Showing IdleScreen")
+    from app.ui.screens.idle import IdleScreen
+    IdleScreen.show()
     #screen_manager.render()
+    logging.info("Jukebox FastAPI app startup complete")
 
 
 @app.on_event("shutdown")
@@ -143,10 +140,12 @@ def shutdown_event():
         logging.info("Stopped WebSocket connection to Home Assistant")
     except Exception as e:
         logging.error(f"Error stopping WebSocket: {e}")
-    
     # Clean up hardware
     if hardware_manager:
         hardware_manager.cleanup()
+    if screen_manager:
+        screen_manager.cleanup()
+    logging.info("Jukebox FastAPI app shutdown complete")
 
 
 @app.get("/")

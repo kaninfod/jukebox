@@ -1,8 +1,45 @@
 
+from importlib.metadata import metadata
+import time
+class TrackTimer:
+    def __init__(self):
+        self.start_time = None
+        self.paused_time = 0
+        self.is_paused = False
+        self.pause_start = None
+
+    def start(self):
+        self.start_time = time.monotonic()
+        self.paused_time = 0
+        self.is_paused = False
+        self.pause_start = None
+
+    def pause(self):
+        if not self.is_paused and self.start_time is not None:
+            self.is_paused = True
+            self.pause_start = time.monotonic()
+
+    def resume(self):
+        if self.is_paused and self.pause_start is not None:
+            self.paused_time += time.monotonic() - self.pause_start
+            self.is_paused = False
+            self.pause_start = None
+
+    def reset(self):
+        self.__init__()
+
+    def get_elapsed(self):
+        if self.start_time is None:
+            return 0
+        if self.is_paused:
+            return self.pause_start - self.start_time - self.paused_time
+        else:
+            return time.monotonic() - self.start_time - self.paused_time
 import logging
 from typing import List, Dict, Optional
 from enum import Enum
 from app.services.pytube_service import PytubeService
+from app.services.homeassistant_service import HomeAssistantService
 
 
 class PlayerStatus(Enum):
@@ -18,25 +55,20 @@ class JukeboxMediaPlayer:
         self.current_index = 0
         self.status = PlayerStatus.STOP
         self.pytube_service = PytubeService()
-        self.listeners = []  # List of observer callbacks
-        self.current_volume = 20  # Default to 50%
-        logging.info("JukeboxMediaPlayer initialized.")
+        self.ha_service = HomeAssistantService()
+        self.current_volume = 0  # Ensure attribute exists before any event/context
+        self.track_timer = TrackTimer()
+        self.sync_volume_from_ha()
+        logging.info(f"JukeboxMediaPlayer initialized. id={id(self)} current_volume={self.current_volume}")
 
-    def add_listener(self, callback):
-        """Register a callback to be notified on state changes."""
-        if callback not in self.listeners:
-            self.listeners.append(callback)
+    def cleanup(self):
+        logging.info("JukeboxMediaPlayer cleanup called")
+        # Add any additional cleanup logic here if needed
 
-    def remove_listener(self, callback):
-        if callback in self.listeners:
-            self.listeners.remove(callback)
 
-    def notify(self, event_type, data=None):
-        for cb in self.listeners:
-            try:
-                cb(event_type, data)
-            except Exception as e:
-                logging.warning(f"Listener error: {e}")
+    def _emit_event(self, event_type, data=None):
+        from app.ui.event_bus import ui_event_bus, UIEvent
+        ui_event_bus.emit(UIEvent(type=event_type, payload=data))
 
     @property
     def image_url(self) -> Optional[str]:
@@ -89,9 +121,18 @@ class JukeboxMediaPlayer:
         """Return the current volume (0-100)."""
         return self.current_volume
 
-    def sync_volume_from_ha(self, ha_volume):
+    def sync_volume_from_ha(self):
         """Sync volume from Home Assistant (0.0-1.0) to 0-100 scale."""
-        self.current_volume = int(ha_volume * 100)
+        ha_volume = self.ha_service.get_volume()
+        logging.debug(f"[sync_volume_from_ha] ha_volume from HA: {ha_volume}")
+        try:
+            value = int(ha_volume * 100)
+        except Exception as e:
+            logging.error(f"[sync_volume_from_ha] Failed to set current_volume from ha_volume={ha_volume}: {e}")
+            value = None
+        self.current_volume = value
+        self._emit_event('volume_changed', self._get_context())
+        return self.current_volume
 
     def play(self):
         """Start playback of the current track (cast and set state)."""
@@ -99,30 +140,45 @@ class JukeboxMediaPlayer:
             logging.warning("No playlist loaded.")
             return
         self.status = PlayerStatus.PLAY
-        self.notify('status_changed', self.status)
+        self._emit_event('status_changed', self._get_context())
         self.cast_current_track()
+        self.track_timer.start()
 
     def play_pause(self):
-        from app.services.homeassistant_service import HomeAssistantService
-        ha_service = HomeAssistantService()
-        self.notify('status_changed', self.status)
-        ha_service.play_pause()
+        # Toggle pause/resume timer based on current status
+        if self.status == PlayerStatus.PLAY:
+            self.track_timer.pause()
+            self.status = PlayerStatus.PAUSE
+        elif self.status == PlayerStatus.PAUSE:
+            self.track_timer.resume()
+            self.status = PlayerStatus.PLAY
+        self._emit_event('status_changed', self._get_context())
+        self.ha_service.play_pause()
 
     def stop(self):
-        from app.services.homeassistant_service import HomeAssistantService
-        ha_service = HomeAssistantService()
-        ha_service.stop()
+        # Log actual vs expected duration before stopping
+        elapsed = self.track_timer.get_elapsed()
+        expected = self.current_track.get('duration') if self.current_track else None
+        logging.info(f"[TrackTimer] Track '{self.title}' expected duration: {expected}, played: {elapsed:.2f} seconds (stop)")
+        self.ha_service.stop()
         self.status = PlayerStatus.STOP
-        self.notify('status_changed', self.status)
+        self.track_timer.reset()
+        self._emit_event('status_changed', self._get_context())
 
     def set_volume(self, volume):
         """Set volume (0-100) and sync with Home Assistant."""
-        self.current_volume = max(0, min(100, int(volume)))
-        ha_volume = self.current_volume / 100.0
-        from app.services.homeassistant_service import HomeAssistantService
-        self.notify('volume_changed', self.current_volume)
-        ha_service = HomeAssistantService()
-        ha_service.set_volume(ha_volume)
+        logging.debug(f"[set_volume] Requested volume: {volume}")
+        try:
+            self.current_volume = max(0, min(100, int(volume)))
+        except Exception as e:
+            logging.error(f"[set_volume] Failed to set current_volume from volume={volume}: {e}")
+            self.current_volume = 0
+        logging.debug(f"[set_volume] current_volume set to: {self.current_volume}")
+        # Convert to Home Assistant's 0.0-1.0 scale
+        ha_volume_normalized = self.current_volume / 100.0 if self.current_volume is not None else None
+        self._emit_event('volume_changed', self._get_context())
+        if ha_volume_normalized is not None:
+            self.ha_service.set_volume(ha_volume_normalized)
 
     def volume_up(self):
         self.set_volume(self.current_volume + 5)
@@ -131,9 +187,37 @@ class JukeboxMediaPlayer:
         self.set_volume(self.current_volume - 5)
 
     def next_track(self):
+        # Log actual vs expected duration before advancing
+        elapsed = self.track_timer.get_elapsed()
+        expected_str = self.current_track.get('duration') if self.current_track else None
+        # Convert expected duration (mm:ss or m:ss) to seconds
+        def duration_to_seconds(dur):
+            if not dur:
+                return None
+            try:
+                parts = dur.split(":")
+                if len(parts) == 2:
+                    return int(parts[0]) * 60 + int(parts[1])
+                elif len(parts) == 3:
+                    return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+            except Exception:
+                return None
+            return None
+        expected_sec = duration_to_seconds(expected_str)
+        debounce_threshold = 0.8  # 80%
+        if expected_sec:
+            min_play_time = expected_sec * debounce_threshold
+        else:
+            min_play_time = 0
+        if elapsed < min_play_time:
+            logging.info(f"[Debounce] Track '{self.title}' skipped after only {elapsed:.2f}s (<80% of {expected_sec}s). Debounce: not advancing.")
+            # Do nothing: ignore the request to advance
+            return
+        logging.info(f"[Debounce] Track '{self.title}' played {elapsed:.2f}s (>=80% of {expected_sec}s). Advancing to next track.")
         if self.current_index < len(self.playlist) - 1:
             self.current_index += 1
-            self.notify('track_changed', self.current_track)
+            self.track_timer.reset()
+            self._emit_event('track_changed', self._get_context())
             self.play()
         else:
             self.stop()
@@ -141,8 +225,12 @@ class JukeboxMediaPlayer:
     def previous_track(self):
         if self.current_index > 0:
             self.current_index -= 1
-            self.notify('track_changed', self.current_track)
+            self.track_timer.reset()
+            self._emit_event('track_changed', self._get_context())
             self.play()
+    def get_track_elapsed(self):
+        """Return the elapsed play time (seconds) for the current track."""
+        return self.track_timer.get_elapsed()
 
     def cast_current_track(self):
         from app.services.homeassistant_service import HomeAssistantService
@@ -159,12 +247,39 @@ class JukeboxMediaPlayer:
                 stream_url = None
         if stream_url:
             ha_service = HomeAssistantService()
-            ha_service.cast_stream_url(stream_url)
+            ha_service.cast_stream_url(stream_url, media_info={
+                "title": track.get("title"),
+                "thumb": track.get("image_url"),
+                "media_info": {
+                    "artist": track.get("artist"),
+                    "album": track.get("album"),
+                    "year": track.get("year"),
+                },
+                "metadata": {
+                    "metadataType": 3,
+                    "albumName": track.get("album"),
+                    "artist": track.get("artist")
+                }
+            })
             logging.info(f"Casting track {self.current_index+1}/{len(self.playlist)}: {track.get('title')}")
             self.status = PlayerStatus.PLAY
-            self.notify('track_changed', track)
+            self._emit_event('track_changed', self._get_context())
         else:
             logging.error("No stream_url for current track.")
+
+    def _get_context(self):
+        # Add album cover filename from DB if yt_id is available
+        from app.database import get_ytmusic_data_by_yt_id
+        album_cover_filename = None
+        if self.current_track and isinstance(self.current_track, dict):
+            album_cover_filename = self.current_track.get('album_cover_filename')
+        return {
+            'status': self.status.value,
+            'volume': self.current_volume,
+            'current_index': self.current_index,
+            'current_track': self.current_track,
+            'album_cover_filename': album_cover_filename
+        }
 
     def get_status(self) -> Dict:
         return {

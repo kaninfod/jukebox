@@ -3,8 +3,7 @@ from fastapi import APIRouter, Body, Query
 from app.ui.screens import PlayerStatus
 import subprocess
 from typing import Dict, List, Union, Any
-from app.routes.homeassistant import stop_ytube_music_player
-from app.services.websocket_client import stop_websocket
+
 
 
 

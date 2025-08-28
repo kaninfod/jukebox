@@ -17,7 +17,7 @@ class RC522Reader:
             cs_pin: Chip select pin for RC522 (default: 7)
             on_new_uid: Callback function called when new UID is detected
         """
-        logger.info("Initializing RC522 RFID Reader with switch-triggered reading...")
+        
 
         self.cs_pin = cs_pin
         self.on_new_uid = on_new_uid
@@ -40,8 +40,9 @@ class RC522Reader:
             logger.error(f"Failed to initialize RFID reader: {e}")
             logger.warning("Attempting to continue without RFID functionality...")
             self.initialized = False
-    # Switch activation logic removed; should be handled by orchestrator (hardware.py)
-    
+
+        logger.info("RC522 RFID Reader with switch-triggered reading initialized")
+
     def start_reading(self, result_callback=None):
         """Start RFID reading process with timeout. Accepts a result_callback(status_dict) to be called when done."""
         if not self.initialized:
@@ -91,11 +92,11 @@ class RC522Reader:
             if status is None:
                 # Timeout reached without successful read
                 elapsed = time.time() - start_time
-                print(f"❌ RFID read timeout after {elapsed:.1f}s ({read_attempts} attempts)")
+                logger.warning(f"❌ RFID read timeout after {elapsed:.1f}s ({read_attempts} attempts)")
                 status = {"status": "timeout", "error_message": "Card read timeout. Please try again."}
             self._stop_reading_internal()
         except Exception as e:
-            print(f"RFID reading thread error: {e}")
+            logger.error(f"RFID reading thread error: {e}")
             status = {"status": "error", "error_message": f"Reading error: {str(e)}"}
             self._stop_reading_internal()
         # Call the result callback if provided
@@ -112,12 +113,12 @@ class RC522Reader:
         """Internal method to stop reading"""
         self.stop_reading = True
         self.reading_active = False
-        print("🛑 RFID reading stopped")
-    
+        logger.info("🛑 RFID reading stopped")
+
     def stop_reading_external(self):
         """External method to stop reading (can be called from outside)"""
         if self.reading_active:
-            print("Manually stopping RFID reading...")
+            logger.info("Manually stopping RFID reading...")
             self._stop_reading_internal()
             
             # Wait for thread to finish
@@ -130,19 +131,19 @@ class RC522Reader:
     
     def stop(self):
         """Stop the RFID reader and cleanup"""
-        print("Stopping RFID reader...")
+        logger.info("Stopping RFID reader...")
         # Stop any active reading
         self.stop_reading_external()
         # Cleanup RFID reader
         if self.rdr:
             try:
                 self.rdr.cleanup()
-                print("RFID reader cleaned up")
+                logger.info("RFID reader cleaned up")
             except Exception as e:
-                print(f"Error cleaning up RFID reader: {e}")
+                logger.error(f"Error cleaning up RFID reader: {e}")
         self.initialized = False
-        print("RFID reader stopped")
-    
+        logger.info("RFID reader stopped")
+
     def cleanup(self):
         """Alias for stop() for consistency with other devices"""
         self.stop()
