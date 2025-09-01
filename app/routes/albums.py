@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse
 import os
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from typing import List
-from app.schemas.delete_album import AlbumEntry, AlbumEntryUpdate
+from app.schemas.album import AlbumEntry, AlbumEntryUpdate
 from app.database.album_db import (
     create_album_entry,
     list_album_entries,
@@ -36,7 +36,7 @@ class AlbumCardRequest(BaseModel):
     album_title: str = None
 
 
-@router.post("/ytmusic/album_card")
+@router.post("/albums/album_card")
 def api_create_album_card(payload: AlbumCardRequest):
     from app.services.ytmusic_service import YTMusicService
     try:
@@ -78,25 +78,25 @@ def api_create_album_card(payload: AlbumCardRequest):
         logger.error(f"Failed to create album card: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create album card: {str(e)}")
 
-@router.get("/ytmusic", response_model=List[AlbumEntry])
+@router.get("/albums", response_model=List[AlbumEntry])
 def list_album_entries_route():
     entries = list_album_entries()
     return [AlbumEntry.from_orm(e) for e in entries]
 
-@router.get("/ytmusic/{rfid}", response_model=AlbumEntry)
+@router.get("/albums/{rfid}", response_model=AlbumEntry)
 def get_album_entry(rfid: str):
     entry = get_album_entry_by_rfid(rfid)
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
     return AlbumEntry.from_orm(entry)
 
-@router.post("/ytmusic/{rfid}")
+@router.post("/albums/{rfid}")
 def create_album_entry_route(rfid: str):
     return create_album_entry(rfid)
 
 from app.services.ytmusic_service import YTMusicService
 
-@router.put("/ytmusic/{rfid}/{audioPlaylistId}", response_model=AlbumEntry)
+@router.put("/albums/{rfid}/{audioPlaylistId}", response_model=AlbumEntry)
 def update_album_entry_route(rfid: str, audioPlaylistId: str):
     try:
         service = YTMusicService()
@@ -107,7 +107,7 @@ def update_album_entry_route(rfid: str, audioPlaylistId: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to get album info: {str(e)}")
 
-@router.delete("/ytmusic/{rfid}")
+@router.delete("/albums/{rfid}")
 def delete_album_entry_route(rfid: str):
     deleted = delete_album_entry(rfid)
     if not deleted:

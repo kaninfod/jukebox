@@ -2,20 +2,27 @@ import os
 import requests
 from typing import Optional
 import logging
-
 from ytmusicapi import YTMusic, OAuthCredentials
 from typing import List, Dict, Any
 from app.config import config
 
+logger = logging.getLogger(__name__)
 
 class YTMusicService:
+    def __init__(self):
+        client_id = config.YTMUSIC_CLIENT_ID
+        client_secret = config.YTMUSIC_CLIENT_SECRET
+        oauth_file = 'oauth.json'
+        self.ytmusic = YTMusic(oauth_file, oauth_credentials=OAuthCredentials(client_id=client_id, client_secret=client_secret))
+        logger.info("YTMusicService initialized.")
+
 
     def add_or_update_album_entry(self, rfid: str, audioPlaylistId: str):
         """
         Fetch album info from YTMusic, cache the cover, and upsert the album entry in the database.
         Returns the DB entry or None on failure.
         """
-        from app.database import update_ytmusic_entry, create_ytmusic_entry, get_ytmusic_entry_by_rfid
+        from app.database.album_db import update_album_entry, create_album_entry, get_album_entry_by_rfid
         import json
         try:
             browse_id = self.ytmusic.get_album_browse_id(audioPlaylistId)
@@ -47,20 +54,20 @@ class YTMusicService:
                 'album_name': album_name,
                 'artist_name': artist_name,
                 'year': year,
-                'yt_id': audioPlaylistId,
+                'audioPlaylistId': audioPlaylistId,
                 'thumbnail': local_cover_filename,
                 'tracks': json.dumps(tracks_data)
             }
             # Upsert logic
-            db_entry = get_ytmusic_entry_by_rfid(rfid)
+            db_entry = get_album_entry_by_rfid(rfid)
             if db_entry:
-                db_entry = update_ytmusic_entry(rfid, album_data)
+                db_entry = update_album_entry(rfid, album_data)
             else:
-                create_ytmusic_entry(rfid)
-                db_entry = update_ytmusic_entry(rfid, album_data)
+                create_album_entry(rfid)
+                db_entry = update_album_entry(rfid, album_data)
             return db_entry
         except Exception as e:
-            logging.error(f"YTMusicService: Failed to add/update album entry for RFID {rfid}: {e}")
+            logger.error(f"YTMusicService: Failed to add/update album entry for RFID {rfid}: {e}")
             return None
 
     @staticmethod
@@ -75,7 +82,7 @@ class YTMusicService:
         from PIL import Image
         from io import BytesIO
         if cache_dir is None:
-            cache_dir = getattr(config, "ALBUM_COVER_CACHE_PATH", "album_covers")
+            cache_dir = getattr(config, "STATIC_FILE_PATH", "album_covers")
         os.makedirs(cache_dir, exist_ok=True)
         ext = os.path.splitext(url.split("?")[0])[1] or ".jpg"
         # If image will be RGBA, use .png extension
@@ -97,47 +104,40 @@ class YTMusicService:
             else:
                 image = image.convert('RGB')  # JPEG does not support alpha
                 image.save(local_path, format='JPEG')
-            logging.info(f"Cached and processed album cover: {local_path}")
+            logger.info(f"Cached and processed album cover: {local_path}")
             return filename
         except Exception as e:
-            logging.warning(f"Failed to cache album cover from {url}: {e}")
+            logger.warning(f"Failed to cache album cover from {url}: {e}")
             return None
-        
-    def __init__(self):
-        client_id = config.YTMUSIC_CLIENT_ID
-        client_secret = config.YTMUSIC_CLIENT_SECRET
-        oauth_file = 'oauth.json'
-        self.ytmusic = YTMusic(oauth_file, oauth_credentials=OAuthCredentials(client_id=client_id, client_secret=client_secret))
-        logging.info("YTMusicService initialized.")
 
     def search_song(self, query: str) -> Dict[str, Any]:
-        logging.info(f"YTMusicService: Searching for song: {query}")
+        logger.info(f"YTMusicService: Searching for song: {query}")
         try:
             results = self.ytmusic.search(query, filter="songs")
             if not results:
-                logging.warning("YTMusicService: No songs found.")
+                logger.warning("YTMusicService: No songs found.")
                 raise Exception("No songs found.")
             return results[0]
         except Exception as e:
-            logging.error(f"YTMusicService: Error searching for song '{query}': {e}")
+            logger.error(f"YTMusicService: Error searching for song '{query}': {e}")
             raise
 
-    def get_album_tracks(self, yt_id: str) -> List[Dict[str, Any]]:
-        logging.info(f"YTMusicService: Getting album tracks for yt_id: {yt_id}")
+    def get_album_tracks(self, audioPlaylistId: str) -> List[Dict[str, Any]]:
+        logger.info(f"YTMusicService: Getting album tracks for audioPlaylistId: {audioPlaylistId}")
         try:
-            browse_id = self.ytmusic.get_album_browse_id(yt_id)
+            browse_id = self.ytmusic.get_album_browse_id(audioPlaylistId)
             album_info = self.ytmusic.get_album(browse_id)
             tracks = album_info.get('tracks', [])
             return tracks
         except Exception as e:
-            logging.error(f"YTMusicService: Error getting album tracks for yt_id '{yt_id}': {e}")
+            logger.error(f"YTMusicService: Error getting album tracks for audioPlaylistId '{audioPlaylistId}': {e}")
             raise
 
-    def get_album_info(self, yt_id: str) -> Dict[str, Any]:
-        logging.info(f"YTMusicService: Getting album info for yt_id: {yt_id}")
+    def get_album_info(self, audioPlaylistId: str) -> Dict[str, Any]:
         try:
-            browse_id = self.ytmusic.get_album_browse_id(yt_id)
+            browse_id = self.ytmusic.get_album_browse_id(audioPlaylistId)
+            logger.info(f"YTMusicService: Got album info for audioPlaylistId: {audioPlaylistId}")
             return self.ytmusic.get_album(browse_id)
         except Exception as e:
-            logging.error(f"YTMusicService: Error getting album info for yt_id '{yt_id}': {e}")
+            logger.error(f"YTMusicService: Error getting album info for audioPlaylistId '{audioPlaylistId}': {e}")
             raise

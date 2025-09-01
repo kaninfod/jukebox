@@ -8,12 +8,12 @@ class Track(BaseModel):
     track_number: int
     video_id: str
 
-class YTMusicEntry(BaseModel):
+class AlbumEntry(BaseModel):
     rfid: str
     album_name: Optional[str] = None
     artist_name: Optional[str] = None
     year: Optional[int] = None
-    yt_id: Optional[str] = None
+    audioPlaylistId: Optional[str] = None
     thumbnail: Optional[str] = None
     tracks: Optional[List[Track]] = None
     
@@ -30,10 +30,10 @@ class YTMusicEntry(BaseModel):
     class Config:
         orm_mode = True
 
-class YTMusicEntryUpdate(BaseModel):
+class AlbumEntryUpdate(BaseModel):
     album_name: Optional[str] = None
     artist_name: Optional[str] = None
     year: Optional[int] = None
-    yt_id: Optional[str] = None
+    audioPlaylistId: Optional[str] = None
     thumbnail: Optional[str] = None
     tracks: Optional[List[Track]] = None

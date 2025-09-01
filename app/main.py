@@ -6,33 +6,42 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.config import config
-from app.routes.ytmusic import router as ytmusic_router
-from app.routes.mediaplayer import router as mediaplayer_router
-from app.routes.homeassistant import router as homeassistant_router #, sync_with_ytube_music_player
-from app.routes.pngs import router as pngs_router
-from app.services.websocket_client import start_websocket_background, stop_websocket
-from app.services.playback_manager import PlaybackManager
-from app.services.jukebox_mediaplayer import JukeboxMediaPlayer
-from app.routes.system import router as system_router
-from app.ui.screens import ScreenManager
-from app.hardware import HardwareManager
-import logging, os
-from app.logging_config import setup_logging
 
+from app.routes.albums import router as album_router
+from app.routes.mediaplayer import router as mediaplayer_router
+from app.routes.pngs import router as pngs_router
+from app.routes.system import router as system_router
+from app.web.routes import router as web_router
+
+from app.services.websocket_service import websocket_service
+from app.services.playback_manager import PlaybackManager
+
+from app.ui import ScreenManager
+from app.hardware import HardwareManager
+
+import logging, os
+from app.core.logging_config import setup_logging
+
+setup_logging(level=logging.DEBUG)
 
 # Initialize FastAPI app
 app = FastAPI()
 
-
-# Mount static folder
+# Mount static folders
 app.mount("/pngs-static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "..", "tests")), name="pngs-static")
 
+# Mount album cover cache directory for web access
+album_cover_dir = config.STATIC_FILE_PATH
+if not os.path.isabs(album_cover_dir):
+    album_cover_dir = os.path.join(os.path.dirname(__file__), "..", album_cover_dir)
+app.mount("/album_covers", StaticFiles(directory=album_cover_dir), name="album_covers")
+
 # Include routers
-app.include_router(ytmusic_router)
+app.include_router(album_router)
 app.include_router(mediaplayer_router)
-app.include_router(homeassistant_router)
 app.include_router(system_router)
 app.include_router(pngs_router, prefix="/pngs")
+app.include_router(web_router)
 
 
 # Global instances for shared access
@@ -67,17 +76,6 @@ def startup_event():
         logging.error("❌ Configuration validation failed. Please check your .env file.")
         return
     
-    # # Step 1: Ensure display is powered on BEFORE any hardware initialization
-    # try:
-    #     logging.info("🔋 Powering on display before hardware initialization...")
-    #     # Set GPIO as output LOW to turn ON display (S8550 transistor)
-    #     GPIO.setup(config.DISPLAY_POWER_GPIO, GPIO.OUT)
-    #     GPIO.output(config.DISPLAY_POWER_GPIO, GPIO.LOW)
-    #     logging.info("✅ Display powered on at startup (before hardware init)")
-    # except Exception as e:
-    #     logging.warning(f"⚠️ Error controlling display power at startup: {e}")
-    
-
     # Step 2: Initialize hardware manager
     hardware_manager = HardwareManager()
 
@@ -97,37 +95,13 @@ def startup_event():
     hardware_manager.screen_manager = screen_manager
     hardware_manager.playback_manager = playback_manager
 
-    # Register screen manager as a listener to the jukebox mediaplayer for event-driven UI updates
-    # if jukebox_mediaplayer and screen_manager:
-    #     try:
-    #         screen_manager.register_player(jukebox_mediaplayer)
-    #         logging.info("ScreenManager registered as listener to JukeboxMediaPlayer.")
-    #     except Exception as e:
-    #         logging.warning(f"Failed to register screen manager as player listener: {e}")
-    
     # Start WebSocket connection to Home Assistant
-    start_websocket_background()
+    websocket_service.start()
     logging.info("Started WebSocket connection to Home Assistant")
     
-    # Sync with current YouTube Music player state
-    # try:
-    #     sync_result = sync_with_ytube_music_player()
-    #     logging.info(f"Initial sync with YouTube Music player: {sync_result.get('status', 'unknown')}")
-    # except Exception as e:
-    #     logging.error(f"Failed to sync with YouTube Music player on startup: {e}")
-            # Always sync with YouTube Music player before deciding which screen to show
-    #try:
-    #    context = sync_with_ytube_music_player()
-    #except Exception as e:
-    #    logging.error(f"Error syncing with YouTube Music player before screen selection: {e}")
-        
-        
-    # Show appropriate screen based on current state (idle if no music)
-    logging.info(f"🚀 STARTUP: Showing IdleScreen")
-    from app.ui.screens.idle import IdleScreen
+    from app.ui.screens import IdleScreen
     IdleScreen.show()
-    #screen_manager.render()
-    logging.info("Jukebox FastAPI app startup complete")
+    logging.info("🚀Jukebox app startup complete")
 
 
 @app.on_event("shutdown")
@@ -135,8 +109,7 @@ def shutdown_event():
     """Clean up resources on shutdown"""
     # Stop WebSocket connection
     try:
-        from app.routes.homeassistant import stop_websocket
-        stop_websocket()
+        websocket_service.stop()
         logging.info("Stopped WebSocket connection to Home Assistant")
     except Exception as e:
         logging.error(f"Error stopping WebSocket: {e}")

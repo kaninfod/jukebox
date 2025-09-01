@@ -5,10 +5,10 @@ Handles initialization and callbacks for all hardware devices.
 """
 import RPi.GPIO as GPIO
 from app.config import config
-from app.devices.ili9488 import ILI9488
-from app.devices.rfid import RC522Reader
-from app.devices.pushbutton import PushButton
-from app.devices.rotaryencoder import RotaryEncoder
+from .devices.ili9488 import ILI9488
+from .devices.rfid import RC522Reader
+from .devices.pushbutton import PushButton
+from .devices.rotaryencoder import RotaryEncoder
 import logging
 
 logger = logging.getLogger(__name__)
@@ -65,84 +65,163 @@ class HardwareManager:
         # Only proceed if the pin is actually LOW (FALLING edge)
         if not self.rfid_reader or not self.rfid_reader.initialized or self.rfid_reader.reading_active or GPIO.input(channel) != GPIO.LOW:
             return
+
         logger.info("🃏 Card insertion detected - starting RFID read...")
-        # Show RFID reading screen if screen manager is available
-        from app.ui.screens.rfid_loading import RfidReadingScreen
-        RfidReadingScreen.show()
+        from app.config import config
+        file_name = config.get_icon_path("contactless")
+        context = {
+            "title": f"Reading...",
+            "icon_name": file_name,
+            "message": f"Reading album card",
+            "background": "#24AC5F",
+        }
+        from app.ui.screens import MessageScreen
+        try:
+            logger.info("About to show MessageScreen for RFID read...")
+            MessageScreen.show(context)
+            logger.info("MessageScreen.show(context) completed successfully.")
+        except Exception as e:
+            logger.error(f"Exception in MessageScreen.show(context): {e}", exc_info=True)
+
+        logger.info("Triggering RFID read due to switch activation")
         # Start reading and handle result in callback
         def rfid_result_callback(result):
             # Called from RFID reader thread when done
             _callback_result_status = result.get('status')
             logger.info(f"RFID read result: {_callback_result_status}")
-            if _callback_result_status == "success":
-                # Let the normal new UID handler take over (already called by RC522Reader)
-                pass
-            elif _callback_result_status == "timeout":
-                from app.ui.screens.error import ErrorScreen
-                ErrorScreen.show({
-                    "status": "error",
-                    "error_message": result.get("error_message", "Card read timeout.")
-                })
-            elif _callback_result_status == "error":
-                from app.ui.screens.rfid_loading import RfidErrorScreen
-                RfidErrorScreen.show({
-                    "status": "error",
-                    "error_message": result.get("error_message", "RFID error.")
-                })
-        self.rfid_reader.start_reading(result_callback=rfid_result_callback)
+            try:
+                if _callback_result_status == "success":
+                    # Let the normal new UID handler take over (already called by RC522Reader)
+                    pass
+                elif _callback_result_status == "timeout":
+                    from app.config import config
+                    file_name = config.get_icon_path("error")
+                    context = {
+                        "title": f"Error Reading Card",
+                        "icon_name": file_name,
+                        "message": f"Reading timed out. Try again...",
+                        "background": "#CCFF00",
+                    }
+                    from app.ui.screens import MessageScreen
+                    MessageScreen.show(context)
+                elif _callback_result_status == "error":
+                    from app.config import config
+                    file_name = config.get_icon_path("library_music")
+                    context = {
+                        "title": f"Error Reading Card",
+                        "icon_name": file_name,
+                        "message": f"Try again...",
+                        "background": "#FF0000",
+                    }
+                    from app.ui.screens import MessageScreen
+                    MessageScreen.show(context)
+            except Exception as e:
+                logger.error(f"Exception in rfid_result_callback: {e}", exc_info=True)
+        try:
+            logger.info("About to call rfid_reader.start_reading...")
+            self.rfid_reader.start_reading(result_callback=rfid_result_callback)
+            logger.info("rfid_reader.start_reading returned (should be non-blocking)")
+        except Exception as e:
+            logger.error(f"Exception in rfid_reader.start_reading: {e}", exc_info=True)
     
 
     def _handle_new_uid(self, uid):
-        try:
-            from app.main import playback_manager
-            logger.info(f"New RFID UID sent to playback_manager: {uid}")
-            result = playback_manager.load_rfid(rfid=uid)
-        except Exception as e:
-            logger.error(f"Failed to call playback manager: {e}")
-            return
+        from app.core import event_bus, EventType, Event
+        event_bus.emit(Event(
+            type=EventType.RFID_READ,
+            payload={"rfid": uid}
+        ))
+
+        # from app.core.event_bus import event_bus, Event
+        # event_bus.emit(Event(type="rfid_read", payload={"rfid": uid}))
+        return
     
     def _on_button0_press(self):
         """Handle button 0 press - Generic button"""
         logger.info("Button 0 was pressed!")
-        from app.ui.event_bus import ui_event_bus, UIEvent
-        ui_event_bus.emit(UIEvent(type="button_pressed", payload={"button": 0, "action": "generic"}))
+
+        from app.core import event_bus, EventType, Event
+        event_bus.emit(Event(
+            type=EventType.BUTTON_PRESSED,
+            payload={"button": 0, "action": "generic"}
+        ))
+
+        # from app.core.event_bus import event_bus, Event
+        # event_bus.emit(Event(type="button_pressed", payload={"button": 0, "action": "generic"}))
     
     def _on_button1_press(self):
         """Handle button 1 press - Previous track"""
-        from app.ui.event_bus import ui_event_bus, UIEvent
-        ui_event_bus.emit(UIEvent(type="button_pressed", payload={"button": 1, "action": "previous_track"}))
+        from app.core import event_bus, EventType, Event
+        event_bus.emit(Event(
+            type=EventType.BUTTON_PRESSED,
+            payload={"button": 1, "action": "previous_track"}
+        ))
+        # from app.core.event_bus import event_bus, Event
+        # event_bus.emit(Event(type="button_pressed", payload={"button": 1, "action": "previous_track"}))
 
     def _on_button2_press(self):
         """Handle button 2 press - Play/Pause"""
-        from app.ui.event_bus import ui_event_bus, UIEvent
-        ui_event_bus.emit(UIEvent(type="button_pressed", payload={"button": 2, "action": "play_pause"}))
+        from app.core import event_bus, EventType, Event
+        event_bus.emit(Event(
+            type=EventType.BUTTON_PRESSED,
+            payload={"button": 2, "action": "play_pause"}
+        ))
+
+
+
+        # from app.core.event_bus import event_bus, Event
+        # event_bus.emit(Event(type="button_pressed", payload={"button": 2, "action": "play_pause"}))
 
     def _on_button3_press(self):
         """Handle button 3 press - Next track"""
-        from app.ui.event_bus import ui_event_bus, UIEvent
-        ui_event_bus.emit(UIEvent(type="button_pressed", payload={"button": 3, "action": "next_track"}))
+        from app.core import event_bus, EventType, Event
+        event_bus.emit(Event(
+            type=EventType.BUTTON_PRESSED,
+            payload={"button": 3, "action": "next_track"}
+        ))
+
+        # from app.core.event_bus import event_bus, Event
+        # event_bus.emit(Event(type="button_pressed", payload={"button": 3, "action": "next_track"}))
     
     def _on_button4_press(self):
         """Handle button 4 press - TEMPORARILY DISABLED (used as NFC card switch)"""
         logger.info("Button 4 press detected")
-        from app.ui.event_bus import ui_event_bus, UIEvent
-        ui_event_bus.emit(UIEvent(type="button_pressed", payload={"button": 4, "action": "nfc_switch"}))
+        from app.core import event_bus, EventType, Event
+        event_bus.emit(Event(
+            type=EventType.BUTTON_PRESSED,
+            payload={"button": 4, "action": "nfc_switch"}
+        ))
+
+        # from app.core.event_bus import event_bus, Event
+        # event_bus.emit(Event(type="button_pressed", payload={"button": 4, "action": "nfc_switch"}))
     
     def _on_button5_press(self):
         """Handle button 5 press - Rotary encoder button"""
         logger.info("Rotary encoder button was pressed!")
-        from app.ui.event_bus import ui_event_bus, UIEvent
-        ui_event_bus.emit(UIEvent(type="clear_error", payload={"button": "rotary_encoder"}))
+        from app.core import event_bus, EventType, Event
+        event_bus.emit(Event(
+            type=EventType.BUTTON_PRESSED,
+            payload={"button": "rotary_encoder"}
+        ))
+
+        # from app.core.event_bus import event_bus, Event
+        # event_bus.emit(Event(type="clear_error", payload={"button": "rotary_encoder"}))
 
     def _on_rotate(self, direction, position):
         """Handle rotary encoder rotation"""
         #logger.debug(f"Rotary encoder moved to {position}, direction: {'CW' if direction > 0 else 'CCW'}")
-        from app.ui.event_bus import ui_event_bus, UIEvent
+        from app.core import event_bus, Event, EventType
         
         if direction > 0:
-            ui_event_bus.emit(UIEvent(type="RotaryEncoder", payload={"direction": "CW", "action": "volume_up"}))
+            event_bus.emit(Event(
+                type=EventType.ROTARY_ENCODER,
+                payload={"direction": "CW", "action": "volume_up"}
+            ))
         else:
-            ui_event_bus.emit(UIEvent(type="RotaryEncoder", payload={"direction": "CCW", "action": "volume_down"}))
+            event_bus.emit(Event(
+                type=EventType.ROTARY_ENCODER,
+                payload={"direction": "CCW", "action": "volume_down"}
+            ))
 
 
     def cleanup(self):

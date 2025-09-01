@@ -1,51 +1,46 @@
 import logging
-from app.services import jukebox_mediaplayer
 from app.ui.theme import UITheme as theme
 from app.ui.screens.base import Screen
-from enum import Enum
 from app.services.jukebox_mediaplayer import PlayerStatus
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
-import requests
-from PIL import Image, ImageDraw, ImageFont
-from io import BytesIO
-
 class HomeScreen(Screen):
-    @staticmethod
-    def show():
-        """Emit an event to show the home screen via the event bus."""
-        from app.ui.event_bus import ui_event_bus, UIEvent
-        ui_event_bus.emit(UIEvent(type="show_home"))
-        logger.info("UIEventBus: Emitted show_home event from HomeScreen.show()")
-
     def __init__(self, theme):
         super().__init__()
         self.theme = theme
-        self.name = "Home"
         self.volume = 75  
         self.player_status = PlayerStatus.STANDBY
         self.artist_name = "Unknown Artist"
         self.album_name = "Unknown Album"
         self.album_year = "----"
         self.track_title = "No Track"
-        self.yt_id = ""
         self.album_image_url = None
         self.album_image = None
         self.context = {}
         self.dirty = True
-        self.jukebox_mediaplayer = None
+        self.name = "Home Screen"
 
-    def set_volume(self, volume):
-        """Set volume (0-100)"""
-        self.volume = max(0, min(100, volume))
-        self.dirty = True
+    @staticmethod
+    def show(context=None):
+        """Emit an event to show the home screen via the event bus."""
+        # from app.core.event_bus import event_bus, Event
+        # event_bus.emit(Event(type="show_home", payload=context))
+        from app.core import event_bus, EventType, Event
+        event_bus.emit(Event(
+            type=EventType.SHOW_HOME,
+            payload=context
+        ))
+
+        # from app.core import event_bus, EventFactory
+        # event_bus.emit(EventFactory.show_home(payload=context))
+        logger.info(f"EventBus: Emitted 'show_home' event from HomeScreen.show()")
 
     def draw(self, draw_context, fonts, context=None, image=None):
         if not self.dirty:
             logger.debug("HomeScreen is not dirty, skipping draw.")
             return {"dirty": self.dirty}
-
 
         self.context = context
 
@@ -64,9 +59,7 @@ class HomeScreen(Screen):
                 self.player_status = PlayerStatus(status_str)
             except ValueError:
                 self.player_status = PlayerStatus.STANDBY
-            logger.debug(f"Context data: artist={self.artist_name}, album={self.album_name}, year={self.album_year}, track={self.track_title}, volume={self.volume}, status={self.player_status}, image_url={self.album_image_url}")
-
-        logger.debug(f"Drawing HomeScreen with status: {self.player_status}, volume: {self.volume}, artist: {self.artist_name}, album: {self.album_name}, year: {self.album_year}, track: {self.track_title}, image: {self.album_image_url}")
+            
         self._draw_background(draw_context)
         self._draw_screen_title(draw_context, fonts)
         self._draw_album_image(draw_context, image)
@@ -79,12 +72,9 @@ class HomeScreen(Screen):
         return {"dirty": self.dirty}
 
     def is_dirty(self):
-        # Always redraw on event for now; can be optimized if needed
-        logger.debug("HomeScreen is_dirty called; returning True for event-driven redraw.")
         self.dirty = True
         return self.dirty
-    
-    # _set_context is no longer needed; all state is fetched from the player
+
 
     def _draw_background(self, draw_context):
         draw_context.rectangle([0, 0, self.width, self.height], fill=self.theme.colors["background"])
@@ -105,7 +95,6 @@ class HomeScreen(Screen):
                 draw_context.text((image_x + 30, image_y + 55), "LOADED", fill=self.theme.colors["highlight"])
                 mask = self.album_image if self.album_image.mode == 'RGBA' else None
                 image.paste(self.album_image, (image_x, image_y), mask)
-                logger.info("Album image pasted successfully (HomeScreen)")
             except Exception as e:
                 logger.error(f"Error displaying image: {e}")
                 draw_context.rectangle([image_x, image_y, image_x + image_size, image_y + image_size], outline=self.theme.colors["error"], fill=None)
@@ -164,7 +153,7 @@ class HomeScreen(Screen):
         draw_context.text((volume_x + (volume_bar_width - text_width) // 2, volume_y + volume_bar_height + 5), volume_text, fill="black", font=small_font)
 
     def _draw_status_icon(self, draw_context, fonts, image):
-        from app.config import ICON_DEFINITIONS
+        from app.config import config
         from app.ui.manager import ScreenManager
         
         status_icon_size = 30
@@ -182,12 +171,11 @@ class HomeScreen(Screen):
             PlayerStatus.STANDBY: "standby_settings"
         }
         icon_name = icon_map.get(self.player_status, "?")
-        logger.debug(f"Current player status icon: {icon_name}")
-        icon_def = next((icon for icon in ICON_DEFINITIONS if icon["name"] == icon_name), None)
-        logger.debug(f"Icon definition found: {icon_def} & {icon_name}")
-        if icon_def:
+        icon_path = config.get_icon_path(icon_name)
+        if icon_path:
             try:
-                icon_img = ScreenManager.get_icon_png(icon_def["path"])
+                icon_img = Image.open(icon_path).convert("RGBA")
+                #icon_img = ScreenManager.get_icon_png(icon_path)
             except Exception as e:
                 logger.error(f"Failed to load icon PNG: {e}")
         if icon_img and image is not None:
@@ -207,17 +195,15 @@ class HomeScreen(Screen):
         if not self.album_image_url:
             self.album_image = None
             return
-        cache_dir = getattr(config, "ALBUM_COVER_CACHE_PATH", "album_covers")
-        local_path = os.path.join(cache_dir, self.album_image_url)
+        local_path = config.get_image_path(self.album_image_url)
+        
         if os.path.exists(local_path):
             try:
                 self.album_image = Image.open(local_path)
-                logger.info(f"Loaded cached album image: {local_path}")
             except Exception as e:
                 logger.error(f"Failed to load cached album image: {e}")
                 self.album_image = None
         else:
-            logger.info(f"Album cover not cached: {local_path}")
             self.album_image = None
 
     def _wrap_text(self, draw, text, font, max_width):
@@ -242,19 +228,3 @@ class HomeScreen(Screen):
         if current_line:
             lines.append(current_line)
         return lines if lines else [""]
-
-
-
-    def _get_album_name_from_db(self, yt_id):
-        from app.database import get_ytmusic_data_by_yt_id
-        # Try to get additional data from database using yt_id
-        db_data = get_ytmusic_data_by_yt_id(yt_id) if yt_id else None
-        
-        # Use database data to fill in missing information, especially for album names
-        if db_data:
-            logger.debug(f"Found database entry for yt_id: {yt_id}")
-            return {
-                "album_name": db_data.get("album_name", "Unknown Album"),
-                "artist_name": db_data.get("artist_name", "Unknown Artist"),
-                "year": db_data.get("year", ""),
-            }

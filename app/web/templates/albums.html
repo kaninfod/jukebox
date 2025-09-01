@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Jukebox Albums</title>
+    <style>
+        table { margin: auto; border-collapse: collapse; }
+        th, td { padding: 8px 12px; border: 1px solid #ccc; }
+        img { width: 60px; height: 60px; }
+        input[type=text] { width: 180px; }
+        form { display: inline; }
+    </style>
+</head>
+<body>
+    <h2 style="text-align:center;">Jukebox Albums</h2>
+    <table>
+        <tr>
+            <th>Cover</th>
+            <th>Artist</th>
+            <th>Album</th>
+            <th>RFID</th>
+            <th>YT_ID</th>
+            <th>Update</th>
+        </tr>
+        {% for album in albums %}
+        <tr>
+            <td>
+                {% if album.thumbnail %}
+                    <img src="/{{ cover_path }}/{{ album.thumbnail }}" alt="cover">
+                {% else %}
+                    No cover
+                {% endif %}
+            </td>
+            <td>{{ album.artist_name or '' }}</td>
+            <td>{{ album.album_name or '' }}</td>
+            <td>{{ album.rfid or '' }}</td>
+            <td>
+                <form method="post" action="/jukebox/albums/update_ytid">
+                    <input type="hidden" name="rfid" value="{{ album.rfid }}">
+                    <input type="text" name="yt_id" value="{{ album.yt_id or '' }}">
+            </td>
+            <td>
+                    <button type="submit">Update</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

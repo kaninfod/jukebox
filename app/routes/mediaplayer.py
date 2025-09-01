@@ -1,8 +1,8 @@
 from app.services.playback_manager import PlaybackManager
 from fastapi import APIRouter, Body, Query
-from app.ui.screens import PlayerStatus
-import subprocess
-from typing import Dict, List, Union, Any
+#from app.ui.screens import PlayerStatus
+#import subprocess
+#from typing import Dict, List, Union, Any
 
 
 
@@ -16,110 +16,121 @@ def get_screen_manager():
 @router.post("/mediaplayer/next_track")
 def next_track():
     """Advance to the next track."""
-    try:
-        from app.main import playback_manager
-        if playback_manager and playback_manager.player:
-            playback_manager.player.next_track()
-            return {"status": "success", "message": "Advanced to next track"}
-        else:
-            return {"status": "error", "message": "No player available"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    from app.core import event_bus, EventType, Event
+    result = event_bus.emit(Event(
+        type=EventType.NEXT_TRACK,
+        payload={"force": True}
+    ))
+
+    if result:
+        return {"status": "success", "message": result}
+    else:
+        return {"status": "error", "message": "Failed to advance to next track"}
 
 @router.post("/mediaplayer/previous_track")
 def previous_track():
-    """Go to the previous track."""
-    try:
-        from app.main import playback_manager
-        if playback_manager and playback_manager.player:
-            playback_manager.player.previous_track()
-            return {"status": "success", "message": "Went to previous track"}
-        else:
-            return {"status": "error", "message": "No player available"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    from app.core import event_bus, EventType, Event
+    result = event_bus.emit(Event(
+        type=EventType.PREVIOUS_TRACK,
+        payload={}
+    ))
+
+    if result:
+        return {"status": "success", "message": result}
+    else:
+        return {"status": "error", "message": "Failed to go to previous track"}
 
 @router.post("/mediaplayer/play_pause")
 def play_pause():
     """Toggle playback."""
-    try:
-        from app.main import playback_manager
-        if playback_manager and playback_manager.player:
-            playback_manager.player.play_pause()
-            return {"status": "success", "message": "Toggled playback"}
-        else:
-            return {"status": "error", "message": "No player available"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    from app.core import event_bus, EventType, Event
+    result = event_bus.emit(Event(
+        type=EventType.PLAY_PAUSE,
+        payload={}
+    ))
+
+    if result:
+        return {"status": "success", "message": result}
+    else:
+        return {"status": "error", "message": "Failed to toggle playback"}
+
 
 @router.post("/mediaplayer/play")
 def play():
     """Resume playback."""
-    try:
-        from app.main import playback_manager
-        if playback_manager and playback_manager.player:
-            playback_manager.player.play()
-            return {"status": "success", "message": "Resumed playback"}
-        else:
-            return {"status": "error", "message": "No player available"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    from app.core import event_bus, EventType, Event
+    result = event_bus.emit(Event(
+        type=EventType.PLAY_PAUSE,
+        payload={}
+    ))
+
+    if result:
+        return {"status": "success", "message": result}
+    else:
+        return {"status": "error", "message": "Failed to start playback"}
 
 @router.post("/mediaplayer/stop")
 def stop():
     """Stop playback."""
-    try:
-        from app.main import playback_manager
-        if playback_manager and playback_manager.player:
-            playback_manager.player.stop()
-            return {"status": "success", "message": "Stopped playback"}
-        else:
-            return {"status": "error", "message": "No player available"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    from app.core import event_bus, EventType, Event
+    result = event_bus.emit(Event(
+        type=EventType.STOP,
+        payload={}
+    ))
+
+    if result:
+        return {"status": "success", "message": result}
+    else:
+        return {"status": "error", "message": "Failed to stop playback"}
+
 
 
 @router.post("/mediaplayer/volume_up")
 def volume_up():
     """Increase volume using JukeboxMediaPlayer (master of volume, syncs to HA)."""
-    try:
-        from app.main import playback_manager
-        if playback_manager and playback_manager.player:
-            playback_manager.player.volume_up()
-            return {"status": "success", "message": "Volume increased"}
-        else:
-            return {"status": "error", "message": "No player available"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    from app.core import event_bus, EventType, Event
+    result = event_bus.emit(Event(
+        type=EventType.VOLUME_UP,
+        payload={}
+    ))
+
+    if result:
+        return {"status": "success", "message": result}
+    else:
+        return {"status": "error", "message": "Failed to increase volume"}
 
 
 @router.post("/mediaplayer/volume_down")
 def volume_down():
     """Decrease volume using JukeboxMediaPlayer (master of volume, syncs to HA)."""
-    try:
-        from app.main import playback_manager
-        if playback_manager and playback_manager.player:
-            playback_manager.player.volume_down()
-            return {"status": "success", "message": "Volume decreased"}
-        else:
-            return {"status": "error", "message": "No player available"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    from app.core import event_bus, EventType, Event
+    result = event_bus.emit(Event(
+        type=EventType.VOLUME_DOWN,
+        payload={}
+    ))
+
+    if result:
+        return {"status": "success", "message": result}
+    else:
+        return {"status": "error", "message": "Failed to decrease volume"}
 
 
 # Endpoint to trigger load_rfid in PlaybackManager
 @router.post("/mediaplayer/playback_rfid")
 def playbackmanager_load_rfid(rfid: str = Body(..., embed=True)):
     """Trigger load_rfid in PlaybackManager with the given RFID."""
-    try:
-        from app.main import playback_manager
-        result = playback_manager.load_rfid(rfid)
-        if result:
-            return {"status": "success", "message": f"RFID {rfid} loaded in PlaybackManager"}
-        else:
-            return {"status": "error", "message": f"Failed to load RFID {rfid} in PlaybackManager"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+
+    from app.core import event_bus, EventType, Event
+    result = event_bus.emit(Event(
+        type=EventType.RFID_READ,
+        payload={"rfid": rfid}
+    ))
+
+    if result:
+        return {"status": "success", "message": result}
+    else:
+        return {"status": "error", "message": "Failed to load RFID in PlaybackManager"}
+
 
 # Endpoint to get all info on the current track from JukeboxMediaPlayer
 @router.get("/mediaplayer/current_track")
@@ -165,5 +176,6 @@ def get_mediaplayer_info():
         }
     
     return {"status": "No home screen available"}
+
 
 

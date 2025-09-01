@@ -29,18 +29,16 @@ Event Bus Events and Handlers
 
 | Event              | Handler (Class.Method)             | Purpose                                                      |
 |--------------------|-----------------------------------|--------------------------------------------------------------|
-| show_home          | ScreenManager.handle_event         | Switches to and renders the home screen                      |
-| track_changed      | ScreenManager.handle_event         | Updates the UI to reflect a new track (usually home screen)  |
-| volume_changed     | ScreenManager.handle_event         | Updates the UI to reflect a volume change (usually home)     |
-| status_changed     | ScreenManager.handle_event         | Updates UI for player status (shows home or idle screen)     |
-| show_idle          | ScreenManager.handle_event         | Switches to and renders the idle screen                      |
-| show_error         | ScreenManager.handle_event         | Switches to and renders the error screen                     |
-| show_rfid_reading  | ScreenManager.handle_event         | Switches to and renders the RFID reading screen              |
-| show_rfid_loading  | ScreenManager.handle_event         | Switches to and renders the RFID loading screen              |
-| show_rfid_new      | ScreenManager.handle_event         | Switches to and renders the new RFID screen                  |
-| show_rfid_error    | ScreenManager.handle_event         | Switches to and renders the RFID error screen                |
-| clear_error        | ScreenManager.handle_event         | Clears error state and returns to the idle screen            |
-| button_pressed     | PlaybackManager.handle_event       | Handles playback controls: previous, play/pause, next track  |
-| button_pressed     | ScreenManager.handle_event         | Handles UI actions: generic, nfc_switch, or ignored          |
-| RotaryEncoder      | PlaybackManager.handle_event       | Handles volume up/down via rotary encoder                    |
-| clear_error        | ScreenManager.handle_event         | Clears error state via rotary encoder button                 |
+| track_changed      | ScreenManager.handle_event         | Updates the UI to reflect a new track                        |
+| volume_changed     | ScreenManager.handle_event         | Updates the UI to reflect a volume change                    |
+| status_changed     | ScreenManager.handle_event         | Updates UI for player status                                 |
+| show_rfid_reading  | ScreenManager.handle_event         | Shows the RFID reading screen                                |
+| show_rfid_loading  | ScreenManager.handle_event         | Shows the RFID loading screen                                |
+| show_rfid_new      | ScreenManager.handle_event         | Shows the new RFID screen                                    |
+| show_rfid_error    | ScreenManager.handle_event         | Shows the RFID error screen                                  |
+| clear_error        | ScreenManager.handle_event         | Clears error state                                           |
+| button_pressed     | PlaybackManager.handle_event       | Handles playback controls and UI actions                     |
+| RotaryEncoder      | PlaybackManager.handle_event       | Handles volume up/down                                       |
+| ha_state_changed   | PlaybackManager.handle_event       | Handles Home Assistant state changes                         |
+| ha_volume_changed  | PlaybackManager.handle_event       | Handles Home Assistant volume changes                        |
+| rfid_read          | PlaybackManager.handle_event       | Handles RFID card reads                                      |

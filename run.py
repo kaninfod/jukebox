@@ -1,4 +1,4 @@
-from app.logging_config import setup_logging
+from app.core.logging_config import setup_logging
 setup_logging()
 import uvicorn
 

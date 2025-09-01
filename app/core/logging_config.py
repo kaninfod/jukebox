@@ -1,6 +1,5 @@
 import logging
 import logging.handlers
-import os
 import socket
 
 def setup_logging(log_file="jukebox.log", level=logging.DEBUG):
@@ -24,3 +23,6 @@ def setup_logging(log_file="jukebox.log", level=logging.DEBUG):
     # Suppress noisy logs from third-party libraries
     for lib in ["requests", "PIL", "urllib3", "websockets"]:
         logging.getLogger(lib).setLevel(logging.WARNING)
+
+
+

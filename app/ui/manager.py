@@ -1,24 +1,12 @@
 import logging
-import os
-logger = logging.getLogger(__name__)
-from app.ui.screens.idle import IdleScreen
-from app.ui.screens.home import HomeScreen
-from app.ui.screens.rfid_loading import RfidReadingScreen, RfidLoadingScreen, RfidNewRfidScreen, RfidErrorScreen
-from app.ui.screens.error import ErrorScreen
 from PIL import Image, ImageDraw, ImageFont
 from app.ui.theme import UITheme
-from app.ui.context import UIContext
 from app.ui.factory import screen_factory
 from enum import Enum
 from app.services.jukebox_mediaplayer import PlayerStatus
-from app.ui.event_bus import ui_event_bus, UIEvent
-
-class RfidLoadingStatus(Enum):
-    READING = "reading"
-    LOADING_ALBUM = "loading_album"
-    NEW_RFID = "new_rfid"
-    ERROR = "error"
-
+#from app.core.event_bus import event_bus, Event
+from app.core import event_bus, EventType
+logger = logging.getLogger(__name__)
 
 class ScreenManager:
     """Manages different screens and screen switching"""
@@ -31,57 +19,49 @@ class ScreenManager:
         self.error_active = False  # Block screen changes while error is active
         logger.info("ScreenManager initialized")
         self._init_screens()
-        ui_event_bus.subscribe(self.handle_event)
+        event_bus.subscribe(EventType.SHOW_IDLE, self._show_idle_screen)
+        event_bus.subscribe(EventType.SHOW_MESSAGE, self._show_message_screen)
+        event_bus.subscribe(EventType.SHOW_HOME, self._handle_player_changes)
+        event_bus.subscribe(EventType.TRACK_CHANGED, self._handle_player_changes)
+        event_bus.subscribe(EventType.VOLUME_CHANGED, self._handle_player_changes)
+        event_bus.subscribe(EventType.STATUS_CHANGED, self._handle_player_changes)
+        #event_bus.subscribe(EventType.CLEAR_ERROR, )
 
-    def handle_event(self, event: UIEvent):
-        # All screen changes should be triggered via events and handled here.
-        # If error is active, only allow clear_error event
-        if self.error_active and event.type != 'clear_error':
-            logger.info(f"Error screen active, ignoring event: {event.type}")
-            return
+        #event_bus.subscribe(self.handle_event)
+        logger.info(f"ScreenManager subscribed to EventBus with {id(event_bus)}")
+
+    def _handle_player_changes(self, event):
+        if event.payload['status'] in [PlayerStatus.PLAY.value, PlayerStatus.PAUSE.value]:
+            self._show_home_screen(event)
+        else:
+            self._show_idle_screen(event)
+
+    def _handle_error_event(self, event):
         if event.type == 'clear_error':
             logger.info("Received clear_error event, clearing error state.")
             self.error_active = False
-            # After clearing error, show idle screen (or last requested screen)
             self._show_idle_screen()
-            return
-        if event.type in ['show_home', 'track_changed', 'volume_changed', 'status_changed']:
-            if event.payload['status'] in [PlayerStatus.PLAY.value, PlayerStatus.PAUSE.value]:
-                self._show_home_screen(event.payload)
-            else:
-                self._show_idle_screen(event.payload)
-        elif event.type == 'show_idle':
-            self._show_idle_screen()
-        elif event.type == 'show_error':
-            self.error_active = True
-            self._show_error_screen(event.payload)
-        elif event.type == 'show_rfid_reading':
-            self._show_rfid_reading_screen(event.payload)
-        elif event.type == 'show_rfid_loading':
-            self._show_rfid_loading_screen(event.payload)
-        elif event.type == 'show_rfid_new':
-            self._show_rfid_new_screen(event.payload)
-        elif event.type == 'show_rfid_error':
-            self._show_rfid_error_screen(event.payload)
-        else:
-            logger.warning(f"Unhandled event type: {event.type}")
-        # Add more event types as needed
 
-    def cleanup(self):
-        logger.info("ScreenManager cleanup called")
-        # Add any additional cleanup logic here if needed
-    
-    @staticmethod
-    def get_icon_png(icon_path):
-        from PIL import Image
-        if icon_path.startswith("http://") or icon_path.startswith("https://"):
-            import requests
-            from io import BytesIO
-            r = requests.get(icon_path)
-            icon_img = Image.open(BytesIO(r.content)).convert("RGBA")
-        else:
-            icon_img = Image.open(icon_path).convert("RGBA")
-        return icon_img
+    # def handle_event(self, event: Event):
+    #     if self.error_active and event.type != 'clear_error':
+    #         logger.info(f"Error screen active, ignoring event: {event.type}")
+    #         return
+    #     if event.type == 'clear_error':
+    #         logger.info("Received clear_error event, clearing error state.")
+    #         self.error_active = False
+    #         self._show_idle_screen()
+    #         return
+    #     if event.type in ['show_home', 'track_changed', 'volume_changed', 'status_changed']:
+    #         if event.payload['status'] in [PlayerStatus.PLAY.value, PlayerStatus.PAUSE.value]:
+    #             self._show_home_screen(event.payload)
+    #         else:
+    #             self._show_idle_screen(event.payload)
+    #     elif event.type == 'show_idle':
+    #         self._show_idle_screen()
+    #     elif event.type == 'show_message_screen':
+    #         self._show_message_screen(event.payload)
+    #     else:
+    #         logger.info(f"Event not handled here: {event.type}")
 
     def _load_fonts(self):
         from app.config import config
@@ -98,7 +78,6 @@ class ScreenManager:
         for name, screen in screen_dict.items():
             self.add_screen(name, screen)
             logger.debug(f"Screen initialized: {name}")
-        # Set the first screen as the current screen (default to 'idle' if present, else first key)
         if 'idle' in self.screens:
             self.current_screen = self.screens['idle']
         elif self.screens:
@@ -107,45 +86,25 @@ class ScreenManager:
     def add_screen(self, name, screen):
         self.screens[name] = screen
 
-    def _show_home_screen(self, context=None):
+    def _show_home_screen(self, event):
         self.switch_to_screen("home")
-        logger.debug(f"Checking if screen should be rendered {self.current_screen}")
         if self.current_screen.is_dirty():
-            self.render(context=context)
-            logger.debug("HomeScreen rendered")
+            self.render(context=event.payload)
         else:
             logger.debug("HomeScreen not dirty, skipping render.")
 
-    def _show_idle_screen(self, context=None):
+    def _show_idle_screen(self, event):
         self.switch_to_screen("idle")
-        self.render(context=context)
+        self.render(context=event.payload)
 
-    def _show_rfid_reading_screen(self, context=None):
-        self.switch_to_screen("rfid_reading")
-        self.render(context=context)
-
-    def _show_rfid_new_screen(self, context=None):
-        self.switch_to_screen("rfid_new_rfid")
-        self.render(context=context)
-
-    def _show_rfid_loading_screen(self, context=None):
-        self.switch_to_screen("rfid_loading")
-        self.render(context=context)
-
-    def _show_rfid_error_screen(self, context=None):
-        self.switch_to_screen("rfid_error")
-        self.render(context=context)
-
-    def _show_error_screen(self, context=None):
-        error_screen = self.screens.get("error")
-        if error_screen:
-            self.switch_to_screen("error")
-            self.render(context)
+    def _show_message_screen(self, event):
+        self.switch_to_screen("message_screen")
+        self.render(context=event.payload)
 
     def switch_to_screen(self, screen_name):
         old_screen = self.current_screen.name if self.current_screen else "None"
         self.current_screen = self.screens[screen_name]
-        logger.info(f"🖥️  SCREEN CHANGE: {old_screen} → {self.current_screen.name}")
+        logger.info(f"Switching to screen: {self.current_screen.name}")
 
     def render(self, context=None, force=True):
         if self.current_screen and (self.current_screen.dirty or force):
@@ -156,8 +115,22 @@ class ScreenManager:
                 self.current_screen.draw(draw, self.fonts, context=context, image=image)
                 self.display.device.display(image)
                 self.current_screen.dirty = False
+                logger.info(f"🖥️  SCREEN CHANGED SUCCESSFULLY: {self.current_screen.name}")
             except Exception as e:
                 logger.error(f"Failed to draw {self.current_screen.name}: {e}")
-                from app.ui.screens.error import ErrorScreen
-                ErrorScreen.show({"error_message": f"Error drawing {self.current_screen.name}: {e}"})
+                
+                from app.config import config
+                file_name = config.get_icon_path("error")
+                context = {
+                    "title": f"Error.",
+                    "icon_name": file_name,
+                    "message": f"Error drawing {self.current_screen.name}: {e}",
+                    "background": "#DA0F0F",
+                }
+                from app.ui.screens.message import MessageScreen
+                MessageScreen.show(context)
             image.save(f"tests/display_{self.current_screen.name}.png")
+
+
+    def cleanup(self):
+        logger.info("ScreenManager cleanup called")

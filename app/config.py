@@ -1,17 +1,6 @@
 import logging
 logger = logging.getLogger(__name__)
-# Icon definitions for use throughout the app
-ICON_DEFINITIONS = [
-    {"name": "contactless", "path": "/home/pi/shared/jukebox/icons/contactless.png", "width": 80, "height": 80},
-    {"name": "library_music", "path": "/home/pi/shared/jukebox/icons/library_music.png", "width": 80, "height": 80},
-    {"name": "add_circle", "path": "/home/pi/shared/jukebox/icons/add_circle.png", "width": 80, "height": 80},
-    {"name": "error", "path": "/home/pi/shared/jukebox/icons/error.png", "width": 80, "height": 80},
-    {"name": "play_circle", "path": "/home/pi/shared/jukebox/icons/play_circle.png", "width": 80, "height": 80},
-    {"name": "pause_circle", "path": "/home/pi/shared/jukebox/icons/pause_circle.png", "width": 80, "height": 80},
-    {"name": "stop_circle", "path": "/home/pi/shared/jukebox/icons/stop_circle.png", "width": 80, "height": 80},
-    {"name": "standby_settings", "path": "/home/pi/shared/jukebox/icons/power_settings.png", "width": 80, "height": 80},
-    {"name": "klangmeister", "path": "/home/pi/shared/jukebox/icons/klangmeister.png", "width": 480, "height": 320},
-]
+
 """
 Configuration management for the jukebox application.
 Loads environment variables and provides centralized access to configuration settings.
@@ -49,7 +38,7 @@ class Config:
     DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")
     DB_NAME: str = os.getenv("DB_NAME", "hingedb")
 
-    ALBUM_COVER_CACHE_PATH: str = os.getenv("ALBUM_COVER_CACHE_PATH", "album_covers")
+    STATIC_FILE_PATH: str = os.getenv("STATIC_FILE_PATH", "static_files")
 
     # YouTube Music OAuth
     YOUTUBE_ACCESS_TOKEN: str = os.getenv("YOUTUBE_ACCESS_TOKEN", "")
@@ -83,6 +72,32 @@ class Config:
     DEBUG_MODE: bool = os.getenv("DEBUG_MODE", "false").lower() == "true"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     
+    # Icon definitions for use throughout the app
+    ICON_DEFINITIONS = [
+        {"name": "contactless", "path": "contactless.png", "width": 80, "height": 80},
+        {"name": "library_music", "path": "library_music.png", "width": 80, "height": 80},
+        {"name": "add_circle", "path": "add_circle.png", "width": 80, "height": 80},
+        {"name": "error", "path": "error.png", "width": 80, "height": 80},
+        {"name": "play_circle", "path": "play_circle.png", "width": 80, "height": 80},
+        {"name": "pause_circle", "path": "pause_circle.png", "width": 80, "height": 80},
+        {"name": "stop_circle", "path": "stop_circle.png", "width": 80, "height": 80},
+        {"name": "standby_settings", "path": "power_settings.png", "width": 80, "height": 80},
+        {"name": "klangmeister", "path": "klangmeister.png", "width": 480, "height": 320},
+    ]
+
+
+    @classmethod
+    def get_image_path(cls, file_name: str) -> str:
+        local_path = os.path.join(cls.STATIC_FILE_PATH, file_name)
+        return local_path
+
+    @classmethod
+    def get_icon_path(cls, icon_name: str) -> str:
+        icon_def = next((icon for icon in cls.ICON_DEFINITIONS if icon["name"] == icon_name), None)
+        if icon_def:
+            return cls.get_image_path(icon_def["path"])
+        return False
+
     @classmethod
     def get_database_url(cls) -> str:
         """Generate the database connection URL from environment variables"""
