@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Subsonic Albums</title>
+    <style>
+        table { margin: auto; border-collapse: collapse; }
+        th, td { padding: 8px 12px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h2 style="text-align:center;">Albums for Artist: {{ artist_id }}</h2>
+    <table>
+        <tr>
+            <th>Album Name</th>
+            <th>Album ID</th>
+        </tr>
+        {% for album in albums %}
+        <tr>
+            <td>{{ album.name }}</td>
+            <td>{{ album.id }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    <div style="text-align:center; margin-top:20px;">
+        <a href="/subsonic/artists">Back to Artists</a>
+    </div>
+</body>
+</html>

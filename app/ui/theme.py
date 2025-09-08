@@ -1,4 +1,10 @@
 class UITheme:
+
+
+    def get_theme(self,name):
+        """Return a message theme dict by name (e.g., 'message_info', 'message_error')."""
+        return getattr(self, name, None)
+    
     def __init__(self, fonts):
         self.fonts = fonts
         self.colors = {
@@ -18,6 +24,15 @@ class UITheme:
             "company_y": 90,
             "product_y": 130,
         }
+
+        self.message_error = {
+            "background": "#FF0000",
+        }
+
+        self.message_info = {
+            "background": "#FFFFFF",
+        }
+
         _volume_bar = {"width": 15, "height": 200}
         
         _home_layout = {

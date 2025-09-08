@@ -38,7 +38,7 @@ class WebSocketService:
             if old_status == "playing" and state == "idle":
                 from app.core import event_bus, EventType, Event
                 event_bus.emit(Event(
-                    type=EventType.HA_STATE_CHANGED,
+                    type=EventType.STATE_CHANGED,
                     payload={"from": old_status, "to": state}
                 ))
 

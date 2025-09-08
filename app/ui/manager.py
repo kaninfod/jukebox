@@ -98,6 +98,9 @@ class ScreenManager:
         self.render(context=event.payload)
 
     def _show_message_screen(self, event):
+        if self.error_active:
+            logger.info(f"Error screen active, ignoring event: {getattr(event, 'type', None)}")
+            return
         self.switch_to_screen("message_screen")
         self.render(context=event.payload)
 
@@ -118,7 +121,7 @@ class ScreenManager:
                 logger.info(f"🖥️  SCREEN CHANGED SUCCESSFULLY: {self.current_screen.name}")
             except Exception as e:
                 logger.error(f"Failed to draw {self.current_screen.name}: {e}")
-                
+                self.error_active = True
                 from app.config import config
                 file_name = config.get_icon_path("error")
                 context = {

@@ -18,7 +18,8 @@
             <th>Artist</th>
             <th>Album</th>
             <th>RFID</th>
-            <th>YT_ID</th>
+            <th>Album ID</th>
+            <th>Provider</th>
             <th>Update</th>
         </tr>
         {% for album in albums %}
@@ -34,9 +35,15 @@
             <td>{{ album.album_name or '' }}</td>
             <td>{{ album.rfid or '' }}</td>
             <td>
-                <form method="post" action="/jukebox/albums/update_ytid">
+                <form method="post" action="/jukebox/albums/update_audioPlaylistId">
                     <input type="hidden" name="rfid" value="{{ album.rfid }}">
-                    <input type="text" name="yt_id" value="{{ album.yt_id or '' }}">
+                    <input type="text" name="audioPlaylistId" value="{{ album.audioPlaylistId or '' }}">
+            </td>
+            <td>
+                    <select name="provider">
+                        <option value="youtube_music" {% if album.provider == "youtube_music" %}selected{% endif %}>YouTube Music</option>
+                        <option value="subsonic" {% if album.provider == "subsonic" %}selected{% endif %}>Subsonic</option>
+                    </select>
             </td>
             <td>
                     <button type="submit">Update</button>

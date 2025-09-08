@@ -12,6 +12,7 @@ from app.routes.mediaplayer import router as mediaplayer_router
 from app.routes.pngs import router as pngs_router
 from app.routes.system import router as system_router
 from app.web.routes import router as web_router
+from app.routes.chromecast import router as chromecast_router
 
 from app.services.websocket_service import websocket_service
 from app.services.playback_manager import PlaybackManager
@@ -42,6 +43,7 @@ app.include_router(mediaplayer_router)
 app.include_router(system_router)
 app.include_router(pngs_router, prefix="/pngs")
 app.include_router(web_router)
+app.include_router(chromecast_router)
 
 
 # Global instances for shared access

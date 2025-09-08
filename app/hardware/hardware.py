@@ -71,7 +71,7 @@ class HardwareManager:
         file_name = config.get_icon_path("contactless")
         context = {
             "title": f"Reading...",
-            "icon_name": file_name,
+            "icon_name": "contactless",
             "message": f"Reading album card",
             "background": "#24AC5F",
         }
@@ -189,7 +189,7 @@ class HardwareManager:
         from app.core import event_bus, EventType, Event
         event_bus.emit(Event(
             type=EventType.BUTTON_PRESSED,
-            payload={"button": 4, "action": "nfc_switch"}
+            payload={"button": 4, "action": "stop"}
         ))
 
         # from app.core.event_bus import event_bus, Event

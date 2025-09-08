@@ -13,3 +13,4 @@ sqlalchemy
 requests
 websockets
 python-dotenv
+pychromecast

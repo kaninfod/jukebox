@@ -26,6 +26,7 @@ def create_album_entry(rfid: str):
                 return {"status": "RFID already exists", "rfid": rfid}
             db_entry = AlbumModel(
                 rfid=rfid,
+                provider="youtube_music",
                 album_name=None,
                 artist_name=None,
                 year=None,
@@ -81,7 +82,8 @@ def update_album_entry(rfid: str, album_data: dict):
             logger.warning(f"No Album entry found for update, RFID: {rfid}")
             return None
         for key, value in album_data.items():
-            setattr(db_entry, key, value)
+            if hasattr(db_entry, key):
+                setattr(db_entry, key, value)
         db.commit()
         db.refresh(db_entry)
         logger.info(f"Updated Album entry for RFID: {rfid}")
@@ -151,56 +153,56 @@ def get_album_data_by_audioPlaylistId(audioPlaylistId: str):
         logger.error(f"Failed to get Album data for audioPlaylistId {audioPlaylistId}: {e}")
         return None
 
-def load_album_data_to_screen(rfid: str, screen_manager):
-    """Load Album data from database and update the home screen"""
-    logger.info(f"Loading Album data for RFID: {rfid} to screen")
-    try:
-        db = SessionLocal()
-        try:
-            # Get the entry from database
-            entry = db.query(AlbumModel).filter(AlbumModel.rfid == rfid).first()
-            if not entry:
-                logger.warning(f"No Album entry found for RFID: {rfid}")
-                return
-            # Get the home screen
-            home_screen = screen_manager.screens.get('home')
-            if not home_screen:
-                logger.error("Home screen not available")
-                return
-            # Parse track data if available
-            tracks_data = []
-            if entry.tracks:
-                try:
-                    tracks_data = json.loads(entry.tracks)
-                except json.JSONDecodeError:
-                    logger.error("Failed to parse tracks JSON data")
-            # Get first track title if available
-            track_title = "No Track"
-            if tracks_data and len(tracks_data) > 0:
-                track_title = tracks_data[0].get('title', 'No Track')
-            artist_name = entry.artist_name or "Unknown Artist"
-            album_name = entry.album_name or "Unknown Album"
-            year = entry.year or "----"
-            audioPlaylistId = entry.audioPlaylistId or ""
-            # Get current volume from screen
-            current_volume = home_screen.volume
-            # Switch to home screen and render
-            screen_manager.switch_to_screen("home")
-            logger.info(f"Loaded album: {entry.album_name} by {entry.artist_name}")
-        finally:
-            db.close()
-    except Exception as e:
-        logger.error(f"Failed to load Album data for RFID {rfid}: {e}")
-        # Fallback - just show the RFID
-        home_screen = screen_manager.screens.get('home')
-        if home_screen:
-            home_screen.set_track_info(
-                artist="Unknown",
-                album=f"RFID: {rfid}",
-                year="",
-                track="No Data Available",
-                image_url=None,
-                audioPlaylistId=""
-            )
-            home_screen.set_player_status("standby")
-            screen_manager.switch_to_screen("home")
+# def load_album_data_to_screen(rfid: str, screen_manager):
+#     """Load Album data from database and update the home screen"""
+#     logger.info(f"Loading Album data for RFID: {rfid} to screen")
+#     try:
+#         db = SessionLocal()
+#         try:
+#             # Get the entry from database
+#             entry = db.query(AlbumModel).filter(AlbumModel.rfid == rfid).first()
+#             if not entry:
+#                 logger.warning(f"No Album entry found for RFID: {rfid}")
+#                 return
+#             # Get the home screen
+#             home_screen = screen_manager.screens.get('home')
+#             if not home_screen:
+#                 logger.error("Home screen not available")
+#                 return
+#             # Parse track data if available
+#             tracks_data = []
+#             if entry.tracks:
+#                 try:
+#                     tracks_data = json.loads(entry.tracks)
+#                 except json.JSONDecodeError:
+#                     logger.error("Failed to parse tracks JSON data")
+#             # Get first track title if available
+#             track_title = "No Track"
+#             if tracks_data and len(tracks_data) > 0:
+#                 track_title = tracks_data[0].get('title', 'No Track')
+#             artist_name = entry.artist_name or "Unknown Artist"
+#             album_name = entry.album_name or "Unknown Album"
+#             year = entry.year or "----"
+#             audioPlaylistId = entry.audioPlaylistId or ""
+#             # Get current volume from screen
+#             current_volume = home_screen.volume
+#             # Switch to home screen and render
+#             screen_manager.switch_to_screen("home")
+#             logger.info(f"Loaded album: {entry.album_name} by {entry.artist_name}")
+#         finally:
+#             db.close()
+#     except Exception as e:
+#         logger.error(f"Failed to load Album data for RFID {rfid}: {e}")
+#         # Fallback - just show the RFID
+#         home_screen = screen_manager.screens.get('home')
+#         if home_screen:
+#             home_screen.set_track_info(
+#                 artist="Unknown",
+#                 album=f"RFID: {rfid}",
+#                 year="",
+#                 track="No Data Available",
+#                 image_url=None,
+#                 audioPlaylistId=""
+#             )
+#             home_screen.set_player_status("standby")
+#             screen_manager.switch_to_screen("home")

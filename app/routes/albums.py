@@ -96,13 +96,23 @@ def create_album_entry_route(rfid: str):
 
 from app.services.ytmusic_service import YTMusicService
 
+from fastapi import Query
+
 @router.put("/albums/{rfid}/{audioPlaylistId}", response_model=AlbumEntry)
-def update_album_entry_route(rfid: str, audioPlaylistId: str):
+def update_album_entry_route(rfid: str, audioPlaylistId: str, provider: str = Query("youtube_music", description="Music provider (youtube_music or subsonic)")):
     try:
-        service = YTMusicService()
+        # Select the correct service based on provider
+        if provider == "subsonic":
+            from app.services.subsonic_service import SubsonicService
+            service = SubsonicService()
+        else:
+            service = YTMusicService()
         db_entry = service.add_or_update_album_entry(rfid, audioPlaylistId)
         if not db_entry:
             raise HTTPException(status_code=404, detail="Entry not found or failed to update")
+        # Ensure provider is set on the db_entry (in case the service doesn't do it)
+        if hasattr(db_entry, 'provider'):
+            db_entry.provider = provider
         return AlbumEntry.from_orm(db_entry)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to get album info: {str(e)}")

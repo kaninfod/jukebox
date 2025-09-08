@@ -13,6 +13,12 @@ from typing import Optional
 load_dotenv()
 
 class Config:
+    # Subsonic/Navidrome Configuration
+    SUBSONIC_URL: str = os.getenv("SUBSONIC_URL", "http://192.168.68.102:4747")
+    SUBSONIC_USER: str = os.getenv("SUBSONIC_USER", "jukebox")
+    SUBSONIC_PASS: str = os.getenv("SUBSONIC_PASS", "123jukepi")
+    SUBSONIC_CLIENT: str = os.getenv("SUBSONIC_CLIENT", "jukebox")
+    SUBSONIC_API_VERSION: str = os.getenv("SUBSONIC_API_VERSION", "1.15.0")
     # YouTube Music API Credentials
     YTMUSIC_CLIENT_ID: str = os.getenv("YTMUSIC_CLIENT_ID", "194320065459-49q3ijtt8auu3oafbqu0bo9ajr9er40b.apps.googleusercontent.com")
     YTMUSIC_CLIENT_SECRET: str = os.getenv("YTMUSIC_CLIENT_SECRET", "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")

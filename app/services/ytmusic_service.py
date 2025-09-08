@@ -1,14 +1,30 @@
 import os
 import requests
-from typing import Optional
+from typing import Optional, List, Dict, Any
 import logging
 from ytmusicapi import YTMusic, OAuthCredentials
-from typing import List, Dict, Any
 from app.config import config
+from abc import ABC, abstractmethod
+
 
 logger = logging.getLogger(__name__)
 
-class YTMusicService:
+
+
+# Import the abstract base class for all music providers
+from app.services.music_provider_service import MusicProviderService
+
+class YTMusicService(MusicProviderService):
+    def get_stream_url(self, track: dict) -> str:
+        video_id = track.get('video_id')
+        if not video_id:
+            return None
+        try:
+            # Use pytube_service to resolve stream URL from video_id
+            return self.pytube_service.get_stream_url(video_id)
+        except Exception as e:
+            logger.error(f"YTMusicService: Failed to get stream URL for video_id {video_id}: {e}")
+            return None
     def __init__(self):
         client_id = config.YTMUSIC_CLIENT_ID
         client_secret = config.YTMUSIC_CLIENT_SECRET
@@ -135,9 +151,12 @@ class YTMusicService:
 
     def get_album_info(self, audioPlaylistId: str) -> Dict[str, Any]:
         try:
+            logger.info(f"YTMusicService: Getting album info for audioPlaylistId: {audioPlaylistId}")
             browse_id = self.ytmusic.get_album_browse_id(audioPlaylistId)
-            logger.info(f"YTMusicService: Got album info for audioPlaylistId: {audioPlaylistId}")
-            return self.ytmusic.get_album(browse_id)
+            logger.info(f"YTMusicService: Got album info for audioPlaylistId: {audioPlaylistId}, browse_id: {browse_id}")
+            data = self.ytmusic.get_album(browse_id)
+            logger.info(f"YTMusicService: Retrieved album info for audioPlaylistId: {data}")
+            return data
         except Exception as e:
             logger.error(f"YTMusicService: Error getting album info for audioPlaylistId '{audioPlaylistId}': {e}")
             raise

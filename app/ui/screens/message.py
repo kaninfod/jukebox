@@ -1,5 +1,5 @@
 import logging
-from app.ui.theme import UITheme
+from app.ui.theme import UITheme 
 from app.ui.screens.base import Screen
 from PIL import Image
 
@@ -20,6 +20,7 @@ class MessageScreen(Screen):
     def __init__(self, theme, width=480, height=320):
         super().__init__(width, height)
         self.theme = theme
+        self.screen_theme = None
         self.context = {}
         self.name = "Message Screen"
 
@@ -31,16 +32,30 @@ class MessageScreen(Screen):
             type=EventType.SHOW_MESSAGE,
             payload=context
         ))
-
-        # from app.core import event_bus, EventFactory
-        # event_bus.emit(EventFactory.show_home(payload=context))
         logger.info(f"EventBus: Emitted 'show_home' event from HomeScreen.show()")
 
     def draw(self, draw_context, fonts, context=None, image=None):
         self.context = context or {}
         theme = self.theme
+        
+
+        bg_color = theme.colors["background"]
+        color = theme.colors["text"]
+        icon_name = self.context.get("icon_name", None)
+
+        if context and "theme" in context:
+            theme_override = context["theme"]
+            theme_dict = self.theme.get_theme(theme_override)
+            if theme_dict:
+                bg_color = theme_dict.get("background", bg_color)
+                color = theme_dict.get("color", color)
+                icon_name = theme_dict.get("icon", icon_name)
+
+        logger.info(f"bg_color: {bg_color}, color: {color}, icon_name: {icon_name}")
+
+        logger.info(f"MessageScreen context: {self.context} and {self.screen_theme}")
         # Draw background, allow override from context
-        bg_color = self.context.get("background", theme.colors["background"])
+        # bg_color = self.screen_theme.get("background", theme.colors["background"])
         draw_context.rectangle([0, 0, self.width, self.height], fill=bg_color)
         # Title
         title = self.context.get("title", "Message")
@@ -50,7 +65,15 @@ class MessageScreen(Screen):
         title_x = (self.width - title_width) // 2
         draw_context.text((title_x, theme.layout["title_y"]), title, fill=theme.colors["text"], font=title_font)
         # Icon
-        icon_name = self.context.get("icon_name", None)
+    
+
+        # Icon selection: context > theme > fallback
+        # icon_name = self.context.get("icon_name", None)
+        # logger.info(f"MessageScreen icon_name: {icon_name}")
+        # if not icon_name and self.screen_theme:
+        #     icon_name = self.screen_theme.get("icon", None)
+
+        # logger.info(f"MessageScreen icon_name AFTER: {icon_name}")
         icon_size = 80
         icon_x = (self.width - icon_size) // 2
         icon_y = 80
@@ -62,7 +85,7 @@ class MessageScreen(Screen):
         else:
             message_lines = list(message)
         info_font = theme.fonts["info"]
-        color = self.context.get("color", theme.colors["text"])
+        # color = self.context.get("color", theme.colors["text"])
         message_y = icon_y + icon_size + 30
         line_height = theme.layout["line_height"]
         for i, line in enumerate(message_lines):
@@ -75,15 +98,20 @@ class MessageScreen(Screen):
 
     def _draw_icon(self, draw, x, y, size, image=None, icon_name=None):
         from app.config import config
-        icon_path = icon_name
+        import os
         icon_img = None
-        if icon_path:
-            #from app.ui.manager import ScreenManager
+        icon_path = None
+        logger.info(f"Drawing icon '{icon_name}'") 
+        if icon_name:
+            # If icon_name is not a path, resolve to STATIC_FILE_PATH/icon_name.png
+            if not icon_name.endswith('.png'):
+                icon_path = os.path.join(config.STATIC_FILE_PATH, icon_name + ".png")
+            else:
+                icon_path = icon_name
             try:
                 icon_img = Image.open(icon_path).convert("RGBA")
-                #icon_img = ScreenManager.get_icon_png(icon_path)
             except Exception as e:
-                logger.error(f"Failed to load icon PNG: {e}")
+                logger.error(f"Failed to load icon PNG '{icon_path}': {e}")
         if icon_img:
             icon_img = icon_img.resize((size, size), resample=Image.LANCZOS)
             if image is not None:

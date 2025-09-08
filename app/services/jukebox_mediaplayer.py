@@ -1,4 +1,3 @@
-
 from importlib.metadata import metadata
 import time
 
@@ -7,6 +6,7 @@ from typing import List, Dict, Optional
 from enum import Enum
 from app.services.pytube_service import PytubeService
 from app.services.homeassistant_service import HomeAssistantService
+from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,7 @@ class JukeboxMediaPlayer:
         self.status = PlayerStatus.STOP
         self.pytube_service = PytubeService()
         self.ha_service = HomeAssistantService()
+        self.cc_service = PyChromecastServiceOnDemand("Living Room")
         self.current_volume = 0  # Ensure attribute exists before any event/context
         self.track_timer = TrackTimer()
         self.sync_volume_from_ha()
@@ -39,9 +40,9 @@ class JukeboxMediaPlayer:
         event_bus.emit(Event(type=event_type, payload=data))
 
     @property
-    def image_url(self) -> Optional[str]:
+    def album_cover(self) -> Optional[str]:
         track = self.current_track
-        return track.get('image_url') if track else None
+        return track.get('album_cover_filename') if track else None
 
     @property
     def track_number(self) -> Optional[int]:
@@ -88,6 +89,12 @@ class JukeboxMediaPlayer:
     def volume(self) -> int:
         """Return the current volume (0-100)."""
         return self.current_volume
+    
+    @property
+    def provider(self) -> str:
+        """Return the current provider."""
+        track = self.current_track
+        return track.get('provider') if track else None
 
     def sync_volume_from_ha(self):
         """Sync volume from Home Assistant (0.0-1.0) to 0-100 scale."""
@@ -126,17 +133,17 @@ class JukeboxMediaPlayer:
         if self.status == PlayerStatus.PLAY:
             self.track_timer.pause()
             self.status = PlayerStatus.PAUSE
+            self.cc_service.pause()
         elif self.status == PlayerStatus.PAUSE:
             self.track_timer.resume()
             self.status = PlayerStatus.PLAY
-        
+            self.cc_service.resume()
+
         from app.core import event_bus, EventType, Event
         event_bus.emit(Event(
-            type=EventType.STATUS_CHANGED,
+            type=EventType.TRACK_CHANGED,
             payload=self._get_context()
         ))
-        
-        self.ha_service.play_pause()
         return True
 
     def stop(self, event=None):
@@ -144,13 +151,14 @@ class JukeboxMediaPlayer:
         elapsed = self.track_timer.get_elapsed()
         expected = self.current_track.get('duration') if self.current_track else None
         logging.info(f"[TrackTimer] Track '{self.title}' expected duration: {expected}, played: {elapsed:.2f} seconds (stop)")
-        self.ha_service.stop()
+        self.cc_service.stop()
+        
         self.status = PlayerStatus.STOP
         self.track_timer.reset()
         
         from app.core import event_bus, EventType, Event
         event_bus.emit(Event(
-            type=EventType.STATUS_CHANGED,
+            type=EventType.TRACK_CHANGED,
             payload=self._get_context()
         ))
 
@@ -166,17 +174,21 @@ class JukeboxMediaPlayer:
             self.current_volume = 0
         logger.debug(f"[set_volume] current_volume set to: {self.current_volume}")
         # Convert to Home Assistant's 0.0-1.0 scale
-        ha_volume_normalized = self.current_volume / 100.0 if self.current_volume is not None else None
-        
-        if ha_volume_normalized is not None:
-            self.ha_service.set_volume(ha_volume_normalized)
+        normalized_volume = self.current_volume / 100.0 if self.current_volume is not None else None
+
+        if normalized_volume is not None:
+            # from .pychromecast_service import PyChromecastService
+            # cc_service = PyChromecastService.get_instance()
+            self.cc_service.set_volume(normalized_volume)
+
+            #self.ha_service.set_volume(ha_volume_normalized)
 
         from app.core import event_bus, EventType, Event
         event_bus.emit(Event(
             type=EventType.VOLUME_CHANGED,
             payload=self._get_context()
         ))
-        return True
+        return normalized_volume
 
     def volume_up(self, event=None):
         self.set_volume(self.current_volume + 5)
@@ -191,8 +203,9 @@ class JukeboxMediaPlayer:
         # Log actual vs expected duration before advancing
         elapsed = self.track_timer.get_elapsed()
         expected_str = self.current_track.get('duration') if self.current_track else None
-        if event.payload.get("force"):
-            force = event.payload.get("force")
+        # if event.payload.get("force"):
+        #     force = event.payload.get("force")
+            
         # Convert expected duration (mm:ss or m:ss) to seconds
         def duration_to_seconds(dur):
             if not dur:
@@ -238,21 +251,36 @@ class JukeboxMediaPlayer:
         """Return the elapsed play time (seconds) for the current track."""
         return self.track_timer.get_elapsed()
 
-    def cast_current_track(self):
-        from app.services.homeassistant_service import HomeAssistantService
-        track = self.playlist[self.current_index]
+    def get_stream_url_for_track(self, track: Dict) -> Optional[str]:
+        """
+        Provider-agnostic stream URL resolver for the current track.
+        Returns the stream URL or None if not available.
+        """
+        provider = track.get('provider')
         stream_url = track.get('stream_url')
-        video_id = track.get('video_id')
-        if not stream_url and video_id:
-            try:
-                stream_url = self.pytube_service.get_stream_url(video_id)
-                track['stream_url'] = stream_url
-            except Exception as e:
-                logger.error(f"Failed to fetch stream_url for video_id {video_id}: {e}")
-                stream_url = None
+        if provider == 'ytmusic':
+            from app.services.ytmusic_service import YTMusicService
+            service = YTMusicService()
+            return service.get_stream_url(track)
+        elif provider == 'subsonic':
+            from app.services.subsonic_service import SubsonicService
+            service = SubsonicService()
+            return service.get_stream_url(track)
+        else:
+            logger.error(f"Unknown provider: {provider}")
+            return None
+
+    def cast_current_track(self):
+        # from .pychromecast_service import PyChromecastService
+        # cc_service = PyChromecastService.get_instance()
+
+        track = self.playlist[self.current_index]
+        stream_url = self.get_stream_url_for_track(track)
+        track['stream_url'] = stream_url
         if stream_url:
-            ha_service = HomeAssistantService()
-            ha_service.cast_stream_url(stream_url, media_info={
+            logger.info(f"Casting stream URL for track {track.get('title')}, with url {stream_url}")
+            #ha_service = HomeAssistantService()
+            self.cc_service.play_media(stream_url, media_info={
                 "title": track.get("title"),
                 "thumb": track.get("image_url"),
                 "media_info": {
@@ -270,7 +298,6 @@ class JukeboxMediaPlayer:
             self.track_timer.start()
             logger.info(f"Casting track {self.current_index+1}/{len(self.playlist)}: {track.get('title')}")
             self.status = PlayerStatus.PLAY
-            
             from app.core import event_bus, EventType, Event
             event_bus.emit(Event(
                 type=EventType.TRACK_CHANGED,
@@ -280,17 +307,12 @@ class JukeboxMediaPlayer:
             logger.error("No stream_url for current track.")
 
     def _get_context(self):
-    # Add album cover filename from DB if audioPlaylistId is available
-        from app.database.album_db import get_album_data_by_audioPlaylistId
-        album_cover_filename = None
-        if self.current_track and isinstance(self.current_track, dict):
-            album_cover_filename = self.current_track.get('album_cover_filename')
         return {
             'status': self.status.value,
             'volume': self.current_volume,
             'current_index': self.current_index,
             'current_track': self.current_track,
-            'album_cover_filename': album_cover_filename
+            'album_cover_filename': self.album_cover
         }
 
     def get_status(self) -> Dict:

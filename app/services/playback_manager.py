@@ -1,10 +1,7 @@
 import logging
-from typing import Optional, List, Dict
 from app.services.ytmusic_service import YTMusicService
 from app.services.pytube_service import PytubeService
 from app.database.album_db import get_album_entry_by_rfid, create_album_entry
-#from app.services.jukebox_mediaplayer import JukeboxMediaPlayer
-#from app.services.homeassistant_service import HomeAssistantService
 from app.core import event_bus, EventType, Event
 
 logger = logging.getLogger(__name__)
@@ -24,8 +21,9 @@ class PlaybackManager:
         event_bus.subscribe(EventType.RFID_READ, self.load_rfid)
         event_bus.subscribe(EventType.BUTTON_PRESSED, self._handle_button_pressed_event)
         event_bus.subscribe(EventType.ROTARY_ENCODER, self._handle_rotary_encoder_event)
-        event_bus.subscribe(EventType.HA_STATE_CHANGED, self.player.next_track)
+        
         event_bus.subscribe(EventType.NEXT_TRACK, self.player.next_track)
+        event_bus.subscribe(EventType.TRACK_FINISHED, self.player.next_track)
         event_bus.subscribe(EventType.PREVIOUS_TRACK, self.player.previous_track)
         event_bus.subscribe(EventType.PLAY_PAUSE, self.player.play_pause)
         event_bus.subscribe(EventType.PLAY, self.player.play)
@@ -49,6 +47,9 @@ class PlaybackManager:
         elif event.payload['button'] == 3:
             result = self.player.next_track(force=True)
             logger.info(f"Next track: {result}")
+        elif event.payload['button'] == 4:
+            result = self.player.stop()
+            logger.info(f"stop: {result}")
 
     def _handle_rotary_encoder_event(self, event):
         if event.payload['direction'] == 'CW':
@@ -72,100 +73,166 @@ class PlaybackManager:
     def load_rfid(self, event: Event) -> bool:
         """Orchestrate the full playback pipeline from RFID scan."""
         rfid = event.payload['rfid']
-
-        # 1. Fetch yt_id from DB
-        logger.info(f"looking up RFID {rfid} in database")
-        try:
-            entry = get_album_entry_by_rfid(rfid)
-        except Exception as e:
-            logger.error(f"Database lookup failed: {e}")
-            return False
-
+        entry = get_album_entry_by_rfid(rfid)
         if not entry:
+             # album does not exist and should be created
+
             logger.info(f"Nothing found in database {rfid}")
-            try:
-                from app.config import config
-                file_name = config.get_icon_path("add_circle")
-                context = {
-                    "title": f"New RFID detected.",
-                    "icon_name": file_name,
-                    "message": f"Creating new entry in the system",
-                    "background": "#00EAFF",
-                }
-                from app.ui.screens import MessageScreen
-                MessageScreen.show(context)
-
-                response = create_album_entry(rfid)
-                if response:
-                    logger.info(f"Successfully created Album entry for RFID {rfid}")
-                    return True
-            except Exception as e:
-                logger.error(f"Failed to create YTMusic entry: {e}")
-                return False
-        else:
-            if not entry.audioPlaylistId:
-                logger.info(f"RFID {rfid} has no associated Audio Playlist ID, prompting for new RFID handling.")
-                from app.config import config
-                file_name = config.get_icon_path("library_music")
-                context = {
-                    "title": f"New RFID detected.",
-                    "icon_name": file_name,
-                    "message": [f"Please assign album in web interface", f"RFID: {rfid}"],
-                    "background": "#DF2440",
-                }
-                from app.ui.screens import MessageScreen
-                MessageScreen.show(context)
-                return False
-            else:
-                logger.info(f"Found existing RFID with complete data: {entry.artist_name} - {entry.album_name}")
-                audioPlaylistId = entry.audioPlaylistId
-                try:
-                    from app.config import config
-                    #file_name = config.get_icon_path("library_music")
-                    file_name = config.get_image_path(f"{rfid}.png")
-                    logger.info(f"Loading album: {entry.artist_name} - {entry.album_name} and {file_name}")
-                    context = {
-                        "title": f"Loading album",
-                        "icon_name": file_name,
-                        "message": f"{entry.artist_name} - {entry.album_name}",
-                        "background": "#2BBE29",
-                    }
-                    from app.ui.screens import MessageScreen
-                    MessageScreen.show(context)
-                except Exception as e:
-                    logger.error(f"Failed to show loading screen: {e}")
-
-        # 2. Get album/tracks from YTMusicService
-        album = self.ytmusic_service.get_album_info(audioPlaylistId)
-        tracks = album.get('tracks', [])
-        if not tracks:
-            logger.error(f"No tracks found for audioPlaylistId {audioPlaylistId}")
+            context = {
+                "title": f"New RFID detected.",
+                "icon_name": "add_circle",
+                "message": f"Creating new entry in the system",
+                "background": "#00EAFF",
+            }
+            from app.ui.screens import MessageScreen
+            MessageScreen.show(context)
+            
+            response = create_album_entry(rfid)
+            if response:
+                logger.info(f"Successfully created Album entry for RFID {rfid}")
+                return True
             return False
+        
+        # the database has an entry for the rfid but is has not been associated with an audio playlist
+        if not entry.audioPlaylistId:
+            logger.info(f"RFID {rfid} has no associated Audio Playlist ID, prompting for new RFID handling.")
+            context = {
+                "title": f"New RFID detected.",
+                "icon_name": "library_music",
+                "message": [f"Please assign album in web interface", f"RFID: {rfid}"],
+                "theme": "message_info"
+            }
+            from app.ui.screens import MessageScreen
+            MessageScreen.show(context)
+            return False
+        # Bingo! the rfid exists and it is associated with an audio playlist
+        else:
+            provider = getattr(entry, 'provider', 'youtube_music')
+            logger.info(f"Loading playlist for provider: {provider}")
 
-        # Extract album-level info
-        album_name = album.get('title', '')
-        album_year = album.get('year', '')
-        album_cover_filename = entry.thumbnail
+            # Use DB data for playlist
+            tracks = entry.tracks
+            # If tracks is a JSON string, parse it
+            if isinstance(tracks, str):
+                import json
+                try:
+                    tracks = json.loads(tracks)
+                except Exception as e:
+                    logger.error(f"Failed to parse tracks JSON for RFID {rfid}: {e}")
+                    return False
+            if not tracks:
+                logger.error(f"No tracks found in DB for RFID {rfid}")
+                return False
 
-        playlist_metadata = []
-        for track in tracks:
-            playlist_metadata.append({
-                'title': track.get('title'),
-                'video_id': track.get('videoId'),
-                'stream_url': None,  # Will be fetched lazily
-                'duration': track.get('duration'),
-                'track_number': track.get('trackNumber'),
-                'artist': track.get('artists', [{}])[0].get('name', ''),
-                'album': album_name,
-                'year': album_year,
-                # 'image_url': album_image_url,
-                'audioPlaylistId': audioPlaylistId,
-                'album_cover_filename': album_cover_filename
-            })
+            playlist_metadata = []
+            for track in tracks:
+                playlist_metadata.append({
+                    'title': track.get('title'),
+                    'video_id': track.get('video_id'),
+                    'stream_url': None,  # To be resolved by the player if needed
+                    'duration': track.get('duration'),
+                    'track_number': track.get('track_number', track.get('trackNumber', track.get('track', 0))),
+                    'artist': getattr(entry, 'artist_name', ''),
+                    'album': getattr(entry, 'album_name', ''),
+                    'year': getattr(entry, 'year', ''),
+                    'album_cover_filename': getattr(entry, 'thumbnail', None),
+                    'provider': provider  # <-- Inject provider into each track
+                })
+            logger.info(f"Prepared playlist with {len(playlist_metadata)} tracks for RFID {rfid}")
 
-        # 4. Update the existing JukeboxMediaPlayer's playlist and reset state
         self.player.playlist = playlist_metadata
         self.player.current_index = 0
         self.player.play()
         return True
 
+
+    # def _load_ytmusic_metadata(self, audioPlaylistId) -> list:
+    #     # 2. Get album/tracks from YTMusicService
+    #     album = self.ytmusic_service.get_album_info(audioPlaylistId)
+    #     tracks = album.get('tracks', [])
+    #     if not tracks:
+    #         logger.error(f"No tracks found for audioPlaylistId {audioPlaylistId}")
+    #         return False
+
+    #     # Extract album-level info
+    #     album_name = album.get('title', '')
+    #     album_year = album.get('year', '')
+    #     #album_cover_filename = entry.thumbnail
+
+    #     playlist_metadata = []
+    #     for track in tracks:
+    #         playlist_metadata.append({
+    #             'title': track.get('title'),
+    #             'video_id': track.get('videoId'),
+    #             'stream_url': None,  # Will be fetched lazily
+    #             'duration': track.get('duration'),
+    #             'track_number': track.get('trackNumber'),
+    #             'artist': track.get('artists', [{}])[0].get('name', ''),
+    #             'album': album_name,
+    #             'year': album_year,
+    #             # 'image_url': album_image_url,
+    #             # 'audioPlaylistId': audioPlaylistId,
+    #             'album_cover_filename': album_cover_filename
+    #         })
+    #     return playlist_metadata
+
+    # def _load_album(self, rfid) -> str:
+    #     # 1. Fetch yt_id from DB
+    #     logger.info(f"looking up RFID {rfid} in database")
+
+    #     entry = get_album_entry_by_rfid(rfid)
+        
+    #     # album does not exist and should be created
+    #     if not entry:
+    #         logger.info(f"Nothing found in database {rfid}")
+    #         try:
+    #             context = {
+    #                 "title": f"New RFID detected.",
+    #                 "icon_name": "add_circle",
+    #                 "message": f"Creating new entry in the system",
+    #                 "background": "#00EAFF",
+    #             }
+    #             from app.ui.screens import MessageScreen
+    #             MessageScreen.show(context)
+
+    #             response = create_album_entry(rfid)
+    #             if response:
+    #                 logger.info(f"Successfully created Album entry for RFID {rfid}")
+    #                 return True
+    #         except Exception as e:
+    #             logger.error(f"Failed to create YTMusic entry: {e}")
+    #             return False
+    #     else:
+    #         # the database has an entry for the rfid but is has not been associated with an audio playlist
+    #         if not entry.audioPlaylistId:
+    #             logger.info(f"RFID {rfid} has no associated Audio Playlist ID, prompting for new RFID handling.")
+    #             context = {
+    #                 "title": f"New RFID detected.",
+    #                 "icon_name": "library_music",
+    #                 "message": [f"Please assign album in web interface", f"RFID: {rfid}"],
+    #                 "theme": "message_info"
+    #             }
+    #             from app.ui.screens import MessageScreen
+    #             MessageScreen.show(context)
+    #             return False
+    #         # Bingo! the rfid exists and it is associated with an audio playlist
+    #         else:
+    #             logger.info(f"Found existing RFID with complete data: {entry.artist_name} - {entry.album_name}")
+    #             audioPlaylistId = entry.audioPlaylistId
+    #             try:
+    #                 from app.config import config
+    #                 logger.info(f"Loading album: {entry.artist_name} - {entry.album_name} and {rfid}")
+    #                 context = {
+    #                     "title": f"Loading album",
+    #                     "icon_name": rfid,
+    #                     "message": f"{entry.artist_name} - {entry.album_name}",
+    #                     "theme": "message_info"
+    #                 }
+    #                 from app.ui.screens import MessageScreen
+    #                 MessageScreen.show(context)
+    #                 return {
+    #                     "audioPlaylistId": audioPlaylistId,
+    #                     "provider": "youtube_music"
+    #                 }
+    #             except Exception as e:
+    #                 logger.error(f"Failed to show loading screen: {e}")

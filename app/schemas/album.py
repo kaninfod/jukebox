@@ -10,6 +10,7 @@ class Track(BaseModel):
 
 class AlbumEntry(BaseModel):
     rfid: str
+    provider: Optional[str] = "youtube_music"
     album_name: Optional[str] = None
     artist_name: Optional[str] = None
     year: Optional[int] = None
@@ -31,6 +32,7 @@ class AlbumEntry(BaseModel):
         orm_mode = True
 
 class AlbumEntryUpdate(BaseModel):
+    provider: Optional[str] = None
     album_name: Optional[str] = None
     artist_name: Optional[str] = None
     year: Optional[int] = None

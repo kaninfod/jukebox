@@ -6,6 +6,7 @@ Base = declarative_base()
 class AlbumModel(Base):
     __tablename__ = "albums"
     rfid = Column(String(64), primary_key=True, index=True)
+    provider = Column(String(32), default="youtube_music")
     album_name = Column(String(255))
     artist_name = Column(String(255))
     year = Column(Integer)
