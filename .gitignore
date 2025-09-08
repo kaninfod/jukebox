@@ -49,6 +49,20 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 
+# Project specific - don't commit these files
+dl.sh
+putube.py
+test_ondemand_chromecast.py
+CHROMECAST_COMPARISON.md
+
+# Static files - generated content
+static_files/*.jpg
+static_files/*.png
+
+# Test output files
+tests/display_*.png
+tests/test_draw_*.png
+
 # Logs
 *.log
 logs/
