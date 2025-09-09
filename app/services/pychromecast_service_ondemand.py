@@ -495,6 +495,24 @@ class PyChromecastServiceOnDemand:
             logger.error(f"Failed to set volume: {e}")
             return False
     
+    def get_volume(self) -> Optional[float]:
+        """
+        Get current Chromecast volume.
+        
+        Returns:
+            Volume level between 0.0 and 1.0, or None if not connected
+        """
+        if not self.is_connected():
+            return None
+        
+        try:
+            volume = self.cast.status.volume_level
+            logger.debug(f"Current volume: {volume:.1%}")
+            return volume
+        except Exception as e:
+            logger.error(f"Failed to get volume: {e}")
+            return None
+    
     def get_status(self) -> Optional[Dict]:
         """Get current Chromecast status."""
         if not self.is_connected():

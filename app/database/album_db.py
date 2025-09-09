@@ -26,7 +26,7 @@ def create_album_entry(rfid: str):
                 return {"status": "RFID already exists", "rfid": rfid}
             db_entry = AlbumModel(
                 rfid=rfid,
-                provider="youtube_music",
+                provider="subsonic",
                 album_name=None,
                 artist_name=None,
                 year=None,

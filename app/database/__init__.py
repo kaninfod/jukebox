@@ -1,4 +1,4 @@
-"""Database package for YTMusic and related models and logic."""
+"""Database package for album models and logic."""
 from .album import AlbumModel, Base
 from .album_db import (
     create_album_entry,

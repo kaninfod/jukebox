@@ -6,7 +6,6 @@ luma.lcd
 luma.core
 rpi-lgpio
 pi-rc522
-ytmusicapi
 mariadb
 pymysql
 sqlalchemy

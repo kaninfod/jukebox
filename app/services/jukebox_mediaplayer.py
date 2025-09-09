@@ -4,8 +4,6 @@ import time
 import logging
 from typing import List, Dict, Optional
 from enum import Enum
-from app.services.pytube_service import PytubeService
-from app.services.homeassistant_service import HomeAssistantService
 from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand
 
 logger = logging.getLogger(__name__)
@@ -22,12 +20,10 @@ class JukeboxMediaPlayer:
         self.playlist = playlist
         self.current_index = 0
         self.status = PlayerStatus.STOP
-        self.pytube_service = PytubeService()
-        self.ha_service = HomeAssistantService()
         self.cc_service = PyChromecastServiceOnDemand("Living Room")
         self.current_volume = 0  # Ensure attribute exists before any event/context
         self.track_timer = TrackTimer()
-        self.sync_volume_from_ha()
+        self.sync_volume_from_chromecast()
         logger.info(f"JukeboxMediaPlayer initialized. Chromecast device={self.cc_service.device_name}")
 
     def cleanup(self):
@@ -96,15 +92,15 @@ class JukeboxMediaPlayer:
         track = self.current_track
         return track.get('provider') if track else None
 
-    def sync_volume_from_ha(self):
-        """Sync volume from Home Assistant (0.0-1.0) to 0-100 scale."""
-        ha_volume = self.ha_service.get_volume()
-        logger.debug(f"[sync_volume_from_ha] ha_volume from HA: {ha_volume}")
+    def sync_volume_from_chromecast(self):
+        """Sync volume from Chromecast (0.0-1.0) to 0-100 scale."""
+        cc_volume = self.cc_service.get_volume()
+        logger.debug(f"[sync_volume_from_chromecast] cc_volume from Chromecast: {cc_volume}")
         try:
-            value = int(ha_volume * 100)
+            value = int(cc_volume * 100) if cc_volume is not None else 50
         except Exception as e:
-            logger.error(f"[sync_volume_from_ha] Failed to set current_volume from ha_volume={ha_volume}: {e}")
-            value = None
+            logger.error(f"[sync_volume_from_chromecast] Failed to set current_volume from cc_volume={cc_volume}: {e}")
+            value = 50  # Default fallback volume
         self.current_volume = value
         
         from app.core import event_bus, EventType, Event
@@ -112,9 +108,6 @@ class JukeboxMediaPlayer:
             type=EventType.VOLUME_CHANGED,
             payload=self._get_context()
         ))
-
-        
-        #self._emit_event('volume_changed', self._get_context())
         
         return self.current_volume
 
@@ -165,7 +158,7 @@ class JukeboxMediaPlayer:
         return True
 
     def set_volume(self, volume, event=None):
-        """Set volume (0-100) and sync with Home Assistant."""
+        """Set volume (0-100) and sync with Chromecast."""
         logger.debug(f"[set_volume] Requested volume: {volume}")
         try:
             self.current_volume = max(0, min(100, int(volume)))
@@ -173,7 +166,7 @@ class JukeboxMediaPlayer:
             logger.error(f"[set_volume] Failed to set current_volume from volume={volume}: {e}")
             self.current_volume = 0
         logger.debug(f"[set_volume] current_volume set to: {self.current_volume}")
-        # Convert to Home Assistant's 0.0-1.0 scale
+        # Convert to Chromecast's 0.0-1.0 scale
         normalized_volume = self.current_volume / 100.0 if self.current_volume is not None else None
 
         if normalized_volume is not None:
@@ -252,11 +245,7 @@ class JukeboxMediaPlayer:
         """
         provider = track.get('provider')
         stream_url = track.get('stream_url')
-        if provider == 'ytmusic':
-            from app.services.ytmusic_service import YTMusicService
-            service = YTMusicService()
-            return service.get_stream_url(track)
-        elif provider == 'subsonic':
+        if provider == 'subsonic':
             from app.services.subsonic_service import SubsonicService
             service = SubsonicService()
             return service.get_stream_url(track)

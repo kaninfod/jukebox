@@ -1,6 +1,4 @@
 import logging
-from app.services.ytmusic_service import YTMusicService
-from app.services.pytube_service import PytubeService
 from app.database.album_db import get_album_entry_by_rfid, create_album_entry, get_album_data_by_audioPlaylistId
 from app.core import event_bus, EventType, Event
 
@@ -8,8 +6,6 @@ logger = logging.getLogger(__name__)
 
 class PlaybackManager:
     def __init__(self, screen_manager=None, oauth_file: str = "oauth.json", player=None):
-        self.ytmusic_service = YTMusicService()
-        self.pytube_service = PytubeService()
         if player is not None:
             self.player = player
         else:
@@ -31,7 +27,6 @@ class PlaybackManager:
         event_bus.subscribe(EventType.VOLUME_UP, self.player.volume_up)
         event_bus.subscribe(EventType.VOLUME_DOWN, self.player.volume_down)
         event_bus.subscribe(EventType.SET_VOLUME, self.player.set_volume)
-        event_bus.subscribe(EventType.HA_VOLUME_CHANGED, self._handle_ha_volume_changed_event)
         #event_bus.subscribe(self.handle_event)
         
         logger.info("PlaybackManager initialized.")
@@ -72,91 +67,76 @@ class PlaybackManager:
         elif event.payload['direction'] == 'CCW':
             self.player.volume_down()
 
-    def _handle_ha_volume_changed_event(self, event):
-        # Convert HA volume (0.0-1.0) to percent (0-100)
-        ha_volume = event.payload['volume']
-        if ha_volume is not None:
-            ha_volume_percent = int(round(float(ha_volume) * 100))
-            player_volume = self.player.volume
-            if abs(ha_volume_percent - player_volume) > 3:
-                self.player.set_volume(ha_volume_percent)
-
     def cleanup(self):
         logger.info("PlaybackManager cleanup called")
 
 
-    def load_from_audioPlaylistId(self, audioPlaylistId: str, provider: str = 'subsonic') -> bool:
+    def load_from_audioPlaylistId(self, audioPlaylistId: str) -> bool:
         """
-        Load and start playback from an audioPlaylistId.
+        Load and start playback from an audioPlaylistId using Subsonic.
         
         Args:
             audioPlaylistId: The audio playlist identifier
-            provider: The music provider ('subsonic', 'youtube_music', etc.)
             
         Returns:
             True if successful, False otherwise
         """
-        logger.info(f"Loading playlist for audioPlaylistId: {audioPlaylistId}, provider: {provider}")
+        logger.info(f"Loading playlist for audioPlaylistId: {audioPlaylistId}")
         
         try:
             # Get the album entry that has this audioPlaylistId
-            #from app.database.album_db import get_album_entry_by_audioPlaylistId
             entry = get_album_data_by_audioPlaylistId(audioPlaylistId)
             
             if not entry:
                 logger.info(f"No album entry found for audioPlaylistId: {audioPlaylistId} in database")
                 
-                # For subsonic provider, try to fetch from Subsonic and add to DB
-                if provider == 'subsonic':
-                    logger.info(f"Attempting to fetch album {audioPlaylistId} from Subsonic")
+                # Try to fetch from Subsonic and add to DB
+                logger.info(f"Attempting to fetch album {audioPlaylistId} from Subsonic")
+                
+                try:
+                    from app.services.subsonic_service import SubsonicService
+                    subsonic_service = SubsonicService()
                     
-                    try:
-                        from app.services.subsonic_service import SubsonicService
-                        subsonic_service = SubsonicService()
-                        
-                        # Fetch album data from Subsonic
-                        album_data = subsonic_service.add_or_update_album_entry_from_audioPlaylistId(audioPlaylistId)
-                        
-                        if not album_data:
-                            logger.error(f"Album {audioPlaylistId} not found in Subsonic")
-                            return False
-                        
-                        logger.info(f"Found album in Subsonic: {album_data.get('album_name', 'Unknown Album')}")
-                        
-                        # Add album to database using existing functions
-                        # Create a temporary album entry with a unique identifier
-                        import uuid
-                        temp_rfid = f"temp_{uuid.uuid4().hex[:8]}"
-                        
-                        from app.database.album_db import create_album_entry, update_album_entry
-                        
-                        # Create temporary entry
-                        create_result = create_album_entry(temp_rfid)
-                        if not create_result:
-                            logger.error(f"Failed to create temporary entry for album {audioPlaylistId}")
-                            return False
-                        
-                        # Update with album data
-                        db_entry = update_album_entry(temp_rfid, album_data)
-                        
-                        if not db_entry:
-                            logger.error(f"Failed to update database entry for Subsonic album {audioPlaylistId}")
-                            return False
-                        
-                        logger.info(f"Successfully added Subsonic album {audioPlaylistId} to database")
-                        
-                        # Now get the entry from database
-                        entry = get_album_data_by_audioPlaylistId(audioPlaylistId)
-                        
-                        if not entry:
-                            logger.error(f"Failed to retrieve newly created entry for {audioPlaylistId}")
-                            return False
-                            
-                    except Exception as e:
-                        logger.error(f"Error fetching album {audioPlaylistId} from Subsonic: {e}")
+                    # Fetch album data from Subsonic
+                    album_data = subsonic_service.add_or_update_album_entry_from_audioPlaylistId(audioPlaylistId)
+                    
+                    if not album_data:
+                        logger.error(f"Album {audioPlaylistId} not found in Subsonic")
                         return False
-                else:
-                    logger.error(f"No album entry found for audioPlaylistId: {audioPlaylistId} and provider {provider} doesn't support auto-fetch")
+                    
+                    logger.info(f"Found album in Subsonic: {album_data.get('album_name', 'Unknown Album')}")
+                    
+                    # Add album to database using existing functions
+                    # Create a temporary album entry with a unique identifier
+                    import uuid
+                    temp_rfid = f"temp_{uuid.uuid4().hex[:8]}"
+                    
+                    from app.database.album_db import create_album_entry, update_album_entry
+                    
+                    # Create temporary entry
+                    create_result = create_album_entry(temp_rfid)
+                    if not create_result:
+                        logger.error(f"Failed to create temporary entry for album {audioPlaylistId}")
+                        return False
+                    
+                    # Update with album data
+                    db_entry = update_album_entry(temp_rfid, album_data)
+                    
+                    if not db_entry:
+                        logger.error(f"Failed to update database entry for Subsonic album {audioPlaylistId}")
+                        return False
+                    
+                    logger.info(f"Successfully added Subsonic album {audioPlaylistId} to database")
+                    
+                    # Now get the entry from database
+                    entry = get_album_data_by_audioPlaylistId(audioPlaylistId)
+                    
+                    if not entry:
+                        logger.error(f"Failed to retrieve newly created entry for {audioPlaylistId}")
+                        return False
+                        
+                except Exception as e:
+                    logger.error(f"Error fetching album {audioPlaylistId} from Subsonic: {e}")
                     return False
             logger.info(f"Found album entry: {entry}")
             # Use DB data for playlist
@@ -186,7 +166,7 @@ class PlaybackManager:
                     'album': entry.get('album_name', ''),
                     'year': entry.get('year', ''),
                     'album_cover_filename': entry.get('thumbnail', None),
-                    'provider': provider
+                    'provider': 'subsonic'
                 })
             
             logger.info(f"Prepared playlist with {len(playlist_metadata)} tracks for audioPlaylistId {audioPlaylistId}")
@@ -239,7 +219,6 @@ class PlaybackManager:
         
         # Bingo! the rfid exists and it is associated with an audio playlist
         else:
-            provider = getattr(entry, 'provider', 'subsonic')
-            # Delegate to the new load_from_audioPlaylistId method
-            return self.load_from_audioPlaylistId(entry.audioPlaylistId, provider)
+            # Delegate to the load_from_audioPlaylistId method
+            return self.load_from_audioPlaylistId(entry.audioPlaylistId)
 

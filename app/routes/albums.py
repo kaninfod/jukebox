@@ -11,7 +11,6 @@ from app.database.album_db import (
     update_album_entry,
     delete_album_entry
 )
-from ytmusicapi import YTMusic, OAuthCredentials
 from app.config import config
 import json
 import logging
@@ -19,64 +18,7 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
-
 router = APIRouter()
-
-client_id = config.YTMUSIC_CLIENT_ID
-client_secret = config.YTMUSIC_CLIENT_SECRET
-oauth_file = 'oauth.json'
-ytmusic = YTMusic(oauth_file, oauth_credentials=OAuthCredentials(client_id=client_id, client_secret=client_secret))
-
-
-
-
-class AlbumCardRequest(BaseModel):
-    audioPlaylistId: str
-    output_filename: str = None
-    album_title: str = None
-
-
-@router.post("/albums/album_card")
-def api_create_album_card(payload: AlbumCardRequest):
-    from app.services.ytmusic_service import YTMusicService
-    try:
-        service = YTMusicService()
-        album_info = service.get_album_info(payload.audioPlaylistId)
-        yt_album_title = album_info.get('title', 'Unknown Album')
-        album_title_final = payload.album_title if payload.album_title else yt_album_title
-        artist = 'Unknown Artist'
-        if album_info.get('artists') and len(album_info['artists']) > 0:
-            artist = album_info['artists'][0].get('name', 'Unknown Artist')
-        # Find a thumbnail close to 540px wide
-        cover_url = None
-        thumbnails = album_info.get('thumbnails', [])
-        best_size = 0
-        for thumb in thumbnails:
-            w = thumb.get('width', 0)
-            if w >= 500 and (best_size == 0 or abs(w-540) < abs(best_size-540)):
-                cover_url = thumb.get('url')
-                best_size = w
-        if not cover_url and thumbnails:
-            cover_url = thumbnails[-1].get('url')
-        if not cover_url:
-            raise HTTPException(status_code=404, detail="No suitable album cover found.")
-        # Output path
-        output_dir = getattr(config, "STATIC_FILE_PATH", "album_covers")
-        os.makedirs(output_dir, exist_ok=True)
-        if payload.output_filename:
-            output_path = os.path.join(output_dir, payload.output_filename)
-        else:
-            output_path = os.path.join(output_dir, f"album_card_{payload.audioPlaylistId}.png")
-        result_path = create_album_card(
-            cover_url=cover_url,
-            album_title=album_title_final,
-            artist=artist,
-            output_path=output_path
-        )
-        return FileResponse(result_path, media_type="image/png", filename=os.path.basename(result_path))
-    except Exception as e:
-        logger.error(f"Failed to create album card: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create album card: {str(e)}")
 
 @router.get("/albums", response_model=List[AlbumEntry])
 def list_album_entries_route():
@@ -94,25 +36,14 @@ def get_album_entry(rfid: str):
 def create_album_entry_route(rfid: str):
     return create_album_entry(rfid)
 
-from app.services.ytmusic_service import YTMusicService
-
-from fastapi import Query
-
 @router.put("/albums/{rfid}/{audioPlaylistId}", response_model=AlbumEntry)
-def update_album_entry_route(rfid: str, audioPlaylistId: str, provider: str = Query("youtube_music", description="Music provider (youtube_music or subsonic)")):
+def update_album_entry_route(rfid: str, audioPlaylistId: str):
     try:
-        # Select the correct service based on provider
-        if provider == "subsonic":
-            from app.services.subsonic_service import SubsonicService
-            service = SubsonicService()
-        else:
-            service = YTMusicService()
+        from app.services.subsonic_service import SubsonicService
+        service = SubsonicService()
         db_entry = service.add_or_update_album_entry(rfid, audioPlaylistId)
         if not db_entry:
             raise HTTPException(status_code=404, detail="Entry not found or failed to update")
-        # Ensure provider is set on the db_entry (in case the service doesn't do it)
-        if hasattr(db_entry, 'provider'):
-            db_entry.provider = provider
         return AlbumEntry.from_orm(db_entry)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to get album info: {str(e)}")

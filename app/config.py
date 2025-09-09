@@ -19,9 +19,7 @@ class Config:
     SUBSONIC_PASS: str = os.getenv("SUBSONIC_PASS", "123jukepi")
     SUBSONIC_CLIENT: str = os.getenv("SUBSONIC_CLIENT", "jukebox")
     SUBSONIC_API_VERSION: str = os.getenv("SUBSONIC_API_VERSION", "1.15.0")
-    # YouTube Music API Credentials
-    YTMUSIC_CLIENT_ID: str = os.getenv("YTMUSIC_CLIENT_ID", "194320065459-49q3ijtt8auu3oafbqu0bo9ajr9er40b.apps.googleusercontent.com")
-    YTMUSIC_CLIENT_SECRET: str = os.getenv("YTMUSIC_CLIENT_SECRET", "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")
+    
     # Font configuration: name, path, size
     FONT_DEFINITIONS = [
         {"name": "title", "path": "/home/pi/shared/jukebox/fonts/opensans/OpenSans-Regular.ttf", "size": 20},
@@ -32,11 +30,6 @@ class Config:
     ]
     """Central configuration class for the jukebox application"""
     
-    # Home Assistant Configuration
-    HA_BASE_URL: str = os.getenv("HA_BASE_URL", "http://192.168.68.100:8123")
-    HA_WS_URL: str = os.getenv("HA_WS_URL", "ws://192.168.68.100:8123/api/websocket")
-    HA_TOKEN: str = os.getenv("HA_TOKEN", "")
-    
     # Database Configuration
     DB_HOST: str = os.getenv("DB_HOST", "192.168.68.102")
     DB_PORT: int = int(os.getenv("DB_PORT", "3306"))
@@ -46,11 +39,6 @@ class Config:
 
     STATIC_FILE_PATH: str = os.getenv("STATIC_FILE_PATH", "static_files")
 
-    # YouTube Music OAuth
-    YOUTUBE_ACCESS_TOKEN: str = os.getenv("YOUTUBE_ACCESS_TOKEN", "")
-    YOUTUBE_REFRESH_TOKEN: str = os.getenv("YOUTUBE_REFRESH_TOKEN", "")
-    YOUTUBE_SCOPE: str = os.getenv("YOUTUBE_SCOPE", "https://www.googleapis.com/auth/youtube")
-    
     # GPIO Pin Configuration
     DISPLAY_POWER_GPIO: int = int(os.getenv("DISPLAY_POWER_GPIO", "20"))
     DISPLAY_BACKLIGHT_GPIO: int = int(os.getenv("DISPLAY_BACKLIGHT_GPIO", "18"))
@@ -113,7 +101,6 @@ class Config:
     def validate_config(cls) -> bool:
         """Validate that all required configuration is present"""
         required_vars = [
-            "HA_TOKEN",
             "DB_PASSWORD"
         ]
         

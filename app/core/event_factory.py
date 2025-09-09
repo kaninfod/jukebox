@@ -21,7 +21,6 @@ class EventType(Enum):
     BUTTON_PRESSED = "button_pressed"
     ROTARY_ENCODER = "RotaryEncoder"
     STATE_CHANGED = "state_changed"
-    HA_VOLUME_CHANGED = "ha_volume_changed"
     RFID_READ = "rfid_read"
     SHOW_IDLE = "show_idle"
     SHOW_HOME = "show_home"
@@ -82,13 +81,6 @@ class EventFactory:
         return Event(
             type=EventType.HA_STATE_CHANGED.value,
             payload={"from": old_status, "to": state},
-        )
-
-    @staticmethod
-    def ha_volume_changed(volume):
-        return Event(
-            type=EventType.HA_VOLUME_CHANGED.value,
-            payload={"volume": volume},
         )
 
     @staticmethod
