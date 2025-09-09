@@ -1,0 +1,74 @@
+{
+  "root": {
+    "items": [
+      {
+        "id": "music",
+        "name": "Music Library",
+        "payload": {"action": "load_submenu", "submenu": "music_menu"}
+      },
+      {
+        "id": "settings", 
+        "name": "Settings",
+        "payload": {"action": "load_submenu", "submenu": "settings_menu"}
+      },
+      {
+        "id": "chromecast",
+        "name": "Chromecast",
+        "payload": {"action": "chromecast_info"}
+      },
+      {
+        "id": "system",
+        "name": "System Info",
+        "payload": {"action": "system_info"}
+      },
+      {
+        "id": "test",
+        "name": "Test Item",
+        "payload": {"action": "test_action", "test_data": "hello_world"}
+      }
+    ]
+  },
+  "music_menu": {
+    "items": [
+      {
+        "id": "random_album",
+        "name": "Random Album",
+        "payload": {"action": "play_random_album"}
+      },
+      {
+        "id": "browse_artists",
+        "name": "Browse Artists", 
+        "payload": {"action": "browse_artists"}
+      },
+      {
+        "id": "recent_albums",
+        "name": "Recent Albums",
+        "payload": {"action": "recent_albums"}
+      },
+      {
+        "id": "favorites",
+        "name": "Favorites",
+        "payload": {"action": "favorites"}
+      }
+    ]
+  },
+  "settings_menu": {
+    "items": [
+      {
+        "id": "volume",
+        "name": "Volume Settings",
+        "payload": {"action": "volume_settings"}
+      },
+      {
+        "id": "display",
+        "name": "Display Settings",
+        "payload": {"action": "display_settings"}
+      },
+      {
+        "id": "network",
+        "name": "Network Settings",
+        "payload": {"action": "network_settings"}
+      }
+    ]
+  }
+}

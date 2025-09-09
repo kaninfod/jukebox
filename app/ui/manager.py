@@ -17,11 +17,18 @@ class ScreenManager:
         self.fonts = self._load_fonts()
         self.theme = UITheme(self.fonts)
         self.error_active = False  # Block screen changes while error is active
+        
+        # Initialize menu controller
+        self.menu_controller = None
+        
         logger.info("ScreenManager initialized")
         self._init_screens()
+        self._init_menu_controller()
+        
         event_bus.subscribe(EventType.SHOW_IDLE, self._show_idle_screen)
         event_bus.subscribe(EventType.SHOW_MESSAGE, self._show_message_screen)
         event_bus.subscribe(EventType.SHOW_HOME, self._handle_player_changes)
+        event_bus.subscribe(EventType.SHOW_MENU, self._show_menu_screen)
         event_bus.subscribe(EventType.TRACK_CHANGED, self._handle_player_changes)
         event_bus.subscribe(EventType.VOLUME_CHANGED, self._handle_player_changes)
         event_bus.subscribe(EventType.STATUS_CHANGED, self._handle_player_changes)
@@ -41,27 +48,6 @@ class ScreenManager:
             logger.info("Received clear_error event, clearing error state.")
             self.error_active = False
             self._show_idle_screen()
-
-    # def handle_event(self, event: Event):
-    #     if self.error_active and event.type != 'clear_error':
-    #         logger.info(f"Error screen active, ignoring event: {event.type}")
-    #         return
-    #     if event.type == 'clear_error':
-    #         logger.info("Received clear_error event, clearing error state.")
-    #         self.error_active = False
-    #         self._show_idle_screen()
-    #         return
-    #     if event.type in ['show_home', 'track_changed', 'volume_changed', 'status_changed']:
-    #         if event.payload['status'] in [PlayerStatus.PLAY.value, PlayerStatus.PAUSE.value]:
-    #             self._show_home_screen(event.payload)
-    #         else:
-    #             self._show_idle_screen(event.payload)
-    #     elif event.type == 'show_idle':
-    #         self._show_idle_screen()
-    #     elif event.type == 'show_message_screen':
-    #         self._show_message_screen(event.payload)
-    #     else:
-    #         logger.info(f"Event not handled here: {event.type}")
 
     def _load_fonts(self):
         from app.config import config
@@ -83,6 +69,12 @@ class ScreenManager:
         elif self.screens:
             self.current_screen = next(iter(self.screens.values()))
 
+    def _init_menu_controller(self):
+        """Initialize the menu controller"""
+        from app.ui.menu.menu_controller import MenuController
+        self.menu_controller = MenuController()
+        logger.info("MenuController initialized")
+
     def add_screen(self, name, screen):
         self.screens[name] = screen
 
@@ -102,6 +94,14 @@ class ScreenManager:
             logger.info(f"Error screen active, ignoring event: {getattr(event, 'type', None)}")
             return
         self.switch_to_screen("message_screen")
+        self.render(context=event.payload)
+
+    def _show_menu_screen(self, event):
+        """Show menu screen with context from MenuController"""
+        if self.error_active:
+            logger.info(f"Error screen active, ignoring menu event")
+            return
+        self.switch_to_screen("menu")
         self.render(context=event.payload)
 
     def switch_to_screen(self, screen_name):

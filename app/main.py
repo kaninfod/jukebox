@@ -14,7 +14,7 @@ from app.routes.system import router as system_router
 from app.web.routes import router as web_router
 from app.routes.chromecast import router as chromecast_router
 
-from app.services.websocket_service import websocket_service
+#from app.services.websocket_service import websocket_service
 from app.services.playback_manager import PlaybackManager
 
 from app.ui import ScreenManager
@@ -98,8 +98,8 @@ def startup_event():
     hardware_manager.playback_manager = playback_manager
 
     # Start WebSocket connection to Home Assistant
-    websocket_service.start()
-    logging.info("Started WebSocket connection to Home Assistant")
+    #websocket_service.start()
+    #logging.info("Started WebSocket connection to Home Assistant")
     
     from app.ui.screens import IdleScreen
     IdleScreen.show()
@@ -111,8 +111,9 @@ def shutdown_event():
     """Clean up resources on shutdown"""
     # Stop WebSocket connection
     try:
-        websocket_service.stop()
-        logging.info("Stopped WebSocket connection to Home Assistant")
+        pass
+        #websocket_service.stop()
+        #logging.info("Stopped WebSocket connection to Home Assistant")
     except Exception as e:
         logging.error(f"Error stopping WebSocket: {e}")
     # Clean up hardware

@@ -132,6 +132,34 @@ def playbackmanager_load_rfid(rfid: str = Body(..., embed=True)):
         return {"status": "error", "message": "Failed to load RFID in PlaybackManager"}
 
 
+# Endpoint to trigger load_from_audioPlaylistId in PlaybackManager
+@router.post("/mediaplayer/playback_audioPlaylistId")
+def playbackmanager_load_audioPlaylistId(audioPlaylistId: str = Body(..., embed=True), provider: str = Body("subsonic", embed=True)):
+    """Trigger load_from_audioPlaylistId in PlaybackManager with the given audioPlaylistId."""
+    
+    try:
+        from app.main import playback_manager
+        result = playback_manager.load_from_audioPlaylistId(audioPlaylistId, provider)
+        
+        if result:
+            return {
+                "status": "success", 
+                "message": f"Successfully loaded audioPlaylistId: {audioPlaylistId}",
+                "audioPlaylistId": audioPlaylistId,
+                "provider": provider
+            }
+        else:
+            return {
+                "status": "error", 
+                "message": f"Failed to load audioPlaylistId: {audioPlaylistId}"
+            }
+    except Exception as e:
+        return {
+            "status": "error", 
+            "message": f"Exception while loading audioPlaylistId {audioPlaylistId}: {str(e)}"
+        }
+
+
 # Endpoint to get all info on the current track from JukeboxMediaPlayer
 @router.get("/mediaplayer/current_track")
 def get_current_track_info():

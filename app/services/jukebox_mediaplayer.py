@@ -28,7 +28,7 @@ class JukeboxMediaPlayer:
         self.current_volume = 0  # Ensure attribute exists before any event/context
         self.track_timer = TrackTimer()
         self.sync_volume_from_ha()
-        logger.info(f"JukeboxMediaPlayer initialized. id={id(self)} current_volume={self.current_volume}")
+        logger.info(f"JukeboxMediaPlayer initialized. Chromecast device={self.cc_service.device_name}")
 
     def cleanup(self):
         logger.info("JukeboxMediaPlayer cleanup called")
@@ -177,11 +177,7 @@ class JukeboxMediaPlayer:
         normalized_volume = self.current_volume / 100.0 if self.current_volume is not None else None
 
         if normalized_volume is not None:
-            # from .pychromecast_service import PyChromecastService
-            # cc_service = PyChromecastService.get_instance()
             self.cc_service.set_volume(normalized_volume)
-
-            #self.ha_service.set_volume(ha_volume_normalized)
 
         from app.core import event_bus, EventType, Event
         event_bus.emit(Event(
@@ -203,8 +199,6 @@ class JukeboxMediaPlayer:
         # Log actual vs expected duration before advancing
         elapsed = self.track_timer.get_elapsed()
         expected_str = self.current_track.get('duration') if self.current_track else None
-        # if event.payload.get("force"):
-        #     force = event.payload.get("force")
             
         # Convert expected duration (mm:ss or m:ss) to seconds
         def duration_to_seconds(dur):
@@ -271,15 +265,11 @@ class JukeboxMediaPlayer:
             return None
 
     def cast_current_track(self):
-        # from .pychromecast_service import PyChromecastService
-        # cc_service = PyChromecastService.get_instance()
-
         track = self.playlist[self.current_index]
         stream_url = self.get_stream_url_for_track(track)
         track['stream_url'] = stream_url
         if stream_url:
             logger.info(f"Casting stream URL for track {track.get('title')}, with url {stream_url}")
-            #ha_service = HomeAssistantService()
             self.cc_service.play_media(stream_url, media_info={
                 "title": track.get("title"),
                 "thumb": track.get("image_url"),

@@ -107,10 +107,14 @@ class SubsonicService(MusicProviderService):
             for album in albums if album.get('isDir', False)
         ]
 
-    def _fetch_and_cache_coverart(self, audioPlaylistId: str, rfid: str) -> Optional[str]:
+    def _fetch_and_cache_coverart(self, audioPlaylistId: str, filename_prefix: str = None) -> Optional[str]:
         """
-        Download and cache the album cover image from the given Subsonic coverart URL.
+        Download and cache the album cover image from Subsonic.
         Returns the filename if successful, else None.
+        
+        Args:
+            audioPlaylistId: The album ID to fetch cover art for
+            filename_prefix: Optional prefix for filename (e.g., RFID). If None, uses audioPlaylistId
         """
 
         from PIL import Image
@@ -123,7 +127,13 @@ class SubsonicService(MusicProviderService):
             image = Image.open(BytesIO(response.content))
             image = image.convert('RGBA')
             image = image.resize((120, 120), Image.Resampling.LANCZOS)
-            filename = f"{rfid}.png"
+            
+            # Use audioPlaylistId as filename if no prefix provided
+            if filename_prefix:
+                filename = f"{filename_prefix}.png"
+            else:
+                filename = f"{audioPlaylistId}.png"
+                
             cache_dir = getattr(config, "STATIC_FILE_PATH", "static_files")
             logger.info(f"SubsonicService: Caching album cover art to {cache_dir}")
             local_path = os.path.join(cache_dir, filename)
@@ -134,27 +144,22 @@ class SubsonicService(MusicProviderService):
             logger.warning(f"Failed to cache album cover from {audioPlaylistId}: {e}")
             return None
         
-    def add_or_update_album_entry(self, rfid: str, audioPlaylistId: str):
+    def add_or_update_album_entry_from_audioPlaylistId(self, audioPlaylistId: str):
         """
-        Fetch album info from Subsonic, cache the cover, and upsert the album entry in the database.
-        Returns the DB entry or None on failure.
+        Fetch album info from Subsonic and create album data structure.
+        Returns the album data dict or None on failure.
+        This is the core fetching logic without RFID dependency.
         """
-        from app.database.album_db import update_album_entry, create_album_entry, get_album_entry_by_rfid
         import json
         try:
             album_info = self.get_album_info(audioPlaylistId)
-            #logger.info(f"SubsonicService: Fetched album info for {album_info}")   
             album_name = album_info.get('name', 'Unknown Album')
             artist_name = album_info.get('artist', 'Unknown Artist')
             year = album_info.get('year', None)
-            # Subsonic cover art is referenced by coverArt id, fetch and cache the image
-            thumbnail_path = self._fetch_and_cache_coverart(audioPlaylistId, rfid)
-
-            # cover_art_id = album_info.get('coverArt')
-            # local_cover_filename = None
-            # if cover_art_id:
-            #     coverart_url = f"{self.base_url}/rest/getCoverArt?id={cover_art_id}&u={self.username}&p={self.password}&v={self.api_version}&c={self.client}"
-            #     local_cover_filename = self._fetch_and_cache_coverart(coverart_url, rfid)
+            
+            # Fetch and cache cover art using audioPlaylistId as filename
+            thumbnail_filename = self._fetch_and_cache_coverart(audioPlaylistId)
+            
             tracks_data = []
             tracks = self.get_album_tracks(audioPlaylistId)
             
@@ -166,15 +171,43 @@ class SubsonicService(MusicProviderService):
                     'video_id': track.get('id', '')
                 }
                 tracks_data.append(track_info)
+                
             album_data = {
                 'provider': 'subsonic',
                 'album_name': album_name,
                 'artist_name': artist_name,
                 'year': year,
                 'audioPlaylistId': audioPlaylistId,
-                'thumbnail': thumbnail_path,
+                'thumbnail': thumbnail_filename,  # Now properly set!
                 'tracks': json.dumps(tracks_data)
             }
+            
+            logger.info(f"SubsonicService: Fetched album data for {audioPlaylistId}: {album_name} by {artist_name}")
+            return album_data
+            
+        except Exception as e:
+            logger.error(f"SubsonicService: Failed to fetch album data for {audioPlaylistId}: {e}")
+            return None
+
+    def add_or_update_album_entry(self, rfid: str, audioPlaylistId: str):
+        """
+        Fetch album info from Subsonic, cache the cover, and upsert the album entry in the database.
+        Returns the DB entry or None on failure.
+        """
+        from app.database.album_db import update_album_entry, create_album_entry, get_album_entry_by_rfid
+        
+        try:
+            # Get the core album data using the new method
+            album_data = self.add_or_update_album_entry_from_audioPlaylistId(audioPlaylistId)
+            
+            if not album_data:
+                logger.error(f"SubsonicService: Failed to fetch album data for {audioPlaylistId}")
+                return None
+            
+            # Add RFID-specific data (cover art caching)
+            thumbnail_path = self._fetch_and_cache_coverart(audioPlaylistId, filename_prefix=rfid)
+            album_data['thumbnail'] = thumbnail_path
+            
             # Upsert logic
             logger.info(f"SubsonicService: Upserting album entry for RFID {rfid}: {album_data}")
             db_entry = get_album_entry_by_rfid(rfid)
@@ -185,6 +218,7 @@ class SubsonicService(MusicProviderService):
                 create_album_entry(rfid)
                 db_entry = update_album_entry(rfid, album_data)
             return db_entry
+            
         except Exception as e:
             logger.error(f"SubsonicService: Failed to add/update album entry for RFID {rfid}: {e}")
             return None

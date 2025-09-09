@@ -215,12 +215,12 @@ class HardwareManager:
         if direction > 0:
             event_bus.emit(Event(
                 type=EventType.ROTARY_ENCODER,
-                payload={"direction": "CW", "action": "volume_up"}
+                payload={"direction": "CW"}
             ))
         else:
             event_bus.emit(Event(
                 type=EventType.ROTARY_ENCODER,
-                payload={"direction": "CCW", "action": "volume_down"}
+                payload={"direction": "CCW"}
             ))
 
 

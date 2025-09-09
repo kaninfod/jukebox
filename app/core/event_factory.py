@@ -26,6 +26,13 @@ class EventType(Enum):
     SHOW_IDLE = "show_idle"
     SHOW_HOME = "show_home"
     SHOW_MESSAGE = "show_message"
+    SHOW_MENU = "show_menu"
+    # Menu system events
+    MENU_ENTER = "menu_enter"
+    MENU_EXIT = "menu_exit"
+    MENU_NAVIGATE = "menu_navigate"
+    MENU_ACTIVATE = "menu_activate"
+    MENU_ACTION = "menu_action"
 
 class EventFactory:
     @staticmethod

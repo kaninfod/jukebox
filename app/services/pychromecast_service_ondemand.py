@@ -1,15 +1,10 @@
 """
 Simplified on-demand Chromecast service based on official pychromecast examples.
 
-This is an alternative implementation that uses discovery only when needed,
-following the patterns from the official pychromecast GitHub repository.
-
-References:
-- https://github.com/home-assistant-libs/pychromecast/blob/master/examples/discovery_example.py
-- https://github.com/home-assistant-libs/pychromecast/blob/master/examples/media_example.py
 """
 
 import pychromecast
+from pychromecast.controllers.media import MediaController
 from zeroconf import Zeroconf
 from typing import Optional, List, Dict
 import logging
@@ -363,10 +358,11 @@ class PyChromecastServiceOnDemand:
 
     def play_media(self, url: str, media_info: dict = None, content_type: str = "audio/mp3") -> bool:
         """
-        Play media on the connected Chromecast.
+        Play media on the connected Chromecast with metadata.
         
         Args:
             url: Media URL to play
+            media_info: Dictionary containing track metadata (title, artist, album, etc.)
             content_type: MIME type of the media
             
         Returns:
@@ -379,8 +375,45 @@ class PyChromecastServiceOnDemand:
         try:
             logger.info(f"Playing media on {self.cast.name}: {url}")
             
-            # Play media (following examples/media_example.py pattern)
-            self.mc.play_media(url, content_type)
+            if media_info:
+                # Extract metadata from media_info
+                title = media_info.get("title", "Unknown Title")
+                thumb = media_info.get("thumb")
+                
+                # Get nested media_info if present
+                nested_info = media_info.get("media_info", {})
+                artist = nested_info.get("artist") or media_info.get("artist", "Unknown Artist")
+                album = nested_info.get("album") or media_info.get("album", "Unknown Album")
+                year = nested_info.get("year") or media_info.get("year")
+                
+                # Get metadata if present
+                metadata_dict = media_info.get("metadata", {})
+                
+                # Create metadata dictionary for pychromecast
+                metadata = {
+                    "metadataType": metadata_dict.get("metadataType", 3),  # MUSIC_TRACK = 3
+                    "title": title,
+                    "artist": artist,
+                    "albumName": album,
+                }
+                
+                if year:
+                    metadata["releaseDate"] = str(year)
+                
+                # Add album art if available
+                if thumb:
+                    metadata["images"] = [{"url": thumb}]
+                
+                # Play media with metadata
+                logger.info(f"Playing with metadata: {title} by {artist} from {album}")
+                logger.debug(f"Metadata being sent: {metadata}")
+                
+                self.mc.play_media(url, content_type, title=title, thumb=thumb, metadata=metadata)
+                
+            else:
+                # Play media without metadata (fallback)
+                logger.info("Playing media without metadata")
+                self.mc.play_media(url, content_type)
             
             # Wait for media to start
             self.mc.block_until_active(timeout=10)
@@ -390,7 +423,15 @@ class PyChromecastServiceOnDemand:
             
         except Exception as e:
             logger.error(f"Failed to play media: {e}")
-            return False
+            # Fallback to basic playback without metadata
+            try:
+                logger.info("Attempting fallback playback without metadata")
+                self.mc.play_media(url, content_type)
+                self.mc.block_until_active(timeout=10)
+                return True
+            except Exception as fallback_e:
+                logger.error(f"Fallback playback also failed: {fallback_e}")
+                return False
     
     def pause(self) -> bool:
         """Pause current media playback."""

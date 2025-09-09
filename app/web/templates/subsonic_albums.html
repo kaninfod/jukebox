@@ -5,24 +5,103 @@
     <style>
         table { margin: auto; border-collapse: collapse; }
         th, td { padding: 8px 12px; border: 1px solid #ccc; }
+        .play-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .play-btn:hover { background-color: #45a049; }
+        .play-btn:disabled { 
+            background-color: #cccccc; 
+            cursor: not-allowed; 
+        }
+        .status-message {
+            margin: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
     </style>
 </head>
 <body>
     <h2 style="text-align:center;">Albums for Artist: {{ artist_id }}</h2>
+    
+    <div id="statusMessage" class="status-message" style="display:none;"></div>
+    
     <table>
         <tr>
             <th>Album Name</th>
             <th>Album ID</th>
+            <th>Action</th>
         </tr>
         {% for album in albums %}
         <tr>
             <td>{{ album.name }}</td>
             <td>{{ album.id }}</td>
+            <td>
+                <button class="play-btn" onclick="playOnJukebox('{{ album.id }}', '{{ album.name }}', this)">
+                    Play on Jukebox
+                </button>
+            </td>
         </tr>
         {% endfor %}
     </table>
     <div style="text-align:center; margin-top:20px;">
         <a href="/subsonic/artists">Back to Artists</a>
     </div>
+
+    <script>
+        function playOnJukebox(albumId, albumName, button) {
+            // Disable button and show loading state
+            button.disabled = true;
+            button.textContent = 'Loading...';
+            
+            // Hide any previous status messages
+            document.getElementById('statusMessage').style.display = 'none';
+            
+            // Make API call to play album on jukebox
+            fetch('/mediaplayer/playback_audioPlaylistId', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    audioPlaylistId: albumId,
+                    provider: 'subsonic'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                const statusDiv = document.getElementById('statusMessage');
+                statusDiv.style.display = 'block';
+                
+                if (data.status === 'success') {
+                    statusDiv.className = 'status-message success';
+                    statusDiv.textContent = `✅ Now playing: ${albumName}`;
+                    button.textContent = '✓ Playing';
+                } else {
+                    statusDiv.className = 'status-message error';
+                    statusDiv.textContent = `❌ Failed to play: ${data.message}`;
+                    button.textContent = 'Play on Jukebox';
+                    button.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                const statusDiv = document.getElementById('statusMessage');
+                statusDiv.style.display = 'block';
+                statusDiv.className = 'status-message error';
+                statusDiv.textContent = `❌ Error: ${error.message}`;
+                button.textContent = 'Play on Jukebox';
+                button.disabled = false;
+            });
+        }
+    </script>
 </body>
 </html>
