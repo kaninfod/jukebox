@@ -23,14 +23,14 @@ sudo apt upgrade -y
 
 # Install system dependencies
 echo "📦 Installing system dependencies..."
+
+# Core dependencies that should always be available
 sudo apt install -y \
     python3 \
     python3-pip \
     python3-venv \
     python3-dev \
     git \
-    mariadb-client \
-    libmariadb-dev \
     build-essential \
     python3-rpi.gpio \
     python3-spidev \
@@ -38,8 +38,16 @@ sudo apt install -y \
     python3-smbus \
     libfreetype6-dev \
     libjpeg-dev \
-    libopenjp2-7 \
-    libtiff5
+    libopenjp2-7
+
+# Database dependencies (optional for MariaDB)
+sudo apt install -y mariadb-client libmariadb-dev || echo "⚠️ MariaDB packages not available, skipping..."
+
+# Image processing dependencies with fallback
+if ! sudo apt install -y libtiff6; then
+    echo "⚠️ libtiff6 not found, trying libtiff5..."
+    sudo apt install -y libtiff5 || echo "⚠️ Neither libtiff6 nor libtiff5 available, may affect image processing"
+fi
 
 echo "✅ System dependencies installed"
 
