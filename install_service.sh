@@ -30,6 +30,7 @@ sudo apt install -y \
     python3-pip \
     python3-venv \
     python3-dev \
+    python3-dotenv \
     git \
     build-essential \
     python3-rpi.gpio \
@@ -69,8 +70,19 @@ source venv/bin/activate
 
 # Install Python dependencies
 echo "📦 Installing Python dependencies..."
-pip install --upgrade pip
-pip install -r requirements.txt
+
+# Handle externally managed environments (PEP 668) in newer Raspberry Pi OS
+if pip install --upgrade pip --break-system-packages 2>/dev/null; then
+    echo "✅ Using --break-system-packages for externally managed environment"
+    pip install -r requirements.txt --break-system-packages
+elif pip3 install --upgrade pip --break-system-packages 2>/dev/null; then
+    echo "✅ Using pip3 with --break-system-packages"
+    pip3 install -r requirements.txt --break-system-packages
+else
+    echo "⚠️ Trying standard pip installation..."
+    pip install --upgrade pip || pip3 install --upgrade pip
+    pip install -r requirements.txt || pip3 install -r requirements.txt
+fi
 
 echo "✅ Python dependencies installed"
 

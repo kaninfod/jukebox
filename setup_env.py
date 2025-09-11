@@ -45,8 +45,19 @@ def check_env_file():
 def validate_subsonic_config():
     """Validate Subsonic configuration"""
     try:
-        from dotenv import load_dotenv
-        load_dotenv()
+        # Try to import dotenv, but don't fail if it's missing
+        try:
+            from dotenv import load_dotenv
+            load_dotenv()
+        except ImportError:
+            print("⚠️  python-dotenv not available, reading .env manually")
+            # Manual .env parsing as fallback
+            if os.path.exists('.env'):
+                with open('.env') as f:
+                    for line in f:
+                        if '=' in line and not line.startswith('#'):
+                            key, value = line.strip().split('=', 1)
+                            os.environ[key] = value
         
         subsonic_url = os.getenv("SUBSONIC_URL", "")
         subsonic_user = os.getenv("SUBSONIC_USER", "") 
@@ -65,10 +76,30 @@ def validate_subsonic_config():
         return False
 
 def install_dependencies():
-    """Install required Python packages"""
+    """Install required Python packages with proper handling for externally managed environments"""
     print("📦 Installing Python dependencies...")
-    os.system("pip install -r requirements.txt")
-    print("✅ Dependencies installed")
+    
+    # Try different installation methods for externally managed environments
+    install_commands = [
+        "pip install -r requirements.txt --break-system-packages",
+        "pip3 install -r requirements.txt --break-system-packages", 
+        "python3 -m pip install -r requirements.txt --break-system-packages"
+    ]
+    
+    success = False
+    for cmd in install_commands:
+        print(f"🔄 Trying: {cmd}")
+        result = os.system(cmd)
+        if result == 0:
+            success = True
+            break
+    
+    if success:
+        print("✅ Dependencies installed successfully")
+    else:
+        print("⚠️  Package installation had issues, but continuing...")
+        print("💡 You may need to run: sudo ./install_service.sh")
+        print("   The service script handles system packages properly.")
 
 def main():
     """Main setup function"""
