@@ -1,6 +1,13 @@
-import RPi.GPIO as GPIO
-GPIO.setwarnings(True)
-GPIO.setmode(GPIO.BCM)
+# Conditional GPIO import for hardware mode
+try:
+    import RPi.GPIO as GPIO
+    GPIO.setwarnings(True)
+    GPIO.setmode(GPIO.BCM)
+    _gpio_available = True
+except ImportError:
+    _gpio_available = False
+    import logging
+    logging.getLogger(__name__).warning("⚠️  RPi.GPIO not available - hardware features disabled")
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles

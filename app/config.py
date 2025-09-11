@@ -40,6 +40,9 @@ class Config:
     RFID_THREAD_JOIN_TIMEOUT: int = int(os.getenv("RFID_THREAD_JOIN_TIMEOUT", "1"))        # Time to wait for RFID thread cleanup
     
     # === DEVICE CONFIGURATION ===
+    # Hardware Mode - Set to false for headless/development mode without physical hardware
+    HARDWARE_MODE: bool = os.getenv("HARDWARE_MODE", "true").lower() == "true"
+    
     # Default Chromecast Device
     DEFAULT_CHROMECAST_DEVICE: str = os.getenv("DEFAULT_CHROMECAST_DEVICE", "Living Room")
     

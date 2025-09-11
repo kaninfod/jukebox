@@ -3,7 +3,14 @@
 Hardware management module for the jukebox.
 Handles initialization and callbacks for all hardware devices.
 """
-import RPi.GPIO as GPIO
+# Conditional GPIO import
+try:
+    import RPi.GPIO as GPIO
+    _gpio_available = True
+except ImportError:
+    _gpio_available = False
+    GPIO = None
+
 from .devices.ili9488 import ILI9488
 from .devices.rfid import RC522Reader
 from .devices.pushbutton import PushButton
@@ -46,36 +53,52 @@ class HardwareManager:
 
     def initialize_hardware(self):
         """Initialize all hardware devices using injected config"""
-        # Initialize display
-        self.display = ILI9488()
+        if not self.config.HARDWARE_MODE or not _gpio_available:
+            if not self.config.HARDWARE_MODE:
+                logger.info("🖥️  Headless mode enabled - skipping hardware initialization")
+            else:
+                logger.info("🖥️  GPIO unavailable - falling back to headless mode")
+            from .devices.mock_display import MockDisplay
+            return MockDisplay()
+        
+        try:
+            # Initialize display
+            self.display = ILI9488()
 
-        # Initialize RFID reader using injected config
-        self.rfid_reader = RC522Reader(
-            cs_pin=self.config.RFID_CS_PIN,
-            on_new_uid=self._handle_new_uid
-        )
+            # Initialize RFID reader using injected config
+            self.rfid_reader = RC522Reader(
+                cs_pin=self.config.RFID_CS_PIN,
+                on_new_uid=self._handle_new_uid
+            )
 
-        # Set up switch pin for RFID using injected config
-        self.rfid_switch_pin = self.config.NFC_CARD_SWITCH_GPIO
-        GPIO.setup(self.rfid_switch_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.add_event_detect(self.rfid_switch_pin, GPIO.FALLING, callback=self._on_rfid_switch_activated, bouncetime=500)
-        logger.info(f"RFID switch monitoring started on GPIO {self.rfid_switch_pin}")
+            # Set up switch pin for RFID using injected config
+            self.rfid_switch_pin = self.config.NFC_CARD_SWITCH_GPIO
+            GPIO.setup(self.rfid_switch_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            GPIO.add_event_detect(self.rfid_switch_pin, GPIO.FALLING, callback=self._on_rfid_switch_activated, bouncetime=500)
+            logger.info(f"RFID switch monitoring started on GPIO {self.rfid_switch_pin}")
 
-        # Initialize rotary encoder with callback using injected config
-        self.encoder = RotaryEncoder(
-            pin_a=self.config.ROTARY_ENCODER_PIN_A, 
-            pin_b=self.config.ROTARY_ENCODER_PIN_B, 
-            callback=self._on_rotate, 
-            bouncetime=self.config.ENCODER_BOUNCETIME
-        )
+            # Initialize rotary encoder with callback using injected config
+            self.encoder = RotaryEncoder(
+                pin_a=self.config.ROTARY_ENCODER_PIN_A, 
+                pin_b=self.config.ROTARY_ENCODER_PIN_B, 
+                callback=self._on_rotate, 
+                bouncetime=self.config.ENCODER_BOUNCETIME
+            )
 
-        # Initialize push buttons with callbacks using injected config
-        self.button1 = PushButton(self.config.BUTTON_1_GPIO, callback=self._on_button1_press, bouncetime=self.config.BUTTON_BOUNCETIME)
-        self.button2 = PushButton(self.config.BUTTON_2_GPIO, callback=self._on_button2_press, bouncetime=self.config.BUTTON_BOUNCETIME)
-        self.button3 = PushButton(self.config.BUTTON_3_GPIO, callback=self._on_button3_press, bouncetime=self.config.BUTTON_BOUNCETIME)
-        self.button5 = PushButton(self.config.BUTTON_5_GPIO, callback=self._on_button5_press, bouncetime=self.config.BUTTON_BOUNCETIME)
+            # Initialize push buttons with callbacks using injected config
+            self.button1 = PushButton(self.config.BUTTON_1_GPIO, callback=self._on_button1_press, bouncetime=self.config.BUTTON_BOUNCETIME)
+            self.button2 = PushButton(self.config.BUTTON_2_GPIO, callback=self._on_button2_press, bouncetime=self.config.BUTTON_BOUNCETIME)
+            self.button3 = PushButton(self.config.BUTTON_3_GPIO, callback=self._on_button3_press, bouncetime=self.config.BUTTON_BOUNCETIME)
+            self.button5 = PushButton(self.config.BUTTON_5_GPIO, callback=self._on_button5_press, bouncetime=self.config.BUTTON_BOUNCETIME)
 
-        return self.display
+            logger.info("🔧 Hardware initialization complete")
+            return self.display
+            
+        except Exception as e:
+            logger.error(f"❌ Hardware initialization failed: {e}")
+            logger.info("🖥️  Falling back to headless mode")
+            from .devices.mock_display import MockDisplay
+            return MockDisplay()
 
     def _on_rfid_switch_activated(self, channel):
         """Handle switch activation (card inserted) for RFID. Only trigger on actual FALLING edge (LOW)."""

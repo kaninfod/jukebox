@@ -15,25 +15,34 @@ A modern jukebox system for Raspberry Pi with RFID card support, display interfa
 
 ## 🔧 Hardware Requirements
 
-### **Raspberry Pi**
+### **📱 Headless Mode (No Hardware Required)**
+For development, testing, or web-only operation:
+- Any Raspberry Pi or Linux system
+- No display, RFID, or physical controls needed
+- Web interface and API remain fully functional
+- Set `HARDWARE_MODE=false` in .env file
+
+### **🔧 Full Hardware Mode**
+
+#### **Raspberry Pi**
 - Raspberry Pi 4 (recommended) or Pi 3B+
 - Raspberry Pi OS 64-bit (Bookworm or later)
 - 16GB+ microSD card (Class 10 or better)
 
-### **Display**
+#### **Display**
 - ILI9488 480x320 TFT display with SPI interface
 - Touch support (optional)
 
-### **RFID Reader**
+#### **RFID Reader**
 - RC522 RFID reader module (13.56MHz)
 - Or PN532 NFC/RFID module (alternative)
 
-### **Input Controls**
+#### **Input Controls**
 - Rotary encoder with push button
 - 5x tactile push buttons
 - Breadboard or custom PCB for connections
 
-### **Audio Output**
+#### **Audio Output**
 - Chromecast device(s) for wireless audio
 - Or local audio via Pi's 3.5mm jack/HDMI
 
@@ -88,6 +97,27 @@ A modern jukebox system for Raspberry Pi with RFID card support, display interfa
    ```bash
    sudo systemctl start jukebox
    ```
+
+### **🖥️ Headless Mode Installation**
+
+For development or web-only operation without physical hardware:
+
+1. **Follow steps 1-2 above (clone and run install script)**
+
+2. **Configure for headless mode:**
+   ```bash
+   cp env.template .env
+   nano .env
+   ```
+   Set: `HARDWARE_MODE=false`
+
+3. **Start in headless mode:**
+   ```bash
+   sudo systemctl start jukebox
+   ```
+   
+   The system will start without initializing display, RFID, or buttons.
+   Web interface available at: `http://your-pi-ip:8000`
 
 ### **Method 2: Manual Installation**
 
