@@ -23,14 +23,14 @@ router = APIRouter()
 @router.get("/albums", response_model=List[AlbumEntry])
 def list_album_entries_route():
     entries = list_album_entries()
-    return [AlbumEntry.from_orm(e) for e in entries]
+    return [AlbumEntry.model_validate(e) for e in entries]
 
 @router.get("/albums/{rfid}", response_model=AlbumEntry)
 def get_album_entry(rfid: str):
     entry = get_album_entry_by_rfid(rfid)
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
-    return AlbumEntry.from_orm(entry)
+    return AlbumEntry.model_validate(entry)
 
 @router.post("/albums/{rfid}")
 def create_album_entry_route(rfid: str):
@@ -44,7 +44,7 @@ def update_album_entry_route(rfid: str, audioPlaylistId: str):
         db_entry = service.add_or_update_album_entry(rfid, audioPlaylistId)
         if not db_entry:
             raise HTTPException(status_code=404, detail="Entry not found or failed to update")
-        return AlbumEntry.from_orm(db_entry)
+        return AlbumEntry.model_validate(db_entry)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to get album info: {str(e)}")
 

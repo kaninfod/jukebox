@@ -29,7 +29,7 @@ class AlbumEntry(BaseModel):
         return v
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class AlbumEntryUpdate(BaseModel):
     provider: Optional[str] = None

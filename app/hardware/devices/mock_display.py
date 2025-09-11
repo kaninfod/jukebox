@@ -11,6 +11,10 @@ class MockDevice:
     def __init__(self):
         self.width = 480
         self.height = 320
+    
+    def display(self, image):
+        """Mock device display method"""
+        logger.debug(f"📺 MockDevice: Would display image to device")
 
 class MockDisplay:
     """Mock display that logs operations instead of rendering to hardware"""
