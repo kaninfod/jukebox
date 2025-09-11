@@ -101,8 +101,22 @@ fi
 
 # Install systemd service
 echo "🔧 Installing systemd service..."
-sudo cp jukebox.service /etc/systemd/system/
+
+# Get the current working directory (where jukebox is installed)
+JUKEBOX_PATH=$(pwd)
+echo "📁 Jukebox installation path: $JUKEBOX_PATH"
+
+# Create a temporary service file with the correct path
+sed "s|/home/pi/shared/jukebox|$JUKEBOX_PATH|g" jukebox.service > /tmp/jukebox.service
+
+# Install the service file
+sudo cp /tmp/jukebox.service /etc/systemd/system/jukebox.service
 sudo systemctl daemon-reload
+
+# Clean up temporary file
+rm /tmp/jukebox.service
+
+echo "✅ Service installed with path: $JUKEBOX_PATH"
 
 # Create polkit rules for system control (shutdown/reboot)
 echo "🔐 Setting up polkit rules..."
