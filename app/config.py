@@ -108,7 +108,8 @@ class Config:
 
     # === HARDWARE SETTINGS ===
     # Input debounce times (milliseconds)
-    ENCODER_BOUNCETIME: int = int(os.getenv("ENCODER_BOUNCETIME", "2"))
+    # KY-040 rotary encoder: Lower bouncetime + software debouncing for better responsiveness
+    ENCODER_BOUNCETIME: int = int(os.getenv("ENCODER_BOUNCETIME", "5"))
     BUTTON_BOUNCETIME: int = int(os.getenv("BUTTON_BOUNCETIME", "200"))
 
     # === MEDIA PLAYER CONFIGURATION ===
