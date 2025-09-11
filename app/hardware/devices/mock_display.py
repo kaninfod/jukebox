@@ -6,6 +6,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+class MockDevice:
+    """Mock device object to match luma display interface"""
+    def __init__(self):
+        self.width = 480
+        self.height = 320
+
 class MockDisplay:
     """Mock display that logs operations instead of rendering to hardware"""
     
@@ -13,6 +19,7 @@ class MockDisplay:
         """Initialize mock display"""
         self.width = 480
         self.height = 320
+        self.device = MockDevice()  # Compatibility with luma display interface
         logger.info("🖥️  MockDisplay initialized for headless operation")
     
     def display(self, image):
