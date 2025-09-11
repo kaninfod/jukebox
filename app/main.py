@@ -14,7 +14,6 @@ from app.routes.system import router as system_router
 from app.web.routes import router as web_router
 from app.routes.chromecast import router as chromecast_router
 
-#from app.services.websocket_service import websocket_service
 from app.services.playback_manager import PlaybackManager
 
 from app.ui import ScreenManager
@@ -70,7 +69,7 @@ def get_hardware_manager():
 
 @app.on_event("startup")
 def startup_event():
-    """Initialize all systems on startup"""
+    """Initialize all systems with dependency injection"""
     global screen_manager, hardware_manager, display, playback_manager, jukebox_mediaplayer
     
     # Step 0: Validate configuration
@@ -78,29 +77,62 @@ def startup_event():
         logging.error("❌ Configuration validation failed. Please check your .env file.")
         return
     
-    # Step 2: Initialize hardware manager
-    hardware_manager = HardwareManager()
+    # Step 1: Create core dependencies
+    from app.core.event_bus import event_bus
+    from app.database.album_db import AlbumDatabase
+    from app.services.subsonic_service import SubsonicService
+    from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand
+    
+    # Initialize database and services with config injection
+    album_db = AlbumDatabase(config)
+    subsonic_service = SubsonicService(config)
+    chromecast_service = PyChromecastServiceOnDemand(config.DEFAULT_CHROMECAST_DEVICE)
+    
+    # Step 2: Initialize hardware manager with dependency injection
+    hardware_manager = HardwareManager(
+        config=config,
+        event_bus=event_bus,
+        screen_manager=None  # Will be set after screen_manager is created
+    )
 
     # Step 3: Initialize display hardware
     display = hardware_manager.initialize_hardware()
 
-    # Step 4: Initialize screen manager with display
-    screen_manager = ScreenManager(display)
+    # Step 4: Initialize screen manager with dependency injection
+    screen_manager = ScreenManager(
+        display=display,
+        event_bus=event_bus
+    )
 
-    # Step 5: Initialize global PlaybackManager and JukeboxMediaPlayer
+    # Step 5: Initialize JukeboxMediaPlayer with dependency injection
     from app.services.jukebox_mediaplayer import JukeboxMediaPlayer
     if not jukebox_mediaplayer:
-        jukebox_mediaplayer = JukeboxMediaPlayer([])
-    playback_manager = PlaybackManager(screen_manager=screen_manager, player=jukebox_mediaplayer)
+        jukebox_mediaplayer = JukeboxMediaPlayer(
+            playlist=[],
+            event_bus=event_bus,
+            chromecast_service=chromecast_service
+        )
+    
+    # Step 5.5: Initialize ChromecastDeviceManager for device switching
+    from app.services.chromecast_device_manager import ChromecastDeviceManager
+    chromecast_device_manager = ChromecastDeviceManager(
+        event_bus=event_bus,
+        media_player=jukebox_mediaplayer
+    )
+    
+    # Step 6: Initialize PlaybackManager with dependency injection
+    playback_manager = PlaybackManager(
+        screen_manager=screen_manager,
+        player=jukebox_mediaplayer,
+        album_db=album_db,
+        subsonic_service=subsonic_service,
+        event_bus=event_bus
+    )
 
     # Step 6: Update hardware manager with screen manager and playback manager
     hardware_manager.screen_manager = screen_manager
     hardware_manager.playback_manager = playback_manager
 
-    # Start WebSocket connection to Home Assistant
-    #websocket_service.start()
-    #logging.info("Started WebSocket connection to Home Assistant")
-    
     from app.ui.screens import IdleScreen
     IdleScreen.show()
     logging.info("🚀Jukebox app startup complete")
@@ -109,13 +141,6 @@ def startup_event():
 @app.on_event("shutdown")
 def shutdown_event():
     """Clean up resources on shutdown"""
-    # Stop WebSocket connection
-    try:
-        pass
-        #websocket_service.stop()
-        #logging.info("Stopped WebSocket connection to Home Assistant")
-    except Exception as e:
-        logging.error(f"Error stopping WebSocket: {e}")
     # Clean up hardware
     if hardware_manager:
         hardware_manager.cleanup()

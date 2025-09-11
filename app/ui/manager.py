@@ -4,14 +4,25 @@ from app.ui.theme import UITheme
 from app.ui.factory import screen_factory
 from enum import Enum
 from app.services.jukebox_mediaplayer import PlayerStatus
-#from app.core.event_bus import event_bus, Event
-from app.core import event_bus, EventType
+from app.core import EventType
+
 logger = logging.getLogger(__name__)
 
 class ScreenManager:
     """Manages different screens and screen switching"""
-    def __init__(self, display):
+    def __init__(self, display, event_bus):
+        """
+        Initialize ScreenManager with dependency injection.
+        
+        Args:
+            display: Display device instance for rendering
+            event_bus: EventBus instance for event communication
+        """
+        # Inject dependencies - no more direct imports needed
         self.display = display
+        self.event_bus = event_bus
+        
+        # Initialize UI components
         self.screens = {}
         self.current_screen = None
         self.fonts = self._load_fonts()
@@ -21,21 +32,23 @@ class ScreenManager:
         # Initialize menu controller
         self.menu_controller = None
         
-        logger.info("ScreenManager initialized")
+        logger.info("ScreenManager initialized with dependency injection")
         self._init_screens()
         self._init_menu_controller()
         
-        event_bus.subscribe(EventType.SHOW_IDLE, self._show_idle_screen)
-        event_bus.subscribe(EventType.SHOW_MESSAGE, self._show_message_screen)
-        event_bus.subscribe(EventType.SHOW_HOME, self._handle_player_changes)
-        event_bus.subscribe(EventType.SHOW_MENU, self._show_menu_screen)
-        event_bus.subscribe(EventType.TRACK_CHANGED, self._handle_player_changes)
-        event_bus.subscribe(EventType.VOLUME_CHANGED, self._handle_player_changes)
-        event_bus.subscribe(EventType.STATUS_CHANGED, self._handle_player_changes)
-        #event_bus.subscribe(EventType.CLEAR_ERROR, )
-
-        #event_bus.subscribe(self.handle_event)
-        logger.info(f"ScreenManager subscribed to EventBus with {id(event_bus)}")
+        # Setup event subscriptions using injected event_bus
+        self._setup_event_subscriptions()
+        logger.info(f"ScreenManager subscribed to EventBus with {id(self.event_bus)}")
+        
+    def _setup_event_subscriptions(self):
+        """Setup all event subscriptions using injected event_bus"""
+        self.event_bus.subscribe(EventType.SHOW_IDLE, self._show_idle_screen)
+        self.event_bus.subscribe(EventType.SHOW_MESSAGE, self._show_message_screen)
+        self.event_bus.subscribe(EventType.SHOW_HOME, self._handle_player_changes)
+        self.event_bus.subscribe(EventType.SHOW_MENU, self._show_menu_screen)
+        self.event_bus.subscribe(EventType.TRACK_CHANGED, self._handle_player_changes)
+        self.event_bus.subscribe(EventType.VOLUME_CHANGED, self._handle_player_changes)
+        self.event_bus.subscribe(EventType.STATUS_CHANGED, self._handle_player_changes)
 
     def _handle_player_changes(self, event):
         if event.payload['status'] in [PlayerStatus.PLAY.value, PlayerStatus.PAUSE.value]:

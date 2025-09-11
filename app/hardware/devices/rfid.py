@@ -123,7 +123,7 @@ class RC522Reader:
             
             # Wait for thread to finish
             if self.read_thread and self.read_thread.is_alive():
-                self.read_thread.join(timeout=1)
+                self.read_thread.join(timeout=config.RFID_THREAD_JOIN_TIMEOUT)
     
     def is_reading(self):
         """Check if RFID reading is currently active"""

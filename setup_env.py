@@ -22,11 +22,9 @@ def check_env_file():
     
     # Check for required variables
     required_vars = [
-        "HA_TOKEN",
-        "HA_BASE_URL", 
         "DB_PASSWORD",
-        "YOUTUBE_ACCESS_TOKEN",
-        "YOUTUBE_REFRESH_TOKEN"
+        "SUBSONIC_USER",
+        "SUBSONIC_PASS"
     ]
     
     missing_vars = []
@@ -44,37 +42,26 @@ def check_env_file():
     print("✅ All required environment variables are configured")
     return True
 
-def update_oauth_json():
-    """Update oauth.json from environment variables"""
+def validate_subsonic_config():
+    """Validate Subsonic configuration"""
     try:
         from dotenv import load_dotenv
         load_dotenv()
         
-        access_token = os.getenv("YOUTUBE_ACCESS_TOKEN", "")
-        refresh_token = os.getenv("YOUTUBE_REFRESH_TOKEN", "")
-        scope = os.getenv("YOUTUBE_SCOPE", "https://www.googleapis.com/auth/youtube")
+        subsonic_url = os.getenv("SUBSONIC_URL", "")
+        subsonic_user = os.getenv("SUBSONIC_USER", "") 
+        subsonic_pass = os.getenv("SUBSONIC_PASS", "")
         
-        if not access_token or not refresh_token:
-            print("❌ Missing YouTube OAuth tokens in environment variables")
+        if not all([subsonic_url, subsonic_user, subsonic_pass]):
+            print("❌ Missing Subsonic configuration in environment variables")
+            print("   Required: SUBSONIC_URL, SUBSONIC_USER, SUBSONIC_PASS")
             return False
         
-        oauth_data = {
-            "scope": scope,
-            "token_type": "Bearer",
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "expires_at": 1754257332,
-            "expires_in": 3599
-        }
-        
-        with open("oauth.json", "w") as f:
-            json.dump(oauth_data, f, indent=2)
-        
-        print("✅ oauth.json updated from environment variables")
+        print("✅ Subsonic configuration validated")
         return True
         
     except Exception as e:
-        print(f"❌ Failed to update oauth.json: {e}")
+        print(f"❌ Failed to validate Subsonic config: {e}")
         return False
 
 def install_dependencies():
@@ -106,9 +93,9 @@ def main():
         print("3. Run this setup script again")
         sys.exit(1)
     
-    # Update oauth.json
-    if not update_oauth_json():
-        print("⚠️  OAuth configuration may not work properly")
+    # Validate Subsonic configuration
+    if not validate_subsonic_config():
+        print("⚠️  Subsonic configuration may not work properly")
     
     print("\n🎉 Environment setup complete!")
     print("🚀 You can now start the jukebox service")

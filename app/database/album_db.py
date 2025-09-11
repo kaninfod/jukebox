@@ -1,14 +1,207 @@
 import logging
 from sqlalchemy.orm import Session
 from app.database.album import AlbumModel, Base
-from app.config import config
 import json
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 logger = logging.getLogger(__name__)
 
-# Database setup
+
+class AlbumDatabase:
+    """Database service for album operations with dependency injection support"""
+    
+    def __init__(self, config):
+        """Initialize database with injected config"""
+        self.config = config
+        self.database_url = config.get_database_url()
+        self.engine = create_engine(self.database_url)
+        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+        
+    def get_session(self):
+        """Get a database session"""
+        return self.SessionLocal()
+        
+    def create_album_entry(self, rfid: str):
+        """Create a new AlbumModel entry with only RFID."""
+        logger.info(f"Attempting to create Album entry for RFID: {rfid}")
+        try:
+            db = self.get_session()
+            try:
+                Base.metadata.create_all(bind=self.engine)
+                existing_entry = db.query(AlbumModel).filter(AlbumModel.rfid == rfid).first()
+                if existing_entry:
+                    logger.info(f"RFID already exists: {rfid}")
+                    return {"status": "RFID already exists", "rfid": rfid}
+                db_entry = AlbumModel(
+                    rfid=rfid,
+                    provider="subsonic",
+                    album_name=None,
+                    artist_name=None,
+                    year=None,
+                    audioPlaylistId=None,
+                    thumbnail=None,
+                    tracks=None
+                )
+                db.add(db_entry)
+                db.commit()
+                logger.info(f"RFID created: {rfid}")
+                return {"status": "RFID created", "rfid": rfid}
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"Database unavailable, RFID {rfid} not saved: {e}")
+            return {"status": "Database unavailable", "rfid": rfid, "message": f"RFID detected but not saved: {e}"}
+
+    def get_album_entry_by_rfid(self, rfid: str):
+        """Get album entry by RFID"""
+        logger.info(f"Getting album entry for RFID: {rfid}")
+        db = self.get_session()
+        try:
+            entry = db.query(AlbumModel).filter(AlbumModel.rfid == rfid).first()
+            if entry:
+                return entry
+            else:
+                logger.info(f"No entry found for RFID: {rfid}")
+                return None
+        except Exception as e:
+            logger.error(f"Error retrieving album entry for RFID {rfid}: {e}")
+            return None
+        finally:
+            db.close()
+
+    def get_album_data_by_audioPlaylistId(self, audioPlaylistId: str):
+        """Get album data by audioPlaylistId"""
+        logger.info(f"Getting album data for audioPlaylistId: {audioPlaylistId}")
+        db = self.get_session()
+        try:
+            entry = db.query(AlbumModel).filter(AlbumModel.audioPlaylistId == audioPlaylistId).first()
+            if entry:
+                # Convert SQLAlchemy model to dict for compatibility
+                result = {
+                    'rfid': entry.rfid,
+                    'provider': entry.provider,
+                    'album_name': entry.album_name,
+                    'artist_name': entry.artist_name,
+                    'year': entry.year,
+                    'audioPlaylistId': entry.audioPlaylistId,
+                    'thumbnail': entry.thumbnail,
+                    'tracks': entry.tracks
+                }
+                # Parse tracks if it's a JSON string
+                if isinstance(result['tracks'], str):
+                    try:
+                        result['tracks'] = json.loads(result['tracks'])
+                    except json.JSONDecodeError:
+                        logger.error(f"Failed to parse tracks JSON for audioPlaylistId: {audioPlaylistId}")
+                        result['tracks'] = []
+                return result
+            else:
+                logger.info(f"No entry found for audioPlaylistId: {audioPlaylistId}")
+                return None
+        except Exception as e:
+            logger.error(f"Error retrieving album data for audioPlaylistId {audioPlaylistId}: {e}")
+            return None
+        finally:
+            db.close()
+
+    def update_album_entry(self, rfid: str, album_data: dict):
+        """Update album entry with new data"""
+        logger.info(f"Updating album entry for RFID: {rfid}")
+        db = self.get_session()
+        try:
+            entry = db.query(AlbumModel).filter(AlbumModel.rfid == rfid).first()
+            if not entry:
+                logger.error(f"No entry found for RFID: {rfid}")
+                return None
+                
+            # Update fields from album_data
+            if 'album_name' in album_data:
+                entry.album_name = album_data['album_name']
+            if 'artist_name' in album_data:
+                entry.artist_name = album_data['artist_name']
+            if 'year' in album_data:
+                entry.year = album_data['year']
+            if 'audioPlaylistId' in album_data:
+                entry.audioPlaylistId = album_data['audioPlaylistId']
+            if 'thumbnail' in album_data:
+                entry.thumbnail = album_data['thumbnail']
+            if 'tracks' in album_data:
+                entry.tracks = json.dumps(album_data['tracks']) if isinstance(album_data['tracks'], list) else album_data['tracks']
+            
+            db.commit()
+            
+            # Return data instead of the model object to avoid DetachedInstanceError
+            result = {
+                'rfid': entry.rfid,
+                'provider': entry.provider,
+                'album_name': entry.album_name,
+                'artist_name': entry.artist_name,
+                'year': entry.year,
+                'audioPlaylistId': entry.audioPlaylistId,
+                'thumbnail': entry.thumbnail,
+                'tracks': entry.tracks
+            }
+            
+            logger.info(f"Successfully updated album entry for RFID: {rfid}")
+            return result
+        except Exception as e:
+            logger.error(f"Error updating album entry for RFID {rfid}: {e}")
+            db.rollback()
+            return None
+        finally:
+            db.close()
+
+    def list_album_entries(self):
+        """List all album entries"""
+        logger.info("Listing all album entries from database")
+        db = self.get_session()
+        try:
+            entries = db.query(AlbumModel).all()
+            return [
+                {
+                    'rfid': entry.rfid,
+                    'provider': entry.provider,
+                    'album_name': entry.album_name,
+                    'artist_name': entry.artist_name,
+                    'year': entry.year,
+                    'audioPlaylistId': entry.audioPlaylistId,
+                    'thumbnail': entry.thumbnail,
+                    'tracks': json.loads(entry.tracks) if entry.tracks and isinstance(entry.tracks, str) else entry.tracks
+                }
+                for entry in entries
+            ]
+        except Exception as e:
+            logger.error(f"Error listing album entries: {e}")
+            return []
+        finally:
+            db.close()
+
+    def delete_album_entry(self, rfid: str):
+        """Delete album entry by RFID"""
+        logger.info(f"Deleting album entry for RFID: {rfid}")
+        db = self.get_session()
+        try:
+            entry = db.query(AlbumModel).filter(AlbumModel.rfid == rfid).first()
+            if not entry:
+                logger.error(f"No entry found for RFID: {rfid}")
+                return False
+                
+            db.delete(entry)
+            db.commit()
+            logger.info(f"Successfully deleted album entry for RFID: {rfid}")
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting album entry for RFID {rfid}: {e}")
+            db.rollback()
+            return False
+        finally:
+            db.close()
+
+
+# Legacy Database setup for backward compatibility
+# These will be removed once all modules use dependency injection
+from app.config import config
 SQLALCHEMY_DATABASE_URL = config.get_database_url()
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

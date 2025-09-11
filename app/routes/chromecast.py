@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand, get_chromecast_service
+from app.config import config
 import logging
 
 router = APIRouter()
@@ -18,7 +19,7 @@ def list_chromecasts():
         return {"chromecasts": chromecasts}
 
 @router.get("/chromecast/connect")
-def chromecast_connect(device_name: str = Query("Living Room", description="Chromecast device name")):
+def chromecast_connect(device_name: str = Query(config.DEFAULT_CHROMECAST_DEVICE, description="Chromecast device name")):
     try:
         with get_chromecast_service(device_name) as service:
             success = service.connect()
@@ -36,7 +37,7 @@ def chromecast_connect(device_name: str = Query("Living Room", description="Chro
 def chromecast_play(
     url: str = Query(..., description="Direct stream URL to play on Chromecast"),
     content_type: str = Query("audio/mp3", description="MIME type of the media"),
-    device_name: str = Query("Living Room", description="Chromecast device name")
+    device_name: str = Query(config.DEFAULT_CHROMECAST_DEVICE, description="Chromecast device name")
 ):
     try:
         with get_chromecast_service(device_name) as service:
@@ -52,7 +53,7 @@ def chromecast_play(
 
 
 @router.post("/chromecast/pause")
-def chromecast_pause(device_name: str = Query("Living Room", description="Chromecast device name")):
+def chromecast_pause(device_name: str = Query(config.DEFAULT_CHROMECAST_DEVICE, description="Chromecast device name")):
     try:
         with get_chromecast_service(device_name) as service:
             if not service.connect() or not service.cast:
@@ -66,7 +67,7 @@ def chromecast_pause(device_name: str = Query("Living Room", description="Chrome
 
 
 @router.post("/chromecast/stop")
-def chromecast_stop(device_name: str = Query("Living Room", description="Chromecast device name")):
+def chromecast_stop(device_name: str = Query(config.DEFAULT_CHROMECAST_DEVICE, description="Chromecast device name")):
     try:
         with get_chromecast_service(device_name) as service:
             if not service.connect() or not service.cast:
@@ -80,7 +81,7 @@ def chromecast_stop(device_name: str = Query("Living Room", description="Chromec
 
 
 @router.post("/chromecast/resume")
-def chromecast_resume(device_name: str = Query("Living Room", description="Chromecast device name")):
+def chromecast_resume(device_name: str = Query(config.DEFAULT_CHROMECAST_DEVICE, description="Chromecast device name")):
     try:
         with get_chromecast_service(device_name) as service:
             if not service.connect() or not service.cast:
@@ -96,7 +97,7 @@ def chromecast_resume(device_name: str = Query("Living Room", description="Chrom
 @router.post("/chromecast/set_volume")
 def chromecast_set_volume(
     volume: float = Query(..., ge=0.0, le=1.0, description="Volume level (0.0 to 1.0)"),
-    device_name: str = Query("Living Room", description="Chromecast device name")
+    device_name: str = Query(config.DEFAULT_CHROMECAST_DEVICE, description="Chromecast device name")
 ):
     try:
         with get_chromecast_service(device_name) as service:

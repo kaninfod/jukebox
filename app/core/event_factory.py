@@ -13,6 +13,7 @@ class EventType(Enum):
     PLAY_PAUSE = "play_pause"
     #PLAY_PAUSE = "play_pause"
     PLAY = "play"
+    PLAY_ALBUM = "play_album"
     STOP = "stop"
     VOLUME_UP = "volume_up"
     VOLUME_DOWN = "volume_down"
@@ -32,6 +33,8 @@ class EventType(Enum):
     MENU_NAVIGATE = "menu_navigate"
     MENU_ACTIVATE = "menu_activate"
     MENU_ACTION = "menu_action"
+    # Chromecast events
+    CHROMECAST_DEVICE_CHANGED = "chromecast_device_changed"
 
 class EventFactory:
     @staticmethod
@@ -88,6 +91,16 @@ class EventFactory:
         return Event(
             type=EventType.RFID_READ.value,
             payload={"rfid": rfid},
+        )
+
+    @staticmethod
+    def play_album(album_id, album_name=None):
+        return Event(
+            type=EventType.PLAY_ALBUM.value,
+            payload={
+                "audioPlaylistId": album_id,
+                "album_name": album_name
+            }
         )
 
     @staticmethod

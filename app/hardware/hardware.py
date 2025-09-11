@@ -4,21 +4,34 @@ Hardware management module for the jukebox.
 Handles initialization and callbacks for all hardware devices.
 """
 import RPi.GPIO as GPIO
-from app.config import config
 from .devices.ili9488 import ILI9488
 from .devices.rfid import RC522Reader
 from .devices.pushbutton import PushButton
 from .devices.rotaryencoder import RotaryEncoder
 import logging
+from app.core import EventType, Event
 
 logger = logging.getLogger(__name__)
 
 class HardwareManager:
     """Manages all hardware devices and their interactions"""
     
-    def __init__(self, screen_manager=None):
+    def __init__(self, config, event_bus, screen_manager=None):
+        """
+        Initialize HardwareManager with dependency injection.
+        
+        Args:
+            config: Configuration object for hardware settings
+            event_bus: EventBus instance for event communication
+            screen_manager: ScreenManager instance (can be set later)
+        """
+        # Inject dependencies - no more direct imports needed
+        self.config = config
+        self.event_bus = event_bus
         self.screen_manager = screen_manager
         self.playback_manager = None
+        
+        # Hardware device instances
         self.display = None
         self.rfid_reader = None
         self.encoder = None
@@ -28,35 +41,39 @@ class HardwareManager:
         self.button3 = None
         self.button4 = None
         self.button5 = None
-        logger.info("HardwareManager initialized")
+        
+        logger.info("HardwareManager initialized with dependency injection")
 
     def initialize_hardware(self):
-        """Initialize all hardware devices"""
+        """Initialize all hardware devices using injected config"""
         # Initialize display
         self.display = ILI9488()
 
-        # Initialize RFID reader (no switch logic inside the driver)
+        # Initialize RFID reader using injected config
         self.rfid_reader = RC522Reader(
-            cs_pin=config.RFID_CS_PIN,
+            cs_pin=self.config.RFID_CS_PIN,
             on_new_uid=self._handle_new_uid
         )
 
-        # Set up switch pin for RFID (external to device driver)
-        self.rfid_switch_pin = config.NFC_CARD_SWITCH_GPIO  #if hasattr(config, 'NFC_CARD_SWITCH_GPIO') else config.BUTTON_4_GPIO
+        # Set up switch pin for RFID using injected config
+        self.rfid_switch_pin = self.config.NFC_CARD_SWITCH_GPIO
         GPIO.setup(self.rfid_switch_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.add_event_detect(self.rfid_switch_pin, GPIO.FALLING, callback=self._on_rfid_switch_activated, bouncetime=500)
         logger.info(f"RFID switch monitoring started on GPIO {self.rfid_switch_pin}")
 
-        # Initialize rotary encoder with callback
-        self.encoder = RotaryEncoder(pin_a=config.ROTARY_ENCODER_PIN_A, pin_b=config.ROTARY_ENCODER_PIN_B, callback=self._on_rotate, bouncetime=config.ENCODER_BOUNCETIME)
+        # Initialize rotary encoder with callback using injected config
+        self.encoder = RotaryEncoder(
+            pin_a=self.config.ROTARY_ENCODER_PIN_A, 
+            pin_b=self.config.ROTARY_ENCODER_PIN_B, 
+            callback=self._on_rotate, 
+            bouncetime=self.config.ENCODER_BOUNCETIME
+        )
 
-        # Initialize push buttons with callbacks
-        #self.button0 = PushButton(config.BUTTON_0_GPIO, callback=self._on_button0_press, bouncetime=config.BUTTON_BOUNCETIME)
-        self.button1 = PushButton(config.BUTTON_1_GPIO, callback=self._on_button1_press, bouncetime=config.BUTTON_BOUNCETIME)
-        self.button2 = PushButton(config.BUTTON_2_GPIO, callback=self._on_button2_press, bouncetime=config.BUTTON_BOUNCETIME)
-        self.button3 = PushButton(config.BUTTON_3_GPIO, callback=self._on_button3_press, bouncetime=config.BUTTON_BOUNCETIME)
-        # self.button4 = PushButton(config.BUTTON_4_GPIO, callback=self._on_button4_press, bouncetime=config.BUTTON_BOUNCETIME)
-        self.button5 = PushButton(config.BUTTON_5_GPIO, callback=self._on_button5_press, bouncetime=config.BUTTON_BOUNCETIME)
+        # Initialize push buttons with callbacks using injected config
+        self.button1 = PushButton(self.config.BUTTON_1_GPIO, callback=self._on_button1_press, bouncetime=self.config.BUTTON_BOUNCETIME)
+        self.button2 = PushButton(self.config.BUTTON_2_GPIO, callback=self._on_button2_press, bouncetime=self.config.BUTTON_BOUNCETIME)
+        self.button3 = PushButton(self.config.BUTTON_3_GPIO, callback=self._on_button3_press, bouncetime=self.config.BUTTON_BOUNCETIME)
+        self.button5 = PushButton(self.config.BUTTON_5_GPIO, callback=self._on_button5_press, bouncetime=self.config.BUTTON_BOUNCETIME)
 
         return self.display
 
@@ -67,8 +84,8 @@ class HardwareManager:
             return
 
         logger.info("🃏 Card insertion detected - starting RFID read...")
-        from app.config import config
-        file_name = config.get_icon_path("contactless")
+        # Use injected config instead of importing
+        file_name = self.config.get_icon_path("contactless")
         context = {
             "title": f"Reading...",
             "icon_name": "contactless",
@@ -94,8 +111,8 @@ class HardwareManager:
                     # Let the normal new UID handler take over (already called by RC522Reader)
                     pass
                 elif _callback_result_status == "timeout":
-                    from app.config import config
-                    file_name = config.get_icon_path("error")
+                    # Use injected config instead of importing
+                    file_name = self.config.get_icon_path("error")
                     context = {
                         "title": f"Error Reading Card",
                         "icon_name": file_name,
@@ -105,8 +122,8 @@ class HardwareManager:
                     from app.ui.screens import MessageScreen
                     MessageScreen.show(context)
                 elif _callback_result_status == "error":
-                    from app.config import config
-                    file_name = config.get_icon_path("library_music")
+                    # Use injected config instead of importing
+                    file_name = self.config.get_icon_path("library_music")
                     context = {
                         "title": f"Error Reading Card",
                         "icon_name": file_name,
@@ -126,99 +143,75 @@ class HardwareManager:
     
 
     def _handle_new_uid(self, uid):
-        from app.core import event_bus, EventType, Event
-        event_bus.emit(Event(
+        # Use injected event_bus instead of importing
+        self.event_bus.emit(Event(
             type=EventType.RFID_READ,
             payload={"rfid": uid}
         ))
-
-        # from app.core.event_bus import event_bus, Event
-        # event_bus.emit(Event(type="rfid_read", payload={"rfid": uid}))
         return
     
     def _on_button0_press(self):
         """Handle button 0 press - Generic button"""
         logger.info("Button 0 was pressed!")
 
-        from app.core import event_bus, EventType, Event
-        event_bus.emit(Event(
+        # Use injected event_bus instead of importing
+        self.event_bus.emit(Event(
             type=EventType.BUTTON_PRESSED,
             payload={"button": 0, "action": "generic"}
         ))
-
-        # from app.core.event_bus import event_bus, Event
-        # event_bus.emit(Event(type="button_pressed", payload={"button": 0, "action": "generic"}))
     
     def _on_button1_press(self):
         """Handle button 1 press - Previous track"""
-        from app.core import event_bus, EventType, Event
-        event_bus.emit(Event(
+        # Use injected event_bus instead of importing
+        self.event_bus.emit(Event(
             type=EventType.BUTTON_PRESSED,
             payload={"button": 1, "action": "previous_track"}
         ))
-        # from app.core.event_bus import event_bus, Event
-        # event_bus.emit(Event(type="button_pressed", payload={"button": 1, "action": "previous_track"}))
 
     def _on_button2_press(self):
         """Handle button 2 press - Play/Pause"""
-        from app.core import event_bus, EventType, Event
-        event_bus.emit(Event(
+        # Use injected event_bus instead of importing
+        self.event_bus.emit(Event(
             type=EventType.BUTTON_PRESSED,
             payload={"button": 2, "action": "play_pause"}
         ))
 
-
-
-        # from app.core.event_bus import event_bus, Event
-        # event_bus.emit(Event(type="button_pressed", payload={"button": 2, "action": "play_pause"}))
-
     def _on_button3_press(self):
         """Handle button 3 press - Next track"""
-        from app.core import event_bus, EventType, Event
-        event_bus.emit(Event(
+        # Use injected event_bus instead of importing
+        self.event_bus.emit(Event(
             type=EventType.BUTTON_PRESSED,
             payload={"button": 3, "action": "next_track"}
         ))
-
-        # from app.core.event_bus import event_bus, Event
-        # event_bus.emit(Event(type="button_pressed", payload={"button": 3, "action": "next_track"}))
     
     def _on_button4_press(self):
         """Handle button 4 press - TEMPORARILY DISABLED (used as NFC card switch)"""
         logger.info("Button 4 press detected")
-        from app.core import event_bus, EventType, Event
-        event_bus.emit(Event(
+        # Use injected event_bus instead of importing
+        self.event_bus.emit(Event(
             type=EventType.BUTTON_PRESSED,
             payload={"button": 4, "action": "stop"}
         ))
-
-        # from app.core.event_bus import event_bus, Event
-        # event_bus.emit(Event(type="button_pressed", payload={"button": 4, "action": "nfc_switch"}))
     
     def _on_button5_press(self):
         """Handle button 5 press - Rotary encoder button"""
         logger.info("Rotary encoder button was pressed!")
-        from app.core import event_bus, EventType, Event
-        event_bus.emit(Event(
+        # Use injected event_bus instead of importing
+        self.event_bus.emit(Event(
             type=EventType.BUTTON_PRESSED,
             payload={"button": "rotary_encoder"}
         ))
 
-        # from app.core.event_bus import event_bus, Event
-        # event_bus.emit(Event(type="clear_error", payload={"button": "rotary_encoder"}))
-
     def _on_rotate(self, direction, position):
         """Handle rotary encoder rotation"""
-        #logger.debug(f"Rotary encoder moved to {position}, direction: {'CW' if direction > 0 else 'CCW'}")
-        from app.core import event_bus, Event, EventType
-        
+        # Use injected event_bus instead of importing
         if direction > 0:
-            event_bus.emit(Event(
+            self.event_bus.emit(Event(
                 type=EventType.ROTARY_ENCODER,
                 payload={"direction": "CW"}
             ))
         else:
-            event_bus.emit(Event(
+            self.event_bus.emit(Event(
                 type=EventType.ROTARY_ENCODER,
                 payload={"direction": "CCW"}
             ))

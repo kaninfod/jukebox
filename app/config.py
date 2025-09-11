@@ -13,58 +13,107 @@ from typing import Optional
 load_dotenv()
 
 class Config:
+    # === NETWORK CONFIGURATION ===
     # Subsonic/Navidrome Configuration
-    SUBSONIC_URL: str = os.getenv("SUBSONIC_URL", "http://192.168.68.102:4747")
-    SUBSONIC_USER: str = os.getenv("SUBSONIC_USER", "jukebox")
-    SUBSONIC_PASS: str = os.getenv("SUBSONIC_PASS", "123jukepi")
+    SUBSONIC_URL: str = os.getenv("SUBSONIC_URL", "http://localhost:4747")
+    SUBSONIC_USER: str = os.getenv("SUBSONIC_USER", "")  # Required from .env
+    SUBSONIC_PASS: str = os.getenv("SUBSONIC_PASS", "")  # Required from .env
     SUBSONIC_CLIENT: str = os.getenv("SUBSONIC_CLIENT", "jukebox")
     SUBSONIC_API_VERSION: str = os.getenv("SUBSONIC_API_VERSION", "1.15.0")
     
-    # Font configuration: name, path, size
-    FONT_DEFINITIONS = [
-        {"name": "title", "path": "/home/pi/shared/jukebox/fonts/opensans/OpenSans-Regular.ttf", "size": 20},
-        {"name": "info", "path": "/home/pi/shared/jukebox/fonts/opensans/OpenSans-Regular.ttf", "size": 18},
-        {"name": "small", "path": "/home/pi/shared/jukebox/fonts/opensans/OpenSans-Regular.ttf", "size": 12},
-        {"name": "symbols", "path": "/home/pi/shared/jukebox/fonts/symbolfont/symbolfont.ttf", "size": 24},
-        {"name": "oswald_semi_bold", "path": "/home/pi/shared/jukebox/fonts/Oswald-SemiBold.ttf", "size": 24}
-    ]
-    """Central configuration class for the jukebox application"""
+    # === TIMEOUT CONFIGURATION ===
+    # Chromecast Operation Timeouts (seconds)
+    CHROMECAST_CONNECT_TIMEOUT: int = int(os.getenv("CHROMECAST_CONNECT_TIMEOUT", "10"))     # Time to wait for device connection
+    CHROMECAST_DISCOVERY_TIMEOUT: int = int(os.getenv("CHROMECAST_DISCOVERY_TIMEOUT", "3"))  # Time to discover devices on network
+    CHROMECAST_WAIT_TIMEOUT: int = int(os.getenv("CHROMECAST_WAIT_TIMEOUT", "10"))           # Time to wait for device to be ready
     
-    # Database Configuration
-    DB_HOST: str = os.getenv("DB_HOST", "192.168.68.102")
+    # User Interface Timeouts (seconds)  
+    MENU_AUTO_EXIT_TIMEOUT: int = int(os.getenv("MENU_AUTO_EXIT_TIMEOUT", "10"))             # Auto-exit menu after inactivity
+    
+    # Network Request Timeouts (seconds)
+    HTTP_REQUEST_TIMEOUT: int = int(os.getenv("HTTP_REQUEST_TIMEOUT", "10"))                 # HTTP requests (album covers, API calls)
+    SYSTEM_OPERATION_TIMEOUT: int = int(os.getenv("SYSTEM_OPERATION_TIMEOUT", "5"))          # System operations (restart, shutdown)
+    
+    # RFID Hardware Timeouts
+    RFID_POLL_INTERVAL: float = float(os.getenv("RFID_POLL_INTERVAL", "1.0"))              # Seconds between RFID reads
+    RFID_READ_TIMEOUT: float = float(os.getenv("RFID_READ_TIMEOUT", "5.0"))                # Timeout for RFID card read
+    RFID_THREAD_JOIN_TIMEOUT: int = int(os.getenv("RFID_THREAD_JOIN_TIMEOUT", "1"))        # Time to wait for RFID thread cleanup
+    
+    # === DEVICE CONFIGURATION ===
+    # Default Chromecast Device
+    DEFAULT_CHROMECAST_DEVICE: str = os.getenv("DEFAULT_CHROMECAST_DEVICE", "Living Room")
+    
+    # Display Configuration  
+    DISPLAY_WIDTH: int = int(os.getenv("DISPLAY_WIDTH", "480"))
+    DISPLAY_HEIGHT: int = int(os.getenv("DISPLAY_HEIGHT", "320"))
+    DISPLAY_ROTATION: int = int(os.getenv("DISPLAY_ROTATION", "0"))
+    
+    # === FONT CONFIGURATION ===
+    # Font base directory (relative to project root)
+    FONT_BASE_PATH: str = os.getenv("FONT_BASE_PATH", "fonts")
+    
+    @classmethod
+    def get_font_definitions(cls):
+        """Get font definitions with relative paths from font base directory"""
+        import os
+        base_path = cls.FONT_BASE_PATH
+        return [
+            {"name": "title", "path": os.path.join(base_path, "opensans", "OpenSans-Regular.ttf"), "size": 20},
+            {"name": "info", "path": os.path.join(base_path, "opensans", "OpenSans-Regular.ttf"), "size": 18},
+            {"name": "small", "path": os.path.join(base_path, "opensans", "OpenSans-Regular.ttf"), "size": 12},
+            {"name": "symbols", "path": os.path.join(base_path, "symbolfont", "symbolfont.ttf"), "size": 24},
+            {"name": "oswald_semi_bold", "path": os.path.join(base_path, "Oswald-SemiBold.ttf"), "size": 24}
+        ]
+    
+    # Legacy FONT_DEFINITIONS for backward compatibility - will be deprecated
+    @property
+    def FONT_DEFINITIONS(self):
+        return self.get_font_definitions()
+    
+    # === DATABASE CONFIGURATION ===
+    DB_HOST: str = os.getenv("DB_HOST", "localhost")
     DB_PORT: int = int(os.getenv("DB_PORT", "3306"))
-    DB_USERNAME: str = os.getenv("DB_USERNAME", "dbuser")
-    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")
-    DB_NAME: str = os.getenv("DB_NAME", "hingedb")
+    DB_USERNAME: str = os.getenv("DB_USERNAME", "jukebox")
+    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")  # Required from .env
+    DB_NAME: str = os.getenv("DB_NAME", "jukeboxdb")
 
-    STATIC_FILE_PATH: str = os.getenv("STATIC_FILE_PATH", "static_files")
+    # === LOGGING CONFIGURATION ===
+    LOG_SERVER_HOST: str = os.getenv("LOG_SERVER_HOST", "localhost")
+    LOG_SERVER_PORT: int = int(os.getenv("LOG_SERVER_PORT", "514"))
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    DEBUG_MODE: bool = os.getenv("DEBUG_MODE", "false").lower() == "true"
 
-    # GPIO Pin Configuration
+    # === GPIO CONFIGURATION ===
+    # Display pins
     DISPLAY_POWER_GPIO: int = int(os.getenv("DISPLAY_POWER_GPIO", "20"))
     DISPLAY_BACKLIGHT_GPIO: int = int(os.getenv("DISPLAY_BACKLIGHT_GPIO", "18"))
+    
+    # Rotary encoder pins
     ROTARY_ENCODER_PIN_A: int = int(os.getenv("ROTARY_ENCODER_PIN_A", "6"))
     ROTARY_ENCODER_PIN_B: int = int(os.getenv("ROTARY_ENCODER_PIN_B", "5"))
+    
+    # RFID reader pins
     RFID_CS_PIN: int = int(os.getenv("RFID_CS_PIN", "7"))
     NFC_CARD_SWITCH_GPIO: int = int(os.getenv("NFC_CARD_SWITCH_GPIO", "26"))
-    #BUTTON_0_GPIO: int = int(os.getenv("BUTTON_0_GPIO", "26"))
+    
+    # Button pins
     BUTTON_1_GPIO: int = int(os.getenv("BUTTON_1_GPIO", "14"))
     BUTTON_2_GPIO: int = int(os.getenv("BUTTON_2_GPIO", "15"))
     BUTTON_3_GPIO: int = int(os.getenv("BUTTON_3_GPIO", "12"))
     BUTTON_4_GPIO: int = int(os.getenv("BUTTON_4_GPIO", "19"))
     BUTTON_5_GPIO: int = int(os.getenv("BUTTON_5_GPIO", "17"))
-    
-    # Hardware Settings
-    RFID_POLL_INTERVAL: float = float(os.getenv("RFID_POLL_INTERVAL", "1.0"))
-    RFID_READ_TIMEOUT: float = float(os.getenv("RFID_READ_TIMEOUT", "5.0"))
+
+    # === HARDWARE SETTINGS ===
+    # Input debounce times (milliseconds)
     ENCODER_BOUNCETIME: int = int(os.getenv("ENCODER_BOUNCETIME", "2"))
     BUTTON_BOUNCETIME: int = int(os.getenv("BUTTON_BOUNCETIME", "200"))
-    
-    # Media Player Configuration
+
+    # === MEDIA PLAYER CONFIGURATION ===
+    # TODO: Remove hardcoded "living_room" - make configurable
     MEDIA_PLAYER_ENTITY_ID: str = os.getenv("MEDIA_PLAYER_ENTITY_ID", "media_player.living_room")
-    
-    # Application Settings
-    DEBUG_MODE: bool = os.getenv("DEBUG_MODE", "false").lower() == "true"
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+
+    # === PATH CONFIGURATION ===
+    STATIC_FILE_PATH: str = os.getenv("STATIC_FILE_PATH", "static_files")
     
     # Icon definitions for use throughout the app
     ICON_DEFINITIONS = [
@@ -101,7 +150,9 @@ class Config:
     def validate_config(cls) -> bool:
         """Validate that all required configuration is present"""
         required_vars = [
-            "DB_PASSWORD"
+            "DB_PASSWORD",
+            "SUBSONIC_USER", 
+            "SUBSONIC_PASS"
         ]
         
         missing_vars = []

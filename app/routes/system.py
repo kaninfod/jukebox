@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 import subprocess
 import asyncio
 from typing import Dict
+from app.config import config
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
@@ -27,7 +28,7 @@ async def shutdown_system() -> Dict[str, str]:
             # Continue with system shutdown even if mediaplayer shutdown fails
         
         # Step 2: Small delay to ensure mediaplayer shutdown completes
-        await asyncio.sleep(2)
+        await asyncio.sleep(config.SYSTEM_OPERATION_TIMEOUT / 2)
         
         # Step 3: Use systemctl poweroff for clean system shutdown
         # Note: This command typically doesn't return as the system shuts down
@@ -35,7 +36,7 @@ async def shutdown_system() -> Dict[str, str]:
             ["systemctl", "poweroff"], 
             capture_output=True, 
             text=True, 
-            timeout=5
+            timeout=config.SYSTEM_OPERATION_TIMEOUT
         )
         
         # If we reach here, the command completed without shutdown
@@ -63,7 +64,7 @@ async def reboot_system() -> Dict[str, str]:
             ["systemctl", "reboot"], 
             capture_output=True, 
             text=True, 
-            timeout=5
+            timeout=config.SYSTEM_OPERATION_TIMEOUT
         )
         
         # If we reach here, the command completed without reboot

@@ -3,71 +3,86 @@
     "items": [
       {
         "id": "music",
-        "name": "Music Library",
+        "name": "Music",
         "payload": {"action": "load_submenu", "submenu": "music_menu"}
       },
       {
-        "id": "settings", 
-        "name": "Settings",
-        "payload": {"action": "load_submenu", "submenu": "settings_menu"}
-      },
-      {
-        "id": "chromecast",
-        "name": "Chromecast",
-        "payload": {"action": "chromecast_info"}
-      },
-      {
-        "id": "system",
-        "name": "System Info",
-        "payload": {"action": "system_info"}
-      },
-      {
-        "id": "test",
-        "name": "Test Item",
-        "payload": {"action": "test_action", "test_data": "hello_world"}
+        "id": "chromecasts",
+        "name": "Chromecasts",
+        "payload": {"action": "load_submenu", "submenu": "chromecasts_menu"}
       }
     ]
   },
   "music_menu": {
     "items": [
       {
-        "id": "random_album",
-        "name": "Random Album",
-        "payload": {"action": "play_random_album"}
+        "id": "artists",
+        "name": "Artists",
+        "payload": {"action": "load_dynamic_menu", "menu_type": "artists_alphabetical"}
       },
       {
-        "id": "browse_artists",
-        "name": "Browse Artists", 
-        "payload": {"action": "browse_artists"}
-      },
-      {
-        "id": "recent_albums",
-        "name": "Recent Albums",
-        "payload": {"action": "recent_albums"}
-      },
-      {
-        "id": "favorites",
-        "name": "Favorites",
-        "payload": {"action": "favorites"}
+        "id": "albums",
+        "name": "Albums",
+        "payload": {"action": "browse_albums"}
       }
     ]
   },
-  "settings_menu": {
+  "chromecasts_menu": {
     "items": [
       {
-        "id": "volume",
-        "name": "Volume Settings",
-        "payload": {"action": "volume_settings"}
+        "id": "chromecast_select_living_room",
+        "name": "🔗 Living Room (Current)",
+        "payload": {
+          "action": "select_chromecast_device",
+          "device_name": "Living Room",
+          "device_id": "living_room",
+          "friendly_name": "Living Room"
+        }
       },
       {
-        "id": "display",
-        "name": "Display Settings",
-        "payload": {"action": "display_settings"}
+        "id": "chromecast_select_tv_lounge",
+        "name": "⚪ TV Lounge",
+        "payload": {
+          "action": "select_chromecast_device",
+          "device_name": "TV Lounge",
+          "device_id": "tv_lounge",
+          "friendly_name": "TV Lounge"
+        }
       },
       {
-        "id": "network",
-        "name": "Network Settings",
-        "payload": {"action": "network_settings"}
+        "id": "chromecast_select_signe",
+        "name": "⚪ Signe",
+        "payload": {
+          "action": "select_chromecast_device",
+          "device_name": "Signe",
+          "device_id": "signe",
+          "friendly_name": "Signe"
+        }
+      },
+      {
+        "id": "chromecast_select_bathroom_speaker",
+        "name": "⚪ Bathroom Speaker",
+        "payload": {
+          "action": "select_chromecast_device",
+          "device_name": "Bathroom Speaker",
+          "device_id": "bathroom_speaker",
+          "friendly_name": "Bathroom Speaker"
+        }
+      },
+      {
+        "id": "chromecast_separator",
+        "name": "───────────────",
+        "payload": {"action": "separator"}
+      },
+      {
+        "id": "chromecast_status",
+        "name": "📊 Current Status",
+        "payload": {"action": "chromecast_status"}
+      },
+      {
+        "id": "chromecast_volume",
+        "name": "🔊 Volume Control",
+        "payload": {"action": "chromecast_volume_control"}
       }
     ]
   }

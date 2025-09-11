@@ -70,7 +70,7 @@ def create_album_card(
     import requests
     from io import BytesIO
     # Download cover image from URL
-    response = requests.get(cover_url, timeout=10)
+    response = requests.get(cover_url, timeout=config.HTTP_REQUEST_TIMEOUT)
     response.raise_for_status()
     cover = Image.open(BytesIO(response.content)).convert("RGB")
     card = Image.new("RGB", card_size, (255, 255, 255))

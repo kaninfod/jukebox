@@ -1,21 +1,31 @@
 import requests
 from typing import List, Dict, Any, Optional
-from app.services.music_provider_service import MusicProviderService
 import logging
 
 logger = logging.getLogger(__name__)
 
-
-from app.config import config
-
-class SubsonicService(MusicProviderService):
-    def __init__(self):
-        self.base_url = getattr(config, "SUBSONIC_URL", "http://192.168.68.102:4533").rstrip("/")
-        self.username = getattr(config, "SUBSONIC_USER", "jukebox")
-        self.password = getattr(config, "SUBSONIC_PASS", "123jukepi")
-        self.client = getattr(config, "SUBSONIC_CLIENT", "jukebox")
-        self.api_version = getattr(config, "SUBSONIC_API_VERSION", "1.16.1")
-        logger.info(f"SubsonicService initialized for {self.base_url} as {self.username}")
+class SubsonicService:
+    def __init__(self, config=None):
+        """
+        Initialize SubsonicService with dependency injection.
+        
+        Args:
+            config: Configuration object for Subsonic settings
+        """
+        # Inject config dependency - no more direct import needed
+        if config:
+            self.config = config
+        else:
+            # Fallback for backward compatibility - this will be removed later
+            from app.config import config as default_config
+            self.config = default_config
+            
+        self.base_url = self.config.SUBSONIC_URL.rstrip("/")
+        self.username = getattr(self.config, "SUBSONIC_USER", "jukebox")
+        self.password = getattr(self.config, "SUBSONIC_PASS", "123jukepi")
+        self.client = getattr(self.config, "SUBSONIC_CLIENT", "jukebox")
+        self.api_version = getattr(self.config, "SUBSONIC_API_VERSION", "1.16.1")
+        logger.info(f"SubsonicService initialized with dependency injection for {self.base_url} as {self.username}")
 
     def get_stream_url(self, track: dict) -> str:
         track_id = track.get('video_id')
@@ -41,7 +51,7 @@ class SubsonicService(MusicProviderService):
             params.update(extra_params)
         url = f"{self.base_url}/rest/{endpoint}"
         logger.info(f"SubsonicService: Requesting {url} with params {params}")
-        resp = requests.get(url, params=params, timeout=10)
+        resp = requests.get(url, params=params, timeout=self.config.HTTP_REQUEST_TIMEOUT)
         resp.raise_for_status()
     # logger.info(f"SubsonicService: Response: {resp.json()}")  # Commented to reduce excessive logging
         return resp
@@ -107,6 +117,58 @@ class SubsonicService(MusicProviderService):
             for album in albums if album.get('isDir', False)
         ]
 
+    def get_alphabetical_groups(self) -> List[Dict[str, str]]:
+        """
+        Return alphabetical groups for organizing artists.
+        
+        Returns:
+            List of dicts with 'name' and 'range' keys
+        """
+        return [
+            {"name": "A-D", "range": ("A", "D")},
+            {"name": "E-H", "range": ("E", "H")},
+            {"name": "I-L", "range": ("I", "L")},
+            {"name": "M-P", "range": ("M", "P")},
+            {"name": "Q-T", "range": ("Q", "T")},
+            {"name": "U-Z", "range": ("U", "Z")}
+        ]
+
+    def get_artists_in_range(self, start_letter: str, end_letter: str) -> List[Dict[str, Any]]:
+        """
+        Get all artists whose names start with letters in the given range.
+        
+        Args:
+            start_letter: Starting letter (e.g., 'A')
+            end_letter: Ending letter (e.g., 'D')
+            
+        Returns:
+            List of artist dicts with 'id' and 'name'
+        """
+        if not hasattr(self, '_cached_artists') or not self._cached_artists:
+            self._cached_artists = self.list_artists()
+        
+        filtered_artists = []
+        for artist in self._cached_artists:
+            name = artist.get('name', '').upper()
+            if name and start_letter <= name[0] <= end_letter:
+                filtered_artists.append(artist)
+        
+        # Sort alphabetically
+        filtered_artists.sort(key=lambda x: x.get('name', '').upper())
+        return filtered_artists
+
+    def cache_artists_data(self) -> None:
+        """
+        Cache all artists data for faster menu navigation.
+        """
+        logger.info("Caching artists data from Subsonic...")
+        try:
+            self._cached_artists = self.list_artists()
+            logger.info(f"Cached {len(self._cached_artists)} artists")
+        except Exception as e:
+            logger.error(f"Failed to cache artists data: {e}")
+            self._cached_artists = []
+
     def _fetch_and_cache_coverart(self, audioPlaylistId: str, filename_prefix: str = None) -> Optional[str]:
         """
         Download and cache the album cover image from Subsonic.
@@ -134,7 +196,8 @@ class SubsonicService(MusicProviderService):
             else:
                 filename = f"{audioPlaylistId}.png"
                 
-            cache_dir = getattr(config, "STATIC_FILE_PATH", "static_files")
+            # Use injected config instead of direct import
+            cache_dir = getattr(self.config, "STATIC_FILE_PATH", "static_files")
             logger.info(f"SubsonicService: Caching album cover art to {cache_dir}")
             local_path = os.path.join(cache_dir, filename)
             image.save(local_path, format='PNG')

@@ -7,6 +7,7 @@ import logging
 import threading
 from app.ui.menu.menu_data_service import MenuDataService
 from app.core import event_bus, EventType, Event
+from app.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class MenuController:
         self.in_bottom_bar = False
         self.bottom_bar_selection = "previous"  # "previous" or "exit"
         self.auto_exit_timer = None
-        self.auto_exit_timeout = 10  # seconds
+        self.auto_exit_timeout = config.MENU_AUTO_EXIT_TIMEOUT
         
         # Subscribe to relevant events
         self._subscribe_to_events()
@@ -164,6 +165,120 @@ class MenuController:
                 self._emit_menu_screen_update()
             else:
                 logger.warning(f"Failed to navigate to submenu: {submenu_name}")
+        elif action == "load_dynamic_menu":
+            # Load dynamic menu
+            menu_type = payload.get("menu_type")
+            menu_params = {k: v for k, v in payload.items() if k not in ["action", "menu_type"]}
+            
+            if menu_type and self.menu_data.load_dynamic_menu(menu_type, **menu_params):
+                self.selected_index = 0
+                self.in_bottom_bar = False
+                self._emit_menu_screen_update()
+            else:
+                logger.warning(f"Failed to load dynamic menu: {menu_type}")
+        elif action == "browse_artists_in_range":
+            # Browse artists in alphabetical range
+            start_letter = payload.get("start_letter")
+            end_letter = payload.get("end_letter")
+            
+            if start_letter and end_letter:
+                if self.menu_data.load_dynamic_menu("artists_in_range", 
+                                                   start_letter=start_letter, 
+                                                   end_letter=end_letter):
+                    self.selected_index = 0
+                    self.in_bottom_bar = False
+                    self._emit_menu_screen_update()
+                else:
+                    logger.warning(f"Failed to load artists in range {start_letter}-{end_letter}")
+        elif action == "browse_artist_albums":
+            # Browse albums for specific artist
+            artist_id = payload.get("artist_id")
+            
+            if artist_id:
+                if self.menu_data.load_dynamic_menu("artist_albums", artist_id=artist_id):
+                    self.selected_index = 0
+                    self.in_bottom_bar = False
+                    self._emit_menu_screen_update()
+                else:
+                    logger.warning(f"Failed to load albums for artist {artist_id}")
+        elif action == "play_album":
+            # Play album - emit PLAY_ALBUM event for playback manager
+            album_id = payload.get("album_id")
+            album_name = payload.get("album_name")
+            
+            if album_id:
+                logger.info(f"Playing album: {album_name} (ID: {album_id})")
+                
+                # Emit PLAY_ALBUM event to be handled by playback manager
+                from app.core import event_bus, EventType, Event
+                event_bus.emit(Event(
+                    type=EventType.PLAY_ALBUM,
+                    payload={
+                        "audioPlaylistId": album_id,
+                        "album_name": album_name
+                    }
+                ))
+                
+                # Exit menu after triggering playback
+                self.exit_menu_mode()
+            else:
+                logger.warning("No album_id provided for play_album action")
+        elif action == "select_chromecast_device":
+            # Handle Chromecast device selection
+            device_name = payload.get("device_name")
+            
+            if device_name:
+                logger.info(f"Selecting Chromecast device: {device_name}")
+                
+                # Emit CHROMECAST_DEVICE_CHANGED event
+                from app.core import event_bus, EventType, Event
+                event_bus.emit(Event(
+                    type=EventType.CHROMECAST_DEVICE_CHANGED,
+                    payload={
+                        "device_name": device_name
+                    }
+                ))
+                
+                # Show confirmation message and exit menu
+                event_bus.emit(Event(
+                    type=EventType.SHOW_MESSAGE,
+                    payload={
+                        "message": f"Switching to {device_name}...",
+                        "duration": 2,
+                        "type": "info"
+                    }
+                ))
+                self.exit_menu_mode()
+            else:
+                logger.warning("No device_name provided for select_chromecast_device action")
+        elif action == "chromecast_status":
+            # Show current Chromecast status
+            from app.core import event_bus, EventType, Event
+            event_bus.emit(Event(
+                type=EventType.SHOW_MESSAGE,
+                payload={
+                    "message": "📊 Getting Chromecast status...",
+                    "duration": 2,
+                    "type": "info"
+                }
+            ))
+            # TODO: Add detailed status handler
+            self.exit_menu_mode()
+        elif action == "chromecast_volume_control":
+            # Show volume control info
+            from app.core import event_bus, EventType, Event
+            event_bus.emit(Event(
+                type=EventType.SHOW_MESSAGE,
+                payload={
+                    "message": "🔊 Use rotary encoder for volume",
+                    "duration": 3,
+                    "type": "info"
+                }
+            ))
+            self.exit_menu_mode()
+        elif action == "separator":
+            # Separators are not selectable - ignore
+            pass
         elif action == "go_back":
             self._go_back()
         elif action == "exit_menu":

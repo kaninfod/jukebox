@@ -4,7 +4,7 @@ import time
 import logging
 from typing import List, Dict, Optional
 from enum import Enum
-from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand
+from app.core import EventType, Event
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +16,33 @@ class PlayerStatus(Enum):
     OFF = "off"
 
 class JukeboxMediaPlayer:
-    def __init__(self, playlist: List[Dict]):
+    def __init__(self, playlist: List[Dict], event_bus, chromecast_service=None):
+        """
+        Initialize JukeboxMediaPlayer with dependency injection.
+        
+        Args:
+            playlist: List of tracks to play
+            event_bus: EventBus instance for event communication
+            chromecast_service: PyChromecastService instance for playback control
+        """
         self.playlist = playlist
         self.current_index = 0
         self.status = PlayerStatus.STOP
-        self.cc_service = PyChromecastServiceOnDemand("Living Room")
+        
+        # Inject dependencies - no more direct imports/creation
+        self.event_bus = event_bus
+        if chromecast_service:
+            self.cc_service = chromecast_service
+        else:
+            # Fallback for backward compatibility - this will be removed later
+            from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand
+            from app.config import config
+            self.cc_service = PyChromecastServiceOnDemand(config.DEFAULT_CHROMECAST_DEVICE)
+            
         self.current_volume = 0  # Ensure attribute exists before any event/context
         self.track_timer = TrackTimer()
         self.sync_volume_from_chromecast()
-        logger.info(f"JukeboxMediaPlayer initialized. Chromecast device={self.cc_service.device_name}")
+        logger.info(f"JukeboxMediaPlayer initialized with dependency injection. Chromecast device={self.cc_service.device_name}")
 
     def cleanup(self):
         logger.info("JukeboxMediaPlayer cleanup called")
@@ -32,8 +50,8 @@ class JukeboxMediaPlayer:
 
 
     def _emit_event(self, event_type, data=None):
-        from app.core.event_bus import event_bus, Event
-        event_bus.emit(Event(type=event_type, payload=data))
+        # Use injected event_bus instead of importing
+        self.event_bus.emit(Event(type=event_type, payload=data))
 
     @property
     def album_cover(self) -> Optional[str]:
@@ -103,8 +121,8 @@ class JukeboxMediaPlayer:
             value = 50  # Default fallback volume
         self.current_volume = value
         
-        from app.core import event_bus, EventType, Event
-        event_bus.emit(Event(
+        # Use injected event_bus instead of importing
+        self.event_bus.emit(Event(
             type=EventType.VOLUME_CHANGED,
             payload=self._get_context()
         ))
@@ -132,8 +150,8 @@ class JukeboxMediaPlayer:
             self.status = PlayerStatus.PLAY
             self.cc_service.resume()
 
-        from app.core import event_bus, EventType, Event
-        event_bus.emit(Event(
+        # Use injected event_bus instead of importing
+        self.event_bus.emit(Event(
             type=EventType.TRACK_CHANGED,
             payload=self._get_context()
         ))
@@ -149,8 +167,8 @@ class JukeboxMediaPlayer:
         self.status = PlayerStatus.STOP
         self.track_timer.reset()
         
-        from app.core import event_bus, EventType, Event
-        event_bus.emit(Event(
+        # Use injected event_bus instead of importing
+        self.event_bus.emit(Event(
             type=EventType.TRACK_CHANGED,
             payload=self._get_context()
         ))
@@ -172,8 +190,8 @@ class JukeboxMediaPlayer:
         if normalized_volume is not None:
             self.cc_service.set_volume(normalized_volume)
 
-        from app.core import event_bus, EventType, Event
-        event_bus.emit(Event(
+        # Use injected event_bus instead of importing
+        self.event_bus.emit(Event(
             type=EventType.VOLUME_CHANGED,
             payload=self._get_context()
         ))
@@ -277,8 +295,8 @@ class JukeboxMediaPlayer:
             self.track_timer.start()
             logger.info(f"Casting track {self.current_index+1}/{len(self.playlist)}: {track.get('title')}")
             self.status = PlayerStatus.PLAY
-            from app.core import event_bus, EventType, Event
-            event_bus.emit(Event(
+            # Use injected event_bus instead of importing
+            self.event_bus.emit(Event(
                 type=EventType.TRACK_CHANGED,
                 payload=self._get_context()
             ))

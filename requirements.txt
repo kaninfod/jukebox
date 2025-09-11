@@ -1,15 +1,22 @@
-fastapi
-uvicorn[standard]
-spidev 
-pillow
-luma.lcd
-luma.core
-rpi-lgpio
-pi-rc522
-mariadb
-pymysql
-sqlalchemy
-requests
-websockets
-python-dotenv
-pychromecast
+# Web Framework & Server
+fastapi>=0.68.0
+uvicorn[standard]>=0.15.0
+jinja2>=3.0.0
+
+# Hardware Interface
+spidev>=3.5
+pillow>=8.3.0
+luma.lcd>=2.10.0
+luma.core>=2.4.0
+pi-rc522>=2.2.1
+RPi.GPIO>=0.7.1
+
+# Database
+pymysql>=1.0.0
+sqlalchemy>=1.4.0
+
+# Network & APIs
+requests>=2.25.0
+python-dotenv>=0.19.0
+pychromecast>=13.0.0
+zeroconf>=0.47.0

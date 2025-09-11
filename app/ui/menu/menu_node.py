@@ -61,6 +61,14 @@ class MenuNode:
             path.append(current.name)
             current = current.parent
         return list(reversed(path))
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert MenuNode to dictionary format for compatibility."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "payload": self.payload
+        }
         
     def __repr__(self) -> str:
         return f"MenuNode(id='{self.id}', name='{self.name}', children={len(self.children)})"

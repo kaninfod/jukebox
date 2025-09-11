@@ -1,35 +1,48 @@
 import logging
-from app.database.album_db import get_album_entry_by_rfid, create_album_entry, get_album_data_by_audioPlaylistId
-from app.core import event_bus, EventType, Event
+from app.core import EventType, Event
 
 logger = logging.getLogger(__name__)
 
 class PlaybackManager:
-    def __init__(self, screen_manager=None, oauth_file: str = "oauth.json", player=None):
-        if player is not None:
-            self.player = player
-        else:
-            from app.main import get_jukebox_mediaplayer
-            self.player = get_jukebox_mediaplayer()
-        self.oauth_file = oauth_file
+    def __init__(self, screen_manager, player, album_db, subsonic_service, event_bus):
+        """
+        Initialize PlaybackManager with dependency injection.
+        
+        Args:
+            screen_manager: ScreenManager instance for UI control
+            player: JukeboxMediaPlayer instance for playback control
+            album_db: AlbumDatabase instance for album data operations
+            subsonic_service: SubsonicService instance for music provider operations
+            event_bus: EventBus instance for event communication
+        """
+        # Inject all dependencies - no more imports needed
         self.screen_manager = screen_manager
+        self.player = player
+        self.album_db = album_db
+        self.subsonic_service = subsonic_service
+        self.event_bus = event_bus
 
-        event_bus.subscribe(EventType.RFID_READ, self.load_rfid)
-        event_bus.subscribe(EventType.BUTTON_PRESSED, self._handle_button_pressed_event)
-        event_bus.subscribe(EventType.ROTARY_ENCODER, self._handle_rotary_encoder_event)
+        # Setup event subscriptions using injected event_bus
+        self._setup_event_subscriptions()
         
-        event_bus.subscribe(EventType.NEXT_TRACK, self.player.next_track)
-        event_bus.subscribe(EventType.TRACK_FINISHED, self.player.next_track)
-        event_bus.subscribe(EventType.PREVIOUS_TRACK, self.player.previous_track)
-        event_bus.subscribe(EventType.PLAY_PAUSE, self.player.play_pause)
-        event_bus.subscribe(EventType.PLAY, self.player.play)
-        event_bus.subscribe(EventType.STOP, self.player.stop)
-        event_bus.subscribe(EventType.VOLUME_UP, self.player.volume_up)
-        event_bus.subscribe(EventType.VOLUME_DOWN, self.player.volume_down)
-        event_bus.subscribe(EventType.SET_VOLUME, self.player.set_volume)
-        #event_bus.subscribe(self.handle_event)
+        logger.info("PlaybackManager initialized with dependency injection.")
         
-        logger.info("PlaybackManager initialized.")
+    def _setup_event_subscriptions(self):
+        """Setup all event subscriptions using injected event_bus"""
+        self.event_bus.subscribe(EventType.RFID_READ, self.load_rfid)
+        self.event_bus.subscribe(EventType.BUTTON_PRESSED, self._handle_button_pressed_event)
+        self.event_bus.subscribe(EventType.ROTARY_ENCODER, self._handle_rotary_encoder_event)
+        
+        self.event_bus.subscribe(EventType.NEXT_TRACK, self.player.next_track)
+        self.event_bus.subscribe(EventType.TRACK_FINISHED, self.player.next_track)
+        self.event_bus.subscribe(EventType.PREVIOUS_TRACK, self.player.previous_track)
+        self.event_bus.subscribe(EventType.PLAY_PAUSE, self.player.play_pause)
+        self.event_bus.subscribe(EventType.PLAY, self.player.play)
+        self.event_bus.subscribe(EventType.STOP, self.player.stop)
+        self.event_bus.subscribe(EventType.VOLUME_UP, self.player.volume_up)
+        self.event_bus.subscribe(EventType.VOLUME_DOWN, self.player.volume_down)
+        self.event_bus.subscribe(EventType.SET_VOLUME, self.player.set_volume)
+        self.event_bus.subscribe(EventType.PLAY_ALBUM, self._handle_play_album_event)
 
 
     def _handle_button_pressed_event(self, event):
@@ -50,12 +63,6 @@ class PlaybackManager:
         """Handle rotary encoder events for volume control when menu is not active"""
         # Check if menu is currently active - if so, don't handle volume
         try:
-            #from app.main import get_screen_manager
-            #screen_manager = get_screen_manager()
-            #if (screen_manager and 
-            #    hasattr(screen_manager, 'menu_controller') and 
-            #    screen_manager.menu_controller and 
-            #    screen_manager.menu_controller.is_active):
             if (self.screen_manager.menu_controller.is_active):
                 return  # Let MenuController handle the event
         except Exception:
@@ -66,6 +73,21 @@ class PlaybackManager:
             self.player.volume_up()
         elif event.payload['direction'] == 'CCW':
             self.player.volume_down()
+
+    def _handle_play_album_event(self, event):
+        """Handle PLAY_ALBUM event from menu system."""
+        audioPlaylistId = event.payload.get('audioPlaylistId')
+        album_name = event.payload.get('album_name', 'Unknown Album')
+        
+        if audioPlaylistId:
+            logger.info(f"Playing album from menu: {album_name} (ID: {audioPlaylistId})")
+            success = self.load_from_audioPlaylistId(audioPlaylistId)
+            if success:
+                logger.info(f"Successfully loaded and started playback for album: {album_name}")
+            else:
+                logger.error(f"Failed to load album: {album_name}")
+        else:
+            logger.warning("No audioPlaylistId provided in PLAY_ALBUM event")
 
     def cleanup(self):
         logger.info("PlaybackManager cleanup called")
@@ -84,8 +106,8 @@ class PlaybackManager:
         logger.info(f"Loading playlist for audioPlaylistId: {audioPlaylistId}")
         
         try:
-            # Get the album entry that has this audioPlaylistId
-            entry = get_album_data_by_audioPlaylistId(audioPlaylistId)
+            # Get the album entry that has this audioPlaylistId using injected album_db
+            entry = self.album_db.get_album_data_by_audioPlaylistId(audioPlaylistId)
             
             if not entry:
                 logger.info(f"No album entry found for audioPlaylistId: {audioPlaylistId} in database")
@@ -94,11 +116,8 @@ class PlaybackManager:
                 logger.info(f"Attempting to fetch album {audioPlaylistId} from Subsonic")
                 
                 try:
-                    from app.services.subsonic_service import SubsonicService
-                    subsonic_service = SubsonicService()
-                    
-                    # Fetch album data from Subsonic
-                    album_data = subsonic_service.add_or_update_album_entry_from_audioPlaylistId(audioPlaylistId)
+                    # Use injected subsonic_service instead of creating new instance
+                    album_data = self.subsonic_service.add_or_update_album_entry_from_audioPlaylistId(audioPlaylistId)
                     
                     if not album_data:
                         logger.error(f"Album {audioPlaylistId} not found in Subsonic")
@@ -106,21 +125,19 @@ class PlaybackManager:
                     
                     logger.info(f"Found album in Subsonic: {album_data.get('album_name', 'Unknown Album')}")
                     
-                    # Add album to database using existing functions
+                    # Add album to database using injected album_db
                     # Create a temporary album entry with a unique identifier
                     import uuid
                     temp_rfid = f"temp_{uuid.uuid4().hex[:8]}"
                     
-                    from app.database.album_db import create_album_entry, update_album_entry
-                    
-                    # Create temporary entry
-                    create_result = create_album_entry(temp_rfid)
+                    # Create temporary entry using injected album_db
+                    create_result = self.album_db.create_album_entry(temp_rfid)
                     if not create_result:
                         logger.error(f"Failed to create temporary entry for album {audioPlaylistId}")
                         return False
                     
-                    # Update with album data
-                    db_entry = update_album_entry(temp_rfid, album_data)
+                    # Update with album data using injected album_db
+                    db_entry = self.album_db.update_album_entry(temp_rfid, album_data)
                     
                     if not db_entry:
                         logger.error(f"Failed to update database entry for Subsonic album {audioPlaylistId}")
@@ -128,8 +145,8 @@ class PlaybackManager:
                     
                     logger.info(f"Successfully added Subsonic album {audioPlaylistId} to database")
                     
-                    # Now get the entry from database
-                    entry = get_album_data_by_audioPlaylistId(audioPlaylistId)
+                    # Now get the entry from database using injected album_db
+                    entry = self.album_db.get_album_data_by_audioPlaylistId(audioPlaylistId)
                     
                     if not entry:
                         logger.error(f"Failed to retrieve newly created entry for {audioPlaylistId}")
@@ -184,7 +201,8 @@ class PlaybackManager:
     def load_rfid(self, event: Event) -> bool:
         """Orchestrate the full playback pipeline from RFID scan."""
         rfid = event.payload['rfid']
-        entry = get_album_entry_by_rfid(rfid)
+        # Use injected album_db instead of direct import
+        entry = self.album_db.get_album_entry_by_rfid(rfid)
         if not entry:
              # album does not exist and should be created
 
@@ -198,7 +216,8 @@ class PlaybackManager:
             from app.ui.screens import MessageScreen
             MessageScreen.show(context)
             
-            response = create_album_entry(rfid)
+            # Use injected album_db instead of direct import
+            response = self.album_db.create_album_entry(rfid)
             if response:
                 logger.info(f"Successfully created Album entry for RFID {rfid}")
                 return True

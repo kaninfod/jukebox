@@ -1,0 +1,154 @@
+# Jukebox Application Module Coupling Analysis
+
+## Overview
+This analysis examines the coupling relationships between the main modules in the jukebox application, categorizing dependencies into direct imports (tight coupling) and event bus communications (loose coupling).
+
+## Module Categories
+
+### Core Modules
+- **main.py** - Application entry point and initialization
+- **config.py** - Configuration management
+- **core/** - Event system (event_bus, event_factory, logging)
+
+### Hardware Module
+- **hardware/hardware.py** - Hardware manager
+- **hardware/devices/** - Individual device drivers (display, RFID, buttons, etc.)
+
+### Services Module
+- **services/playback_manager.py** - Main playback orchestration
+- **services/jukebox_mediaplayer.py** - Media player logic
+- **services/subsonic_service.py** - Music provider service
+- **services/pychromecast_service_ondemand.py** - Chromecast integration
+- **services/websocket_service.py** - HomeAssistant integration (deprecated)
+
+### UI Module
+- **ui/manager.py** - Screen management
+- **ui/screens/** - Individual screen implementations
+- **ui/menu/** - Menu system
+
+### Routes Module
+- **routes/** - HTTP API endpoints
+
+## Coupling Analysis Matrix
+
+| From Module | To Module | Coupling Type | Dependency Details | Coupling Level |
+|-------------|-----------|---------------|-------------------|----------------|
+| **main.py** | config | Import | Direct configuration access | HIGH |
+| **main.py** | routes/* | Import | HTTP router registration | HIGH |
+| **main.py** | services/playback_manager | Import | Direct instantiation | HIGH |
+| **main.py** | ui/manager | Import | Direct instantiation | HIGH |
+| **main.py** | hardware/hardware | Import | Direct instantiation | HIGH |
+| **main.py** | core/logging_config | Import | Logging setup | MEDIUM |
+| | | | | |
+| **hardware/hardware** | config | Import | GPIO pin configuration | HIGH |
+| **hardware/hardware** | core/event_bus | Import | Event emission | MEDIUM |
+| **hardware/hardware** | hardware/devices/* | Import | Device driver instantiation | HIGH |
+| **hardware/hardware** | core/event_bus | EventBus | RFID_READ, BUTTON_PRESSED, ROTARY_ENCODER events | LOW |
+| | | | | |
+| **hardware/devices/rfid** | config | Import | Pin configuration | HIGH |
+| **hardware/devices/rfid** | core/event_bus | EventBus | RFID_READ events | LOW |
+| | | | | |
+| **services/playback_manager** | database/album_db | Import | Album data access | HIGH |
+| **services/playback_manager** | core/event_bus | Import | Event system | MEDIUM |
+| **services/playback_manager** | core/event_bus | EventBus | Subscribes to 13 event types | LOW |
+| **services/playback_manager** | services/jukebox_mediaplayer | Import | Player instantiation | HIGH |
+| **services/playback_manager** | services/subsonic_service | Import | Music data fetching | HIGH |
+| | | | | |
+| **services/jukebox_mediaplayer** | services/pychromecast_service_ondemand | Import | Chromecast control | HIGH |
+| **services/jukebox_mediaplayer** | core/event_bus | EventBus | VOLUME_CHANGED, TRACK_CHANGED, STATUS_CHANGED events | LOW |
+| | | | | |
+| **services/subsonic_service** | services/music_provider_service | Import | Interface inheritance | HIGH |
+| **services/subsonic_service** | config | Import | API configuration | HIGH |
+| | | | | |
+| **services/pychromecast_service_ondemand** | core/event_bus | EventBus | TRACK_FINISHED events | LOW |
+| | | | | |
+| **ui/manager** | core/event_bus | Import | Event system | MEDIUM |
+| **ui/manager** | core/event_bus | EventBus | Subscribes to 6 screen events | LOW |
+| **ui/manager** | ui/screens/* | Import | Screen instantiation | HIGH |
+| **ui/manager** | ui/menu/menu_controller | Import | Menu system | HIGH |
+| | | | | |
+| **ui/menu/menu_controller** | ui/menu/menu_data_service | Import | Menu data access | HIGH |
+| **ui/menu/menu_controller** | core/event_bus | Import | Event system | MEDIUM |
+| **ui/menu/menu_controller** | core/event_bus | EventBus | Subscribes to ROTARY_ENCODER, BUTTON_PRESSED | LOW |
+| **ui/menu/menu_controller** | core/event_bus | EventBus | Emits SHOW_MENU, PLAY_ALBUM events | LOW |
+| | | | | |
+| **ui/menu/menu_data_service** | ui/menu/json_config_adapter | Import | Static menu configuration | HIGH |
+| **ui/menu/menu_data_service** | ui/menu/subsonic_config_adapter | Import | Dynamic menu generation | HIGH |
+| **ui/menu/menu_data_service** | services/subsonic_service | Import | Music data access | HIGH |
+| | | | | |
+| **ui/menu/subsonic_config_adapter** | services/subsonic_service | Import | Music data access | HIGH |
+| | | | | |
+| **routes/albums** | services/subsonic_service | Import | Album data operations | HIGH |
+| **routes/mediaplayer** | services/playback_manager | Import | Playback control | HIGH |
+| **routes/chromecast** | services/pychromecast_service_ondemand | Import | Chromecast control | HIGH |
+
+## Event Bus Communication Patterns
+
+### Event Producers (Emit Events)
+| Module | Events Emitted | Purpose |
+|--------|----------------|---------|
+| **hardware/hardware** | RFID_READ, BUTTON_PRESSED, ROTARY_ENCODER | Hardware input events |
+| **services/jukebox_mediaplayer** | VOLUME_CHANGED, TRACK_CHANGED, STATUS_CHANGED | Playback state changes |
+| **services/pychromecast_service_ondemand** | TRACK_FINISHED | Chromecast playback completion |
+| **ui/menu/menu_controller** | SHOW_MENU, PLAY_ALBUM | Menu navigation and actions |
+
+### Event Consumers (Subscribe to Events)
+| Module | Events Subscribed | Purpose |
+|--------|------------------|---------|
+| **services/playback_manager** | RFID_READ, BUTTON_PRESSED, ROTARY_ENCODER, NEXT_TRACK, TRACK_FINISHED, PREVIOUS_TRACK, PLAY_PAUSE, PLAY, STOP, VOLUME_UP, VOLUME_DOWN, SET_VOLUME, PLAY_ALBUM | Central playback orchestration |
+| **ui/manager** | SHOW_IDLE, SHOW_MESSAGE, SHOW_HOME, SHOW_MENU, TRACK_CHANGED, VOLUME_CHANGED, STATUS_CHANGED | Screen management |
+| **ui/menu/menu_controller** | ROTARY_ENCODER, BUTTON_PRESSED | Menu navigation |
+
+## Coupling Level Assessment
+
+### HIGH Coupling (Direct Imports)
+- **main.py ↔ All major modules**: Tight orchestration layer
+- **services/playback_manager ↔ services/jukebox_mediaplayer**: Core playback functionality
+- **services/playback_manager ↔ database/album_db**: Data persistence dependency
+- **ui/manager ↔ ui/screens/***: UI composition
+- **hardware/hardware ↔ hardware/devices/***: Hardware abstraction
+- **All modules ↔ config**: Global configuration dependency
+
+### MEDIUM Coupling (Core Dependencies)
+- **Most modules ↔ core/event_bus**: Event system infrastructure
+- **Most modules ↔ core/logging**: Logging infrastructure
+
+### LOW Coupling (Event Bus Communication)
+- **Hardware ↔ Services**: Hardware events → Service responses
+- **Services ↔ UI**: State changes → Screen updates
+- **Menu ↔ Playback**: User actions → Playback commands
+
+## Architecture Assessment
+
+### Strengths
+1. **Event-Driven Design**: Hardware, UI, and playback communicate via events, enabling loose coupling
+2. **Layered Architecture**: Clear separation between hardware, services, UI, and web layers
+3. **Service Isolation**: Music providers, Chromecast, and media player are separate services
+4. **Configuration Centralization**: Single config module reduces configuration coupling
+
+### Areas of Concern
+1. **Main Module Coupling**: main.py directly imports and instantiates most major components
+2. **Playback Manager Centralization**: PlaybackManager has many direct dependencies
+3. **Config Dependency**: Almost all modules directly import config, creating global coupling
+4. **Menu System Coupling**: Menu system directly imports SubsonicService for dynamic content
+
+### Recommendations for Decoupling
+
+1. **Dependency Injection**: 
+   - Pass dependencies into constructors rather than importing directly
+   - Use a service container or factory pattern in main.py
+
+2. **Configuration Abstraction**:
+   - Create configuration interfaces for different module types
+   - Reduce direct config imports
+
+3. **Service Layer Abstraction**:
+   - Create service interfaces for music providers
+   - Use factory pattern for service instantiation
+
+4. **Event-First Communication**:
+   - Convert remaining direct method calls to event-based communication
+   - Particularly for menu → playback interactions
+
+## Current Coupling Score: MEDIUM-HIGH
+The application shows good event-driven patterns but retains significant direct import dependencies. The event bus successfully decouples runtime communication, but initialization and configuration create tight coupling points.

@@ -1,6 +1,7 @@
 import logging
 import logging.handlers
 import socket
+from app.config import config
 
 def setup_logging(log_file="jukebox.log", level=logging.DEBUG):
     """Configure logging for the jukebox app."""
@@ -8,7 +9,7 @@ def setup_logging(log_file="jukebox.log", level=logging.DEBUG):
     logger = logging.getLogger()
     logger.setLevel(level)
 
-    syslog_address = ('192.168.68.102', 514)  # (IP, port)
+    syslog_address = (config.LOG_SERVER_HOST, config.LOG_SERVER_PORT)
     syslog_handler = logging.handlers.SysLogHandler(address=syslog_address)
 
     hostname = socket.gethostname()
