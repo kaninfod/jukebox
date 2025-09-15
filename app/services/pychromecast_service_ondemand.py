@@ -125,7 +125,7 @@ class ChromecastMediaStatusListener:
                        
             # All remaining attributes for complete info
             all_attrs = [attr for attr in dir(status) if not attr.startswith('_')]
-            logger.debug(f"  🔍 All attributes: {all_attrs}")
+            #logger.debug(f"  🔍 All attributes: {all_attrs}")
             
         except Exception as e:
             logger.error(f"[{self.device_name}] Error logging full status: {e}")

@@ -3,13 +3,7 @@
 Hardware management module for the jukebox.
 Handles initialization and callbacks for all hardware devices.
 """
-# Conditional GPIO import
-try:
-    import RPi.GPIO as GPIO
-    _gpio_available = True
-except ImportError:
-    _gpio_available = False
-    GPIO = None
+import pigpio
 
 from .devices.ili9488 import ILI9488
 from .devices.rfid import RC522Reader
@@ -53,11 +47,8 @@ class HardwareManager:
 
     def initialize_hardware(self):
         """Initialize all hardware devices using injected config"""
-        if not self.config.HARDWARE_MODE or not _gpio_available:
-            if not self.config.HARDWARE_MODE:
-                logger.info("🖥️  Headless mode enabled - skipping hardware initialization")
-            else:
-                logger.info("🖥️  GPIO unavailable - falling back to headless mode")
+        if not self.config.HARDWARE_MODE:
+            logger.info("🖥️  Headless mode enabled - skipping hardware initialization")
             from .devices.mock_display import MockDisplay
             return MockDisplay()
         
@@ -71,10 +62,14 @@ class HardwareManager:
                 on_new_uid=self._handle_new_uid
             )
 
-            # Set up switch pin for RFID using injected config
+            # Set up switch pin for RFID using pigpio
             self.rfid_switch_pin = self.config.NFC_CARD_SWITCH_GPIO
-            GPIO.setup(self.rfid_switch_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            GPIO.add_event_detect(self.rfid_switch_pin, GPIO.FALLING, callback=self._on_rfid_switch_activated, bouncetime=500)
+            self.pi = pigpio.pi()
+            if not self.pi.connected:
+                raise RuntimeError("Could not connect to pigpio daemon")
+            self.pi.set_mode(self.rfid_switch_pin, pigpio.INPUT)
+            self.pi.set_pull_up_down(self.rfid_switch_pin, pigpio.PUD_UP)
+            self.rfid_cb = self.pi.callback(self.rfid_switch_pin, pigpio.FALLING_EDGE, self._on_rfid_switch_activated)
             logger.info(f"RFID switch monitoring started on GPIO {self.rfid_switch_pin}")
 
             # Initialize rotary encoder with callback using injected config
@@ -89,6 +84,7 @@ class HardwareManager:
             self.button1 = PushButton(self.config.BUTTON_1_GPIO, callback=self._on_button1_press, bouncetime=self.config.BUTTON_BOUNCETIME)
             self.button2 = PushButton(self.config.BUTTON_2_GPIO, callback=self._on_button2_press, bouncetime=self.config.BUTTON_BOUNCETIME)
             self.button3 = PushButton(self.config.BUTTON_3_GPIO, callback=self._on_button3_press, bouncetime=self.config.BUTTON_BOUNCETIME)
+            self.button4 = PushButton(self.config.BUTTON_4_GPIO, callback=self._on_button4_press, bouncetime=self.config.BUTTON_BOUNCETIME)
             self.button5 = PushButton(self.config.BUTTON_5_GPIO, callback=self._on_button5_press, bouncetime=self.config.BUTTON_BOUNCETIME)
 
             logger.info("🔧 Hardware initialization complete")
@@ -100,28 +96,47 @@ class HardwareManager:
             from .devices.mock_display import MockDisplay
             return MockDisplay()
 
-    def _on_rfid_switch_activated(self, channel):
+    def _on_rfid_switch_activated(self, gpio, level, tick):
         """Handle switch activation (card inserted) for RFID. Only trigger on actual FALLING edge (LOW)."""
+        logger.info(f"RFID switch callback fired: gpio={gpio}, level={level}, tick={tick}, initialized={getattr(self.rfid_reader, 'initialized', None)}, reading_active={getattr(self.rfid_reader, 'reading_active', None)}")
         # Only proceed if the pin is actually LOW (FALLING edge)
-        if not self.rfid_reader or not self.rfid_reader.initialized or self.rfid_reader.reading_active or GPIO.input(channel) != GPIO.LOW:
+        if not self.rfid_reader or not self.rfid_reader.initialized or self.rfid_reader.reading_active or level != 0:
+            logger.debug("RFID switch callback blocked by state check.")
             return
 
         logger.info("🃏 Card insertion detected - starting RFID read...")
         # Use injected config instead of importing
-        file_name = self.config.get_icon_path("contactless")
-        context = {
-            "title": f"Reading...",
-            "icon_name": "contactless",
-            "message": f"Reading album card",
-            "background": "#24AC5F",
-        }
-        from app.ui.screens import MessageScreen
-        try:
-            logger.info("About to show MessageScreen for RFID read...")
-            MessageScreen.show(context)
-            logger.info("MessageScreen.show(context) completed successfully.")
-        except Exception as e:
-            logger.error(f"Exception in MessageScreen.show(context): {e}", exc_info=True)
+        from app.core import event_bus, EventType, Event
+        event = Event(EventType.SHOW_SCREEN_QUEUED,
+            payload={
+                "screen_type": "message",
+                "context": {
+                    "title": "Reading...",
+                    "icon_name": "contactless",
+                    "message": "Reading album card",
+                    "theme": "message_info"
+                },
+                "duration": 3
+            }
+        )
+        event_bus.emit(event)
+
+
+
+        # from app.core.event_factory import EventFactory
+        # from app.core import event_bus
+        
+        # event = EventFactory.show_screen_queued( #EventFactory.show_screen_queued(
+        #     screen_type="message",
+        #     context={
+        #         "title": "Reading...",
+        #         "icon_name": "contactless",
+        #         "message": "Reading album card",
+        #         "theme": "message_info"
+        #     },
+        #     duration=5.0
+        # )
+        # event_bus.emit(event)
 
         logger.info("Triggering RFID read due to switch activation")
         # Start reading and handle result in callback
@@ -134,27 +149,65 @@ class HardwareManager:
                     # Let the normal new UID handler take over (already called by RC522Reader)
                     pass
                 elif _callback_result_status == "timeout":
-                    # Use injected config instead of importing
-                    file_name = self.config.get_icon_path("error")
-                    context = {
-                        "title": f"Error Reading Card",
-                        "icon_name": file_name,
-                        "message": f"Reading timed out. Try again...",
-                        "background": "#CCFF00",
-                    }
-                    from app.ui.screens import MessageScreen
-                    MessageScreen.show(context)
+                    from app.core import event_bus, EventType, Event
+                    event = Event(EventType.SHOW_SCREEN_QUEUED,
+                        payload={
+                            "screen_type": "message",
+                            "context": {
+                                "title": "Error Reading Card",
+                                "icon_name": "error",
+                                "message": "Reading timed out. Try again...",
+                                "theme": "message_info"
+                            },
+                            "duration": 3
+                        }
+                    )
+                    event_bus.emit(event)
+
+
+                    # from app.core.event_factory import EventFactory
+                    # from app.core import event_bus
+                    
+                    # event = EventFactory.show_screen_queued( #EventFactory.show_screen_queued(
+                    #     screen_type="message",
+                    #     context={
+                    #         "title": "Error Reading Card",
+                    #         "icon_name": "error",
+                    #         "message": "Reading timed out. Try again...",
+                    #         "theme": "message_info"
+                    #     },
+                    #     duration=5.0
+                    # )
+                    # event_bus.emit(event)
+
                 elif _callback_result_status == "error":
-                    # Use injected config instead of importing
-                    file_name = self.config.get_icon_path("library_music")
-                    context = {
-                        "title": f"Error Reading Card",
-                        "icon_name": file_name,
-                        "message": f"Try again...",
-                        "background": "#FF0000",
-                    }
-                    from app.ui.screens import MessageScreen
-                    MessageScreen.show(context)
+                    #from app.core.event_factory import EventFactory
+                    from app.core import event_bus, EventType, Event
+                    event = Event(EventType.SHOW_SCREEN_QUEUED,
+                        payload={
+                            "screen_type": "message",
+                            "context": {
+                                "title": "Error Reading Card",
+                                "icon_name": "error",
+                                "message": "Try again...",
+                                "theme": "message_info"},
+                            "duration": 3
+                        }
+                    )
+                    event_bus.emit(event)
+
+                    # event = EventFactory.show_screen_queued( 
+                    #     screen_type="message",
+                    #     context={
+                    #         "title": "Error Reading Card",
+                    #         "icon_name": "error",
+                    #         "message": "Try again...",
+                    #         "theme": "message_info"
+                    #     },
+                    #     duration=5.0
+                    # )
+                    # event_bus.emit(event)
+
             except Exception as e:
                 logger.error(f"Exception in rfid_result_callback: {e}", exc_info=True)
         try:
@@ -208,7 +261,7 @@ class HardwareManager:
         ))
     
     def _on_button4_press(self):
-        """Handle button 4 press - TEMPORARILY DISABLED (used as NFC card switch)"""
+        """Handle button 4 press - Stop"""
         logger.info("Button 4 press detected")
         # Use injected event_bus instead of importing
         self.event_bus.emit(Event(
@@ -249,12 +302,17 @@ class HardwareManager:
             except Exception as e:
                 logger.error(f"RFID cleanup error: {e}")
         # Remove RFID switch event detection
-        if hasattr(self, 'rfid_switch_pin'):
+        if hasattr(self, 'rfid_cb'):
             try:
-                GPIO.remove_event_detect(self.rfid_switch_pin)
-                logger.info(f"RFID switch event detection removed from GPIO {self.rfid_switch_pin}")
+                self.rfid_cb.cancel()
+                logger.info(f"RFID switch pigpio callback cancelled for GPIO {self.rfid_switch_pin}")
             except Exception as e:
-                logger.error(f"Error removing RFID switch event detection: {e}")
+                logger.error(f"Error cancelling RFID switch pigpio callback: {e}")
+        if hasattr(self, 'pi'):
+            try:
+                self.pi.stop()
+            except Exception as e:
+                logger.error(f"Error stopping pigpio instance: {e}")
                 
         if self.encoder:
             try:
@@ -308,8 +366,4 @@ class HardwareManager:
             except Exception as e:
                 logger.error(f"Display cleanup error: {e}")
         
-        # Final GPIO cleanup
-        try:
-            GPIO.cleanup()
-        except Exception as e:
-            logger.error(f"Final GPIO cleanup error: {e}")
+        # No final GPIO cleanup needed for lgpio

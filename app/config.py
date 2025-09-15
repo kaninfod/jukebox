@@ -74,11 +74,7 @@ class Config:
         return self.get_font_definitions()
     
     # === DATABASE CONFIGURATION ===
-    DB_HOST: str = os.getenv("DB_HOST", "localhost")
-    DB_PORT: int = int(os.getenv("DB_PORT", "3306"))
-    DB_USERNAME: str = os.getenv("DB_USERNAME", "jukebox")
-    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")  # Required from .env
-    DB_NAME: str = os.getenv("DB_NAME", "jukeboxdb")
+    # SQLite database - no additional config needed, uses app/database/album.db
 
     # === LOGGING CONFIGURATION ===
     LOG_SERVER_HOST: str = os.getenv("LOG_SERVER_HOST", "localhost")
@@ -108,8 +104,8 @@ class Config:
 
     # === HARDWARE SETTINGS ===
     # Input debounce times (milliseconds)
-    # KY-040 rotary encoder: Lower bouncetime + software debouncing for better responsiveness
-    ENCODER_BOUNCETIME: int = int(os.getenv("ENCODER_BOUNCETIME", "5"))
+    # KY-040 rotary encoder: Optimized for detent-based counting
+    ENCODER_BOUNCETIME: int = int(os.getenv("ENCODER_BOUNCETIME", "10"))
     BUTTON_BOUNCETIME: int = int(os.getenv("BUTTON_BOUNCETIME", "200"))
 
     # === MEDIA PLAYER CONFIGURATION ===
@@ -147,14 +143,17 @@ class Config:
 
     @classmethod
     def get_database_url(cls) -> str:
-        """Generate the database connection URL from environment variables"""
-        return f"mysql+pymysql://{cls.DB_USERNAME}:{cls.DB_PASSWORD}@{cls.DB_HOST}:{cls.DB_PORT}/{cls.DB_NAME}"
+        """Generate the database connection URL - using SQLite"""
+        import os
+        # Get the absolute path to the database file
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        db_path = os.path.join(base_dir, "app", "database", "album.db")
+        return f"sqlite:///{db_path}"
     
     @classmethod
     def validate_config(cls) -> bool:
         """Validate that all required configuration is present"""
         required_vars = [
-            "DB_PASSWORD",
             "SUBSONIC_USER", 
             "SUBSONIC_PASS"
         ]

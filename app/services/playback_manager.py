@@ -56,6 +56,12 @@ class PlaybackManager:
             result = self.player.next_track(force=True)
             logger.info(f"Next track: {result}")
         elif event.payload['button'] == 4:
+            # Check if menu is currently active - if so, don't handle stop (let MenuController handle back navigation)
+            try:
+                if (self.screen_manager.menu_controller.is_active):
+                    return  # Let MenuController handle the back navigation
+            except Exception:
+                pass  # If we can't check menu state, proceed with stop
             result = self.player.stop()
             logger.info(f"stop: {result}")
 
@@ -201,43 +207,63 @@ class PlaybackManager:
     def load_rfid(self, event: Event) -> bool:
         """Orchestrate the full playback pipeline from RFID scan."""
         rfid = event.payload['rfid']
+        logger.info(f"RFID scan detected: {rfid}")
+        
+        # Show a message using the screen queue
+        from app.core import event_bus, EventType, Event
+        event = Event(EventType.SHOW_SCREEN_QUEUED,
+            payload={
+                "screen_type": "message",
+                "context": {
+                    "title": "RFID Scan - Pikansjos",
+                    "icon_name": "contactless",
+                    "message": "Reading card...",
+                    "theme": "message_info"
+                },
+                "duration": 3
+            }
+        )
+        # event_bus.emit(event)
+
+        # from app.core.event_factory import EventFactory
+        # from app.core import event_bus
+        
+        # event = EventFactory.show_screen_queued( #EventFactory.show_screen_queued(
+        #     screen_type="message",
+        #     context={
+        #         "title": "RFID Scan - Pikansjos",
+        #         "icon_name": "contactless",
+        #         "message": "Reading card...",
+        #         "theme": "message_info"
+        #     },
+        #     duration=5.0
+        # )
+        # event_bus.emit(event)
+
+        
         # Use injected album_db instead of direct import
         entry = self.album_db.get_album_entry_by_rfid(rfid)
         if not entry:
-             # album does not exist and should be created
-
+            # Album does not exist and should be created
             logger.info(f"Nothing found in database {rfid}")
-            context = {
-                "title": f"New RFID detected.",
-                "icon_name": "add_circle",
-                "message": f"Creating new entry in the system",
-                "background": "#00EAFF",
-            }
-            from app.ui.screens import MessageScreen
-            MessageScreen.show(context)
             
-            # Use injected album_db instead of direct import
+            
+
+            
+            # Create album entry in background
             response = self.album_db.create_album_entry(rfid)
             if response:
                 logger.info(f"Successfully created Album entry for RFID {rfid}")
                 return True
             return False
         
-        # the database has an entry for the rfid but is has not been associated with an audio playlist
+        # The database has an entry for the rfid but it has not been associated with an audio playlist
         if not entry.audioPlaylistId:
             logger.info(f"RFID {rfid} has no associated Audio Playlist ID, prompting for new RFID handling.")
-            context = {
-                "title": f"New RFID detected.",
-                "icon_name": "library_music",
-                "message": [f"Please assign album in web interface", f"RFID: {rfid}"],
-                "theme": "message_info"
-            }
-            from app.ui.screens import MessageScreen
-            MessageScreen.show(context)
+            
+            # ...existing code...
             return False
         
-        # Bingo! the rfid exists and it is associated with an audio playlist
+        # Bingo! The rfid exists and it is associated with an audio playlist
         else:
-            # Delegate to the load_from_audioPlaylistId method
             return self.load_from_audioPlaylistId(entry.audioPlaylistId)
-

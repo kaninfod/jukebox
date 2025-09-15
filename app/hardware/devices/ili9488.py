@@ -7,7 +7,13 @@ from luma.core.framebuffer import diff_to_previous
 from PIL import Image, ImageDraw, ImageFont
 from luma.core.render import canvas
 from app.config import config
-import RPi.GPIO as GPIO
+import pigpio
+
+# Example: open GPIO chip and set pin mode
+# h = lgpio.gpiochip_open(0)  # Open first GPIO chip
+# lgpio.gpio_claim_input(h, pin_number, lgpio.SET_PULL_UP)
+# value = lgpio.gpio_read(h, pin_number)
+# lgpio.gpiochip_close(h)
 
 class ILI9488:
     def __init__(self):
@@ -71,10 +77,11 @@ class ILI9488:
         """Turn off the display using hardware power switching via S8550 transistor"""
         try:
             logger.info("Display: Attempting hardware power OFF...")
-            # Set GPIO as input (floating) to turn OFF display
-            # S8550 transistor: floating input = 3.6V (OFF), output LOW = 4.8V (ON)
-            GPIO.setup(config.DISPLAY_POWER_GPIO, GPIO.IN)
-            # Voltage measured: 3.6V (display OFF)
+            self.pi = pigpio.pi()
+            if not self.pi.connected:
+                raise RuntimeError("Could not connect to pigpio daemon")
+            self.pi.set_mode(config.DISPLAY_POWER_GPIO, pigpio.INPUT)
+            self.pi.set_pull_up_down(config.DISPLAY_POWER_GPIO, pigpio.PUD_UP)
             logger.info("Display: Hardware power OFF (S8550 transistor)")
         except Exception as e:
             logger.error(f"Display: Hardware power OFF failed: {e}")
@@ -83,14 +90,17 @@ class ILI9488:
         """Turn on the display using hardware power switching via S8550 transistor"""
         try:
             logger.info("Display: Attempting hardware power ON...")
-            # Set GPIO as output LOW to turn ON display
-            # S8550 transistor: floating input = 3.6V (OFF), output LOW = 4.8V (ON)  
-            GPIO.setup(config.DISPLAY_POWER_GPIO, GPIO.OUT)
-            GPIO.output(config.DISPLAY_POWER_GPIO, GPIO.LOW)
-            # Voltage measured: 4.8V (display ON)
+            self.pi = pigpio.pi()
+            if not self.pi.connected:
+                raise RuntimeError("Could not connect to pigpio daemon")
+            self.pi.set_mode(config.DISPLAY_POWER_GPIO, pigpio.OUTPUT)
+            self.pi.write(config.DISPLAY_POWER_GPIO, 0)  # LOW
             logger.info("Display: Hardware power ON (S8550 transistor)")
         except Exception as e:
             logger.error(f"Display: Hardware power ON failed: {e}")
+    def cleanup(self):
+        if hasattr(self, 'pi'):
+            self.pi.stop()
 
     # def display_image(self, text: str):
     #     with canvas(self.device) as draw:

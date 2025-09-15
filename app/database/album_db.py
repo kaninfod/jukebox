@@ -15,7 +15,18 @@ class AlbumDatabase:
         """Initialize database with injected config"""
         self.config = config
         self.database_url = config.get_database_url()
-        self.engine = create_engine(self.database_url)
+        
+        # SQLite-specific configuration
+        if self.database_url.startswith('sqlite'):
+            # Enable foreign key support and other SQLite optimizations
+            self.engine = create_engine(
+                self.database_url,
+                connect_args={"check_same_thread": False},  # Allow multiple threads
+                echo=False  # Set to True for SQL debugging
+            )
+        else:
+            self.engine = create_engine(self.database_url)
+            
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
         
     def get_session(self):

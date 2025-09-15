@@ -35,83 +35,95 @@ class EventType(Enum):
     MENU_ACTION = "menu_action"
     # Chromecast events
     CHROMECAST_DEVICE_CHANGED = "chromecast_device_changed"
+    SHOW_SCREEN_QUEUED = "show_screen_queued"
 
 class EventFactory:
     @staticmethod
-    def track_changed(payload):
+    def show_screen_queued(screen_type, context, duration=3.0):
+        """Create a queued screen event"""
         return Event(
-            type=EventType.TRACK_CHANGED.value,
-            payload=payload
-        )
-
-    @staticmethod
-    def volume_changed(payload):
-        return Event(
-            type=EventType.VOLUME_CHANGED.value,
-            payload=payload
-        )
-
-    @staticmethod
-    def status_changed(payload):
-        return Event(
-            type=EventType.STATUS_CHANGED.value,
-            payload=payload
-        )
-
-    @staticmethod
-    def clear_error(button=None):
-        return Event(
-            type=EventType.CLEAR_ERROR.value,
-            payload={"button": button} if button else {},
-        )
-
-    @staticmethod
-    def button_pressed(button, action):
-        return Event(
-            type=EventType.BUTTON_PRESSED.value,
-            payload={"button": button, "action": action},
-        )
-
-    @staticmethod
-    def rotary_encoder(direction, action):
-        return Event(
-            type=EventType.ROTARY_ENCODER.value,
-            payload={"direction": direction, "action": action},
-        )
-
-    @staticmethod
-    def ha_state_changed(old_status, state):
-        return Event(
-            type=EventType.HA_STATE_CHANGED.value,
-            payload={"from": old_status, "to": state},
-        )
-
-    @staticmethod
-    def rfid_read(rfid):
-        return Event(
-            type=EventType.RFID_READ.value,
-            payload={"rfid": rfid},
-        )
-
-    @staticmethod
-    def play_album(album_id, album_name=None):
-        return Event(
-            type=EventType.PLAY_ALBUM.value,
+            type=EventType.SHOW_SCREEN_QUEUED,
             payload={
-                "audioPlaylistId": album_id,
-                "album_name": album_name
+                "screen_type": screen_type,
+                "context": context,
+                "duration": duration
             }
         )
+    # @staticmethod
+    # def track_changed(payload):
+    #     return Event(
+    #         type=EventType.TRACK_CHANGED.value,
+    #         payload=payload
+    #     )
 
-    @staticmethod
-    def show_idle():
-        return Event(
-            type=EventType.SHOW_IDLE.value,
-        )
+    # @staticmethod
+    # def volume_changed(payload):
+    #     return Event(
+    #         type=EventType.VOLUME_CHANGED.value,
+    #         payload=payload
+    #     )
+
+    # @staticmethod
+    # def status_changed(payload):
+    #     return Event(
+    #         type=EventType.STATUS_CHANGED.value,
+    #         payload=payload
+    #     )
+
+    # @staticmethod
+    # def clear_error(button=None):
+    #     return Event(
+    #         type=EventType.CLEAR_ERROR.value,
+    #         payload={"button": button} if button else {},
+    #     )
+
+    # @staticmethod
+    # def button_pressed(button, action):
+    #     return Event(
+    #         type=EventType.BUTTON_PRESSED.value,
+    #         payload={"button": button, "action": action},
+    #     )
+
+    # @staticmethod
+    # def rotary_encoder(direction, action):
+    #     return Event(
+    #         type=EventType.ROTARY_ENCODER.value,
+    #         payload={"direction": direction, "action": action},
+    #     )
+
+    # @staticmethod
+    # def ha_state_changed(old_status, state):
+    #     return Event(
+    #         type=EventType.HA_STATE_CHANGED.value,
+    #         payload={"from": old_status, "to": state},
+    #     )
+
+    # @staticmethod
+    # def rfid_read(rfid):
+    #     return Event(
+    #         type=EventType.RFID_READ.value,
+    #         payload={"rfid": rfid},
+    #     )
+
+    # @staticmethod
+    # def play_album(album_id, album_name=None):
+    #     return Event(
+    #         type=EventType.PLAY_ALBUM.value,
+    #         payload={
+    #             "audioPlaylistId": album_id,
+    #             "album_name": album_name
+    #         }
+    #     )
+
+    # @staticmethod
+    # def show_idle():
+    #     return Event(
+    #         type=EventType.SHOW_IDLE.value,
+    #     )
     
-    @staticmethod
-    def show_home(payload):
-        return Event(
-            type=EventType.SHOW_HOME.value,
-            payload=payload
-        )
+    # @staticmethod
+    # def show_home(payload):
+    #     return Event(
+    #         type=EventType.SHOW_HOME.value,
+    #         payload=payload
+    #     )

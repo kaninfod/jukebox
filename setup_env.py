@@ -22,7 +22,6 @@ def check_env_file():
     
     # Check for required variables
     required_vars = [
-        "DB_PASSWORD",
         "SUBSONIC_USER",
         "SUBSONIC_PASS"
     ]

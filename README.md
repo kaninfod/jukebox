@@ -136,8 +136,7 @@ SUBSONIC_USER=your_username
 SUBSONIC_PASS=your_password
 
 # Database Configuration  
-DB_HOST=your_database_host
-DB_PASSWORD=your_database_password
+# SQLite database is used automatically - no additional configuration needed
 
 # Network Configuration
 LOG_SERVER_HOST=your_syslog_server

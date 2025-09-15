@@ -1,3 +1,4 @@
+
 """
 System control routes for the jukebox.
 Provides shutdown and reboot functionality.
@@ -112,3 +113,13 @@ async def system_status() -> Dict[str, str]:
             "status": "error", 
             "message": f"Failed to get system status: {str(e)}"
         }
+
+from fastapi import Response
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+
+@router.get("/metrics")
+async def metrics_endpoint():
+    """
+    Expose Prometheus metrics for scraping.
+    """
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)

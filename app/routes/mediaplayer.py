@@ -139,7 +139,7 @@ def playbackmanager_load_audioPlaylistId(audioPlaylistId: str = Body(..., embed=
     
     try:
         from app.main import playback_manager
-        result = playback_manager.load_from_audioPlaylistId(audioPlaylistId, provider)
+        result = playback_manager.load_from_audioPlaylistId(audioPlaylistId)
         
         if result:
             return {

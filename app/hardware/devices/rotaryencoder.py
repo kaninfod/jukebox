@@ -1,4 +1,4 @@
-import RPi.GPIO as GPIO
+import pigpio
 import threading
 import time
 import logging
@@ -12,126 +12,125 @@ class RotaryEncoder:
         self.callback = callback
         self.position = 0
         
-        # Enhanced debouncing for KY-040
+        # Detent-based counting for KY-040 (only count complete clicks)
         self._lock = threading.Lock()
-        self._last_encoded = 0
-        self._encoder_value = 0
         self._last_time = 0
-        self._min_interval = 0.01  # 10ms minimum interval between reads
-        self._stable_reads = 3  # Number of consecutive stable reads required
-        self._read_buffer = []
+        self._min_interval = 0.002  # 2ms minimum interval
         
-        # State tracking for proper quadrature decoding
-        self._last_a = 0
-        self._last_b = 0
-        
-        # Only disable warnings, don't cleanup all GPIO
-        GPIO.setwarnings(False)
+        # State tracking for detent detection with hysteresis
+        self._last_encoded = 0
+        self._detent_state = 0b11  # KY-040 rests at 11 (both high)
+        self._sequence_history = []  # Track state sequence for hysteresis
+        self._confirmed_direction = 0  # Only count when we have a confirmed direction
         
         try:
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setup(self.pin_a, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            GPIO.setup(self.pin_b, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            
-            # Get initial state
-            self._last_a = GPIO.input(self.pin_a)
-            self._last_b = GPIO.input(self.pin_b)
-            self._last_encoded = (self._last_a << 1) | self._last_b
-            
-            # Use shorter bouncetime and handle debouncing in software
-            GPIO.add_event_detect(self.pin_a, GPIO.BOTH, callback=self._update, bouncetime=bouncetime)
-            GPIO.add_event_detect(self.pin_b, GPIO.BOTH, callback=self._update, bouncetime=bouncetime)
-            
+            self.pi = pigpio.pi()
+            if not self.pi.connected:
+                raise RuntimeError("Could not connect to pigpio daemon")
+            self.pi.set_mode(self.pin_a, pigpio.INPUT)
+            self.pi.set_pull_up_down(self.pin_a, pigpio.PUD_UP)
+            self.pi.set_mode(self.pin_b, pigpio.INPUT)
+            self.pi.set_pull_up_down(self.pin_b, pigpio.PUD_UP)
+            # Get initial state - KY-040 should rest at 11
+            a = self.pi.read(self.pin_a)
+            b = self.pi.read(self.pin_b)
+            self._last_encoded = (a << 1) | b
+            # Register callbacks for both pins
+            self.cb_a = self.pi.callback(self.pin_a, pigpio.EITHER_EDGE, self._update)
+            self.cb_b = self.pi.callback(self.pin_b, pigpio.EITHER_EDGE, self._update)
             self.initialized = True
-            logger.info(f"RotaryEncoder initialized on pins {pin_a}/{pin_b} with enhanced KY-040 debouncing")
-            
-        except RuntimeError as e:
+            logger.info(f"RotaryEncoder initialized on pins {self.pin_a}/{self.pin_b} for KY-040 detent counting")
+        except Exception as e:
             logger.error(f"Failed to initialize rotary encoder: {e}")
             logger.warning("Attempting to continue without rotary encoder functionality...")
             self.initialized = False
 
-    def _update(self, channel):
+    def _update(self, gpio, level, tick):
         if not self.initialized:
             return
-            
         current_time = time.time()
-        
-        # Minimum time interval check
+        # Time-based debouncing
         if current_time - self._last_time < self._min_interval:
             return
-            
         with self._lock:
             try:
                 # Read current state
-                a = GPIO.input(self.pin_a)
-                b = GPIO.input(self.pin_b)
-                
-                # Add to buffer for stability checking
-                current_reading = (a << 1) | b
-                self._read_buffer.append(current_reading)
-                
-                # Keep buffer size manageable
-                if len(self._read_buffer) > self._stable_reads:
-                    self._read_buffer.pop(0)
-                
-                # Check if we have enough stable readings
-                if len(self._read_buffer) < self._stable_reads:
-                    return
-                    
-                # Check if all readings in buffer are the same (stable)
-                if not all(reading == self._read_buffer[0] for reading in self._read_buffer):
-                    return
-                
-                # We have stable readings, process the change
-                encoded = current_reading
-                
+                a = self.pi.read(self.pin_a)
+                b = self.pi.read(self.pin_b)
+                encoded = (a << 1) | b
+                # Only process if state changed
                 if encoded != self._last_encoded:
-                    # Gray code / quadrature decoding for KY-040
-                    direction = self._decode_rotation(encoded, self._last_encoded)
-                    
-                    if direction != 0:
-                        self.position += direction
-                        self._last_time = current_time
-                        
-                        if self.callback:
-                            self.callback(direction, self.position)
-                            
-                        logger.debug(f"Encoder: direction={direction}, position={self.position}")
-                
+                    # Add to sequence history for hysteresis
+                    self._sequence_history.append(encoded)
+                    # Keep only recent history (last 4 states)
+                    if len(self._sequence_history) > 4:
+                        self._sequence_history.pop(0)
+                    # Check for complete detent sequence with hysteresis
+                    if encoded == self._detent_state and self._last_encoded != self._detent_state:
+                        # We've returned to detent position - validate we had a complete sequence
+                        direction = self._is_valid_detent_sequence()
+                        if direction != 0:
+                            self.position += direction
+                            self._last_time = current_time
+                            if self.callback:
+                                self.callback(direction, self.position)
+                            logger.debug(f"Confirmed detent: direction={direction}, position={self.position}, sequence={self._sequence_history}")
+                        # Clear history after detent detection
+                        self._sequence_history = [encoded]
                 self._last_encoded = encoded
-                
             except Exception as e:
                 logger.error(f"Error reading rotary encoder: {e}")
 
-    def _decode_rotation(self, encoded, last_encoded):
+    def _is_valid_detent_sequence(self):
         """
-        Decode KY-040 quadrature signals using gray code sequence.
-        Returns: 1 for clockwise, -1 for counter-clockwise, 0 for no movement
-        """
-        # KY-040 Gray code sequence (clockwise): 00 -> 01 -> 11 -> 10 -> 00
-        transition_table = {
-            (0b00, 0b01): 1,   # 00 -> 01 = CW
-            (0b01, 0b11): 1,   # 01 -> 11 = CW  
-            (0b11, 0b10): 1,   # 11 -> 10 = CW
-            (0b10, 0b00): 1,   # 10 -> 00 = CW
-            
-            (0b01, 0b00): -1,  # 01 -> 00 = CCW
-            (0b11, 0b01): -1,  # 11 -> 01 = CCW
-            (0b10, 0b11): -1,  # 10 -> 11 = CCW
-            (0b00, 0b10): -1,  # 00 -> 10 = CCW
-        }
+        Validate that we have a complete encoder sequence with strict requirements.
+        Requires complete 4-5 state sequences to prevent partial movement detection.
         
-        transition = (last_encoded, encoded)
-        return transition_table.get(transition, 0)
+        Valid KY-040 complete sequences only:
+        Clockwise: 11 -> 01 -> 00 -> 10 -> 11 (full sequence)
+        Counter-clockwise: 11 -> 10 -> 00 -> 01 -> 11 (full sequence)
+        
+        Partial sequences like [3,1,3] or [3,2,3] are rejected as incomplete movements.
+        """
+        if len(self._sequence_history) < 4:
+            logger.debug(f"Sequence too short for validation (need >=4): {self._sequence_history}")
+            return 0
+            
+        # Look for complete 4-5 state patterns only
+        sequence = self._sequence_history[-5:] if len(self._sequence_history) >= 5 else self._sequence_history[-4:]
+        
+        # Complete clockwise sequences (4-5 states)
+        if len(sequence) >= 4:
+            # Full clockwise: 11 -> 01 -> 00 -> 10 -> 11 or 01 -> 00 -> 10 -> 11
+            if (sequence == [0b11, 0b01, 0b00, 0b10] or 
+                sequence == [0b01, 0b00, 0b10, 0b11] or
+                (len(sequence) >= 5 and sequence[-5:] == [0b11, 0b01, 0b00, 0b10, 0b11])):
+                logger.debug(f"Complete clockwise sequence detected: {sequence}")
+                return -1
+                
+        # Complete counter-clockwise sequences (4-5 states)  
+        if len(sequence) >= 4:
+            # Full counter-clockwise: 11 -> 10 -> 00 -> 01 -> 11 or 10 -> 00 -> 01 -> 11
+            if (sequence == [0b11, 0b10, 0b00, 0b01] or 
+                sequence == [0b10, 0b00, 0b01, 0b11] or
+                (len(sequence) >= 5 and sequence[-5:] == [0b11, 0b10, 0b00, 0b01, 0b11])):
+                logger.debug(f"Complete counter-clockwise sequence detected: {sequence}")
+                return 1
+        
+        # Reject all partial sequences (including [3,1,3] and [3,2,3] patterns)
+        logger.debug(f"Incomplete/partial sequence rejected: {sequence}")
+        return 0
 
     def get_position(self):
         return self.position
 
     def cleanup(self):
         try:
-            # Check if GPIO is still in a valid state
-            if GPIO.getmode() is not None:
-                GPIO.remove_event_detect(self.pin_a)
-                GPIO.remove_event_detect(self.pin_b)
+            if hasattr(self, 'cb_a'):
+                self.cb_a.cancel()
+            if hasattr(self, 'cb_b'):
+                self.cb_b.cancel()
+            if hasattr(self, 'pi'):
+                self.pi.stop()
         except Exception as e:
             logger.error(f"Encoder cleanup error: {e}")

@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse
 import os
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from typing import List
-from app.schemas.album import AlbumEntry, AlbumEntryUpdate
+from app.database.album_schema import AlbumEntry, AlbumEntryUpdate
 from app.database.album_db import (
     create_album_entry,
     list_album_entries,
@@ -23,14 +23,34 @@ router = APIRouter()
 @router.get("/albums", response_model=List[AlbumEntry])
 def list_album_entries_route():
     entries = list_album_entries()
-    return [AlbumEntry.model_validate(e) for e in entries]
+    # Convert SQLAlchemy models to dicts for Pydantic
+    return [AlbumEntry.parse_obj({
+        'rfid': e.rfid,
+        'provider': e.provider,
+        'album_name': e.album_name,
+        'artist_name': e.artist_name,
+        'year': e.year,
+        'audioPlaylistId': e.audioPlaylistId,
+        'thumbnail': e.thumbnail,
+        'tracks': e.tracks
+    }) for e in entries]
 
 @router.get("/albums/{rfid}", response_model=AlbumEntry)
 def get_album_entry(rfid: str):
     entry = get_album_entry_by_rfid(rfid)
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
-    return AlbumEntry.model_validate(entry)
+    # Convert SQLAlchemy model to dict for Pydantic
+    return AlbumEntry.parse_obj({
+        'rfid': entry.rfid,
+        'provider': entry.provider,
+        'album_name': entry.album_name,
+        'artist_name': entry.artist_name,
+        'year': entry.year,
+        'audioPlaylistId': entry.audioPlaylistId,
+        'thumbnail': entry.thumbnail,
+        'tracks': entry.tracks
+    })
 
 @router.post("/albums/{rfid}")
 def create_album_entry_route(rfid: str):
@@ -44,7 +64,17 @@ def update_album_entry_route(rfid: str, audioPlaylistId: str):
         db_entry = service.add_or_update_album_entry(rfid, audioPlaylistId)
         if not db_entry:
             raise HTTPException(status_code=404, detail="Entry not found or failed to update")
-        return AlbumEntry.model_validate(db_entry)
+        # Convert SQLAlchemy model to dict for Pydantic
+        return AlbumEntry.parse_obj({
+            'rfid': db_entry.rfid,
+            'provider': db_entry.provider,
+            'album_name': db_entry.album_name,
+            'artist_name': db_entry.artist_name,
+            'year': db_entry.year,
+            'audioPlaylistId': db_entry.audioPlaylistId,
+            'thumbnail': db_entry.thumbnail,
+            'tracks': db_entry.tracks
+        })
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to get album info: {str(e)}")
 

@@ -41,8 +41,7 @@ sudo apt install -y \
     libjpeg-dev \
     libopenjp2-7
 
-# Database dependencies (optional for MariaDB)
-sudo apt install -y mariadb-client libmariadb-dev || echo "⚠️ MariaDB packages not available, skipping..."
+# SQLite is built into Python - no additional database packages needed
 
 # Image processing dependencies with fallback
 if ! sudo apt install -y libtiff6; then
