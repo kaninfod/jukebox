@@ -21,8 +21,15 @@ echo "📦 Updating system packages..."
 sudo apt update
 sudo apt upgrade -y
 
-# Install system dependencies
+
+# Refer to WORKING_GPIO_ENVIRONMENT.txt for GPIO setup details
 echo "📦 Installing system dependencies..."
+
+# Remove python3-rpi.gpio if present (must NOT be installed)
+if dpkg -l | grep -q python3-rpi.gpio; then
+    echo "❌ Removing python3-rpi.gpio to avoid conflicts with rpi-lgpio..."
+    sudo apt remove -y python3-rpi.gpio
+fi
 
 # Core dependencies that should always be available
 sudo apt install -y \
@@ -33,7 +40,6 @@ sudo apt install -y \
     python3-dotenv \
     git \
     build-essential \
-    python3-rpi.gpio \
     python3-spidev \
     i2c-tools \
     python3-smbus \
