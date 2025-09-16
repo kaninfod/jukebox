@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class ScreenManager:
 
     """Manages different screens and screen switching"""
-    def __init__(self, display, event_bus):
+    def __init__(self, display, event_bus, media_player=None):
         """
         Initialize ScreenManager with dependency injection.
         
@@ -22,7 +22,7 @@ class ScreenManager:
         """
         self.display = display
         self.event_bus = event_bus
-        
+        self.media_player = media_player
         # Initialize UI components
         self.screens = {}
         self.current_screen = None
@@ -81,6 +81,11 @@ class ScreenManager:
         self.event_bus.subscribe(EventType.STATUS_CHANGED, self._handle_player_changes)
         self.event_bus.subscribe(EventType.SHOW_SCREEN_QUEUED, self._handle_queued_screen)
 
+    def is_music_playing(self):
+        if not self.media_player:
+            return False
+        from app.services.jukebox_mediaplayer import PlayerStatus
+        return getattr(self.media_player, "status", None) == PlayerStatus.PLAY
 
     @track_event_handler("SHOW_SCREEN_QUEUED")
     def _handle_queued_screen(self, event):

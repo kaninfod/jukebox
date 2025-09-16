@@ -1,4 +1,4 @@
-import pigpio
+import RPi.GPIO as GPIO
 import threading
 import time
 import logging
@@ -24,28 +24,24 @@ class RotaryEncoder:
         self._confirmed_direction = 0  # Only count when we have a confirmed direction
         
         try:
-            self.pi = pigpio.pi()
-            if not self.pi.connected:
-                raise RuntimeError("Could not connect to pigpio daemon")
-            self.pi.set_mode(self.pin_a, pigpio.INPUT)
-            self.pi.set_pull_up_down(self.pin_a, pigpio.PUD_UP)
-            self.pi.set_mode(self.pin_b, pigpio.INPUT)
-            self.pi.set_pull_up_down(self.pin_b, pigpio.PUD_UP)
-            # Get initial state - KY-040 should rest at 11
-            a = self.pi.read(self.pin_a)
-            b = self.pi.read(self.pin_b)
+            GPIO.setwarnings(False)
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(self.pin_a, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            GPIO.setup(self.pin_b, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            a = GPIO.input(self.pin_a)
+            b = GPIO.input(self.pin_b)
             self._last_encoded = (a << 1) | b
             # Register callbacks for both pins
-            self.cb_a = self.pi.callback(self.pin_a, pigpio.EITHER_EDGE, self._update)
-            self.cb_b = self.pi.callback(self.pin_b, pigpio.EITHER_EDGE, self._update)
+            GPIO.add_event_detect(self.pin_a, GPIO.BOTH, callback=self._update, bouncetime=5)
+            GPIO.add_event_detect(self.pin_b, GPIO.BOTH, callback=self._update, bouncetime=5)
             self.initialized = True
-            logger.info(f"RotaryEncoder initialized on pins {self.pin_a}/{self.pin_b} for KY-040 detent counting")
+            logger.info(f"RotaryEncoder initialized on pins {self.pin_a}/{self.pin_b} for KY-040 detent counting (RPi.GPIO)")
         except Exception as e:
             logger.error(f"Failed to initialize rotary encoder: {e}")
             logger.warning("Attempting to continue without rotary encoder functionality...")
             self.initialized = False
 
-    def _update(self, gpio, level, tick):
+    def _update(self, channel):
         if not self.initialized:
             return
         current_time = time.time()
@@ -55,8 +51,8 @@ class RotaryEncoder:
         with self._lock:
             try:
                 # Read current state
-                a = self.pi.read(self.pin_a)
-                b = self.pi.read(self.pin_b)
+                a = GPIO.input(self.pin_a)
+                b = GPIO.input(self.pin_b)
                 encoded = (a << 1) | b
                 # Only process if state changed
                 if encoded != self._last_encoded:
@@ -126,11 +122,7 @@ class RotaryEncoder:
 
     def cleanup(self):
         try:
-            if hasattr(self, 'cb_a'):
-                self.cb_a.cancel()
-            if hasattr(self, 'cb_b'):
-                self.cb_b.cancel()
-            if hasattr(self, 'pi'):
-                self.pi.stop()
+            GPIO.cleanup(self.pin_a)
+            GPIO.cleanup(self.pin_b)
         except Exception as e:
             logger.error(f"Encoder cleanup error: {e}")

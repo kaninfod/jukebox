@@ -3,7 +3,7 @@
 Hardware management module for the jukebox.
 Handles initialization and callbacks for all hardware devices.
 """
-import pigpio
+import RPi.GPIO as GPIO
 
 from .devices.ili9488 import ILI9488
 from .devices.rfid import RC522Reader
@@ -62,21 +62,24 @@ class HardwareManager:
                 on_new_uid=self._handle_new_uid
             )
 
-            # Set up switch pin for RFID using pigpio
+            # Set up switch pin for RFID using RPi.GPIO for edge detection
+            import RPi.GPIO as GPIO
             self.rfid_switch_pin = self.config.NFC_CARD_SWITCH_GPIO
-            self.pi = pigpio.pi()
-            if not self.pi.connected:
-                raise RuntimeError("Could not connect to pigpio daemon")
-            self.pi.set_mode(self.rfid_switch_pin, pigpio.INPUT)
-            self.pi.set_pull_up_down(self.rfid_switch_pin, pigpio.PUD_UP)
-            self.rfid_cb = self.pi.callback(self.rfid_switch_pin, pigpio.FALLING_EDGE, self._on_rfid_switch_activated)
-            logger.info(f"RFID switch monitoring started on GPIO {self.rfid_switch_pin}")
+            GPIO.setwarnings(False)
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(self.rfid_switch_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            GPIO.add_event_detect(
+                self.rfid_switch_pin,
+                GPIO.FALLING,
+                callback=self._on_rfid_switch_activated,
+                bouncetime=200
+            )
 
-            # Initialize rotary encoder with callback using injected config
+            # Initialize rotary encoder with callback using injected config (using lgpio)
             self.encoder = RotaryEncoder(
-                pin_a=self.config.ROTARY_ENCODER_PIN_A, 
-                pin_b=self.config.ROTARY_ENCODER_PIN_B, 
-                callback=self._on_rotate, 
+                pin_a=self.config.ROTARY_ENCODER_PIN_A,
+                pin_b=self.config.ROTARY_ENCODER_PIN_B,
+                callback=self._on_rotate,
                 bouncetime=self.config.ENCODER_BOUNCETIME
             )
 
@@ -96,11 +99,11 @@ class HardwareManager:
             from .devices.mock_display import MockDisplay
             return MockDisplay()
 
-    def _on_rfid_switch_activated(self, gpio, level, tick):
-        """Handle switch activation (card inserted) for RFID. Only trigger on actual FALLING edge (LOW)."""
-        logger.info(f"RFID switch callback fired: gpio={gpio}, level={level}, tick={tick}, initialized={getattr(self.rfid_reader, 'initialized', None)}, reading_active={getattr(self.rfid_reader, 'reading_active', None)}")
+    def _on_rfid_switch_activated(self, channel):
+        """Handle switch activation (card inserted) for RFID. Triggered by RPi.GPIO event detection."""
+        logger.info(f"RFID switch callback fired: channel={channel}, initialized={getattr(self.rfid_reader, 'initialized', None)}, reading_active={getattr(self.rfid_reader, 'reading_active', None)}")
         # Only proceed if the pin is actually LOW (FALLING edge)
-        if not self.rfid_reader or not self.rfid_reader.initialized or self.rfid_reader.reading_active or level != 0:
+        if not self.rfid_reader or not self.rfid_reader.initialized or self.rfid_reader.reading_active or GPIO.input(channel) != 0:
             logger.debug("RFID switch callback blocked by state check.")
             return
 
@@ -302,17 +305,8 @@ class HardwareManager:
             except Exception as e:
                 logger.error(f"RFID cleanup error: {e}")
         # Remove RFID switch event detection
-        if hasattr(self, 'rfid_cb'):
-            try:
-                self.rfid_cb.cancel()
-                logger.info(f"RFID switch pigpio callback cancelled for GPIO {self.rfid_switch_pin}")
-            except Exception as e:
-                logger.error(f"Error cancelling RFID switch pigpio callback: {e}")
-        if hasattr(self, 'pi'):
-            try:
-                self.pi.stop()
-            except Exception as e:
-                logger.error(f"Error stopping pigpio instance: {e}")
+        # RFID switch cleanup handled in rfid module (rpi.gpio)
+        # No lgpio cleanup needed for RFID switch
                 
         if self.encoder:
             try:

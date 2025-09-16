@@ -31,7 +31,7 @@ class RC522Reader:
         try:
             GPIO.setwarnings(False)
             GPIO.setmode(GPIO.BCM)
-            GPIO.setup(self.cs_pin, GPIO.OUT)
+            #GPIO.setup(self.cs_pin, GPIO.OUT)
             self.rdr = RFID(bus=0, device=1, pin_mode=GPIO.BCM)
             self.initialized = True
             logger.info("RFID reader initialized successfully")

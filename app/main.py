@@ -105,11 +105,7 @@ def startup_event():
     # Step 3: Initialize display hardware
     display = hardware_manager.initialize_hardware()
 
-    # Step 4: Initialize screen manager with dependency injection
-    screen_manager = ScreenManager(
-        display=display,
-        event_bus=event_bus
-    )
+
 
     # Step 5: Initialize JukeboxMediaPlayer with dependency injection
     from app.services.jukebox_mediaplayer import JukeboxMediaPlayer
@@ -120,6 +116,13 @@ def startup_event():
             chromecast_service=chromecast_service
         )
     
+    # Step 4: Initialize screen manager with dependency injection
+    screen_manager = ScreenManager(
+        display=display,
+        event_bus=event_bus, 
+        media_player=jukebox_mediaplayer
+    )
+
     # Step 5.5: Initialize ChromecastDeviceManager for device switching
     from app.services.chromecast_device_manager import ChromecastDeviceManager
     chromecast_device_manager = ChromecastDeviceManager(

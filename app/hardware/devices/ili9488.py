@@ -7,7 +7,7 @@ from luma.core.framebuffer import diff_to_previous
 from PIL import Image, ImageDraw, ImageFont
 from luma.core.render import canvas
 from app.config import config
-import pigpio
+import lgpio
 
 # Example: open GPIO chip and set pin mode
 # h = lgpio.gpiochip_open(0)  # Open first GPIO chip
@@ -77,11 +77,8 @@ class ILI9488:
         """Turn off the display using hardware power switching via S8550 transistor"""
         try:
             logger.info("Display: Attempting hardware power OFF...")
-            self.pi = pigpio.pi()
-            if not self.pi.connected:
-                raise RuntimeError("Could not connect to pigpio daemon")
-            self.pi.set_mode(config.DISPLAY_POWER_GPIO, pigpio.INPUT)
-            self.pi.set_pull_up_down(config.DISPLAY_POWER_GPIO, pigpio.PUD_UP)
+            self.gpio_handle = lgpio.gpiochip_open(0)
+            lgpio.gpio_claim_input(self.gpio_handle, config.DISPLAY_POWER_GPIO)
             logger.info("Display: Hardware power OFF (S8550 transistor)")
         except Exception as e:
             logger.error(f"Display: Hardware power OFF failed: {e}")
@@ -90,17 +87,15 @@ class ILI9488:
         """Turn on the display using hardware power switching via S8550 transistor"""
         try:
             logger.info("Display: Attempting hardware power ON...")
-            self.pi = pigpio.pi()
-            if not self.pi.connected:
-                raise RuntimeError("Could not connect to pigpio daemon")
-            self.pi.set_mode(config.DISPLAY_POWER_GPIO, pigpio.OUTPUT)
-            self.pi.write(config.DISPLAY_POWER_GPIO, 0)  # LOW
+            self.gpio_handle = lgpio.gpiochip_open(0)
+            lgpio.gpio_claim_output(self.gpio_handle, config.DISPLAY_POWER_GPIO)
+            lgpio.gpio_write(self.gpio_handle, config.DISPLAY_POWER_GPIO, 0)  # LOW
             logger.info("Display: Hardware power ON (S8550 transistor)")
         except Exception as e:
             logger.error(f"Display: Hardware power ON failed: {e}")
     def cleanup(self):
-        if hasattr(self, 'pi'):
-            self.pi.stop()
+        if hasattr(self, 'gpio_handle'):
+            lgpio.gpiochip_close(self.gpio_handle)
 
     # def display_image(self, text: str):
     #     with canvas(self.device) as draw:
