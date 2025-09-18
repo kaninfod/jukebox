@@ -1,10 +1,5 @@
 from app.services.playback_manager import PlaybackManager
 from fastapi import APIRouter, Body, Query
-#from app.ui.screens import PlayerStatus
-#import subprocess
-#from typing import Dict, List, Union, Any
-
-
 
 
 router = APIRouter()
@@ -132,31 +127,31 @@ def playbackmanager_load_rfid(rfid: str = Body(..., embed=True)):
         return {"status": "error", "message": "Failed to load RFID in PlaybackManager"}
 
 
-# Endpoint to trigger load_from_audioPlaylistId in PlaybackManager
-@router.post("/mediaplayer/playback_audioPlaylistId")
-def playbackmanager_load_audioPlaylistId(audioPlaylistId: str = Body(..., embed=True), provider: str = Body("subsonic", embed=True)):
-    """Trigger load_from_audioPlaylistId in PlaybackManager with the given audioPlaylistId."""
-    
+# Endpoint to trigger load_from_album_id in PlaybackManager
+@router.post("/mediaplayer/playback_album_id")
+def playbackmanager_load_album_id(album_id: str = Body(..., embed=True), provider: str = Body("subsonic", embed=True)):
+    """Trigger load_from_album_id in PlaybackManager with the given album_id."""
+
     try:
         from app.main import playback_manager
-        result = playback_manager.load_from_audioPlaylistId(audioPlaylistId)
+        result = playback_manager.load_from_album_id(album_id)
         
         if result:
             return {
-                "status": "success", 
-                "message": f"Successfully loaded audioPlaylistId: {audioPlaylistId}",
-                "audioPlaylistId": audioPlaylistId,
+                "status": "success",
+                "message": f"Successfully loaded album_id: {album_id}",
+                "album_id": album_id,
                 "provider": provider
             }
         else:
             return {
                 "status": "error", 
-                "message": f"Failed to load audioPlaylistId: {audioPlaylistId}"
+                "message": f"Failed to load album_id: {album_id}"
             }
     except Exception as e:
         return {
             "status": "error", 
-            "message": f"Exception while loading audioPlaylistId {audioPlaylistId}: {str(e)}"
+            "message": f"Exception while loading album_id {album_id}: {str(e)}"
         }
 
 

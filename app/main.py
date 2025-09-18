@@ -86,12 +86,12 @@ def startup_event():
     
     # Step 1: Create core dependencies
     from app.core.event_bus import event_bus
-    from app.database.album_db import AlbumDatabase
+    from app.database.album_db import AlbumDB
     from app.services.subsonic_service import SubsonicService
     from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand
-    
+
     # Initialize database and services with config injection
-    album_db = AlbumDatabase(config)
+    album_db = AlbumDB(config)
     subsonic_service = SubsonicService(config)
     chromecast_service = PyChromecastServiceOnDemand(config.DEFAULT_CHROMECAST_DEVICE)
     

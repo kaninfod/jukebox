@@ -32,7 +32,6 @@ class PlaybackManager:
         self.event_bus.subscribe(EventType.RFID_READ, self.load_rfid)
         self.event_bus.subscribe(EventType.BUTTON_PRESSED, self._handle_button_pressed_event)
         self.event_bus.subscribe(EventType.ROTARY_ENCODER, self._handle_rotary_encoder_event)
-        
         self.event_bus.subscribe(EventType.NEXT_TRACK, self.player.next_track)
         self.event_bus.subscribe(EventType.TRACK_FINISHED, self.player.next_track)
         self.event_bus.subscribe(EventType.PREVIOUS_TRACK, self.player.previous_track)
@@ -82,12 +81,12 @@ class PlaybackManager:
 
     def _handle_play_album_event(self, event):
         """Handle PLAY_ALBUM event from menu system."""
-        audioPlaylistId = event.payload.get('audioPlaylistId')
+        album_id = event.payload.get('album_id')
         album_name = event.payload.get('album_name', 'Unknown Album')
         
-        if audioPlaylistId:
-            logger.info(f"Playing album from menu: {album_name} (ID: {audioPlaylistId})")
-            success = self.load_from_audioPlaylistId(audioPlaylistId)
+        if album_id:
+            logger.info(f"Playing album from menu: {album_name} (ID: {album_id})")
+            success = self.load_from_album_id(album_id)
             if success:
                 logger.info(f"Successfully loaded and started playback for album: {album_name}")
             else:
@@ -99,123 +98,70 @@ class PlaybackManager:
         logger.info("PlaybackManager cleanup called")
 
 
-    def load_from_audioPlaylistId(self, audioPlaylistId: str) -> bool:
+    def load_from_album_id(self, album_id: str) -> bool:
         """
-        Load and start playback from an audioPlaylistId using Subsonic.
-        
+        Load and start playback from an album_id using SubsonicService only.
         Args:
-            audioPlaylistId: The audio playlist identifier
-            
+            album_id: The album identifier
         Returns:
             True if successful, False otherwise
         """
-        logger.info(f"Loading playlist for audioPlaylistId: {audioPlaylistId}")
-        
+        logger.info(f"Loading playlist for album_id: {album_id}")
         try:
-            # Get the album entry that has this audioPlaylistId using injected album_db
-            entry = self.album_db.get_album_data_by_audioPlaylistId(audioPlaylistId)
-            
-            if not entry:
-                logger.info(f"No album entry found for audioPlaylistId: {audioPlaylistId} in database")
-                
-                # Try to fetch from Subsonic and add to DB
-                logger.info(f"Attempting to fetch album {audioPlaylistId} from Subsonic")
-                
-                try:
-                    # Use injected subsonic_service instead of creating new instance
-                    album_data = self.subsonic_service.add_or_update_album_entry_from_audioPlaylistId(audioPlaylistId)
-                    
-                    if not album_data:
-                        logger.error(f"Album {audioPlaylistId} not found in Subsonic")
-                        return False
-                    
-                    logger.info(f"Found album in Subsonic: {album_data.get('album_name', 'Unknown Album')}")
-                    
-                    # Add album to database using injected album_db
-                    # Create a temporary album entry with a unique identifier
-                    import uuid
-                    temp_rfid = f"temp_{uuid.uuid4().hex[:8]}"
-                    
-                    # Create temporary entry using injected album_db
-                    create_result = self.album_db.create_album_entry(temp_rfid)
-                    if not create_result:
-                        logger.error(f"Failed to create temporary entry for album {audioPlaylistId}")
-                        return False
-                    
-                    # Update with album data using injected album_db
-                    db_entry = self.album_db.update_album_entry(temp_rfid, album_data)
-                    
-                    if not db_entry:
-                        logger.error(f"Failed to update database entry for Subsonic album {audioPlaylistId}")
-                        return False
-                    
-                    logger.info(f"Successfully added Subsonic album {audioPlaylistId} to database")
-                    
-                    # Now get the entry from database using injected album_db
-                    entry = self.album_db.get_album_data_by_audioPlaylistId(audioPlaylistId)
-                    
-                    if not entry:
-                        logger.error(f"Failed to retrieve newly created entry for {audioPlaylistId}")
-                        return False
-                        
-                except Exception as e:
-                    logger.error(f"Error fetching album {audioPlaylistId} from Subsonic: {e}")
-                    return False
-            logger.info(f"Found album entry: {entry}")
-            # Use DB data for playlist
-            tracks = entry['tracks']
-            # If tracks is a JSON string, parse it
-            if isinstance(tracks, str):
-                import json
-                try:
-                    tracks = json.loads(tracks)
-                except Exception as e:
-                    logger.error(f"Failed to parse tracks JSON for audioPlaylistId {audioPlaylistId}: {e}")
-                    return False
-            
-            if not tracks:
-                logger.error(f"No tracks found in DB for audioPlaylistId {audioPlaylistId}")
+            album_info = self.subsonic_service.get_album_info(album_id)
+            if not album_info:
+                logger.error(f"Album info not found in Subsonic for {album_id}")
                 return False
+            tracks = self.subsonic_service.get_album_tracks(album_id)
+            if not tracks:
+                logger.error(f"No tracks found in Subsonic for album_id {album_id}")
+                return False
+
+            # Hybrid cover caching: check for local cover, fetch if missing
+            import os
+            from app.config import config
+            cover_filename = f"{album_id}.png"
+            cover_path = os.path.join(config.STATIC_FILE_PATH, cover_filename)
+            if not os.path.exists(cover_path):
+                logger.info(f"Cover not found locally, fetching from Subsonic: {cover_filename}")
+                self.subsonic_service._fetch_and_cache_coverart(album_id)
+            else:
+                logger.info(f"Using cached album cover: {cover_filename}")
 
             playlist_metadata = []
             for track in tracks:
                 playlist_metadata.append({
                     'title': track.get('title'),
-                    'video_id': track.get('video_id'),
+                    'video_id': track.get('id'),
                     'stream_url': None,
-                    'duration': track.get('duration'),
-                    'track_number': track.get('track_number', track.get('trackNumber', track.get('track', 0))),
-                    'artist': entry.get('artist_name', ''),
-                    'album': entry.get('album_name', ''),
-                    'year': entry.get('year', ''),
-                    'album_cover_filename': entry.get('thumbnail', None),
+                    'duration': str(track.get('duration', 0)),
+                    'track_number': track.get('track', 0),
+                    'artist': album_info.get('artist', ''),
+                    'album': album_info.get('name', ''),
+                    'year': album_info.get('year', ''),
+                    'album_cover_filename': cover_filename,
                     'provider': 'subsonic'
                 })
-            
-            logger.info(f"Prepared playlist with {len(playlist_metadata)} tracks for audioPlaylistId {audioPlaylistId}")
-
-            # Load into player and start playback
+            logger.info(f"Prepared playlist with {len(playlist_metadata)} tracks for album_id {album_id}")
             self.player.playlist = playlist_metadata
             self.player.current_index = 0
             self.player.play()
             return True
-            
         except Exception as e:
-            logger.error(f"Failed to load audioPlaylistId {audioPlaylistId}: {e}")
+            logger.error(f"Failed to load album_id {album_id}: {e}")
             return False
 
     def load_rfid(self, event: Event) -> bool:
-        """Orchestrate the full playback pipeline from RFID scan."""
+        """Orchestrate the full playback pipeline from RFID scan using new album DB and SubsonicService."""
+        from app.core import event_bus, EventType, Event
+        
         rfid = event.payload['rfid']
         logger.info(f"RFID scan detected: {rfid}")
-        
-        # Show a message using the screen queue
-        from app.core import event_bus, EventType, Event
         event = Event(EventType.SHOW_SCREEN_QUEUED,
             payload={
                 "screen_type": "message",
                 "context": {
-                    "title": "RFID Scan - Pikansjos",
+                    "title": "Getting Album Info...",
                     "icon_name": "contactless",
                     "message": "Reading card...",
                     "theme": "message_info"
@@ -223,47 +169,23 @@ class PlaybackManager:
                 "duration": 3
             }
         )
-        # event_bus.emit(event)
-
-        # from app.core.event_factory import EventFactory
-        # from app.core import event_bus
-        
-        # event = EventFactory.show_screen_queued( #EventFactory.show_screen_queued(
-        #     screen_type="message",
-        #     context={
-        #         "title": "RFID Scan - Pikansjos",
-        #         "icon_name": "contactless",
-        #         "message": "Reading card...",
-        #         "theme": "message_info"
-        #     },
-        #     duration=5.0
-        # )
-        # event_bus.emit(event)
-
-        
-        # Use injected album_db instead of direct import
-        entry = self.album_db.get_album_entry_by_rfid(rfid)
-        if not entry:
-            # Album does not exist and should be created
-            logger.info(f"Nothing found in database {rfid}")
-            
-            
-
-            
-            # Create album entry in background
-            response = self.album_db.create_album_entry(rfid)
-            if response:
-                logger.info(f"Successfully created Album entry for RFID {rfid}")
-                return True
+        event_bus.emit(event)
+        # Use new album_db for RFID mapping
+        album_id = self.album_db.get_album_id_by_rfid(rfid)
+        if not album_id:
+            logger.info(f"No album mapping found for RFID {rfid}")
+            event = Event(EventType.SHOW_SCREEN_QUEUED,
+                payload={
+                    "screen_type": "message",
+                    "context": {
+                        "title": "Album Not Found",
+                        "icon_name": "contactless",
+                        "message": "No album mapped to this RFID.",
+                        "theme": "message_info"
+                    },
+                    "duration": 3
+                }
+            )
+            event_bus.emit(event)
             return False
-        
-        # The database has an entry for the rfid but it has not been associated with an audio playlist
-        if not entry.audioPlaylistId:
-            logger.info(f"RFID {rfid} has no associated Audio Playlist ID, prompting for new RFID handling.")
-            
-            # ...existing code...
-            return False
-        
-        # Bingo! The rfid exists and it is associated with an audio playlist
-        else:
-            return self.load_from_audioPlaylistId(entry.audioPlaylistId)
+        return self.load_from_album_id(album_id)

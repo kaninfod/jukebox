@@ -5,6 +5,27 @@ import logging
 logger = logging.getLogger(__name__)
 
 class SubsonicService:
+
+    def get_song_info(self, track_id: str) -> Optional[Dict[str, str]]:
+        """
+        Fetch song info from Subsonic using getSong endpoint.
+        Returns a dict with 'id', 'albumId', and 'artistId' if found, else None.
+        """
+        try:
+            data = self._api_request("getSong", {"id": track_id})
+            data = data.json()
+            song = data.get("subsonic-response", {}).get("song", {})
+            if not song:
+                logger.warning(f"SubsonicService: No song found for id {track_id}")
+                return None
+            return {
+                "id": song.get("id", "unknown"),
+                "albumId": song.get("albumId", "unknown"),
+                "artistId": song.get("artistId", "unknown")
+            }
+        except Exception as e:
+            logger.error(f"SubsonicService: Failed to fetch song info for id {track_id}: {e}")
+            return None
     def __init__(self, config=None):
         """
         Initialize SubsonicService with dependency injection.
@@ -67,23 +88,23 @@ class SubsonicService:
             raise Exception("No songs found.")
         return songs[0]
 
-    def get_album_tracks(self, audioPlaylistId: str) -> List[Dict[str, Any]]:
-        logger.info(f"SubsonicService: Getting album tracks for albumId: {audioPlaylistId}")
-        data = self._api_request("getMusicDirectory", {"id": audioPlaylistId})
+    def get_album_tracks(self, album_id: str) -> List[Dict[str, Any]]:
+        logger.info(f"SubsonicService: Getting album tracks for album_id: {album_id}")
+        data = self._api_request("getMusicDirectory", {"id": album_id})
         data = data.json()
         directory = data.get("subsonic-response", {}).get("directory", {})
         if "child" not in directory:
-            logger.warning(f"No tracks found for albumId: {audioPlaylistId}")
+            logger.warning(f"No tracks found for album_id: {album_id}")
             return []
         songs = directory["child"]
         # Filter only song entries (not folders/discs)
         songs = [s for s in songs if not s.get('isDir')]
-        logger.info(f"SubsonicService: Found {len(songs)} tracks for albumId: {audioPlaylistId}")
+        logger.info(f"SubsonicService: Found {len(songs)} tracks for album_id: {album_id}")
         return songs
 
-    def get_album_info(self, audioPlaylistId: str) -> Dict[str, Any]:
-        logger.info(f"SubsonicService: Getting album info for albumId: {audioPlaylistId}")
-        data = self._api_request("getAlbum", {"id": audioPlaylistId})
+    def get_album_info(self, album_id: str) -> Dict[str, Any]:
+        logger.info(f"SubsonicService: Getting album info for album_id: {album_id}")
+        data = self._api_request("getAlbum", {"id": album_id})
         data = data.json()
         album = data.get("subsonic-response", {}).get("album", {})
         return album
@@ -169,14 +190,14 @@ class SubsonicService:
             logger.error(f"Failed to cache artists data: {e}")
             self._cached_artists = []
 
-    def _fetch_and_cache_coverart(self, audioPlaylistId: str, filename_prefix: str = None) -> Optional[str]:
+    def _fetch_and_cache_coverart(self, album_id: str, filename_prefix: str = None) -> Optional[str]:
         """
         Download and cache the album cover image from Subsonic.
         Returns the filename if successful, else None.
         
         Args:
-            audioPlaylistId: The album ID to fetch cover art for
-            filename_prefix: Optional prefix for filename (e.g., RFID). If None, uses audioPlaylistId
+            album_id: The album ID to fetch cover art for
+            filename_prefix: Optional prefix for filename (e.g., RFID). If None, uses album_id
         """
 
         from PIL import Image
@@ -184,17 +205,17 @@ class SubsonicService:
         import os
 
         try:
-            response = self._api_request("getCoverArt", {"id": audioPlaylistId})
+            response = self._api_request("getCoverArt", {"id": album_id})
 
             image = Image.open(BytesIO(response.content))
             image = image.convert('RGBA')
             image = image.resize((120, 120), Image.Resampling.LANCZOS)
             
-            # Use audioPlaylistId as filename if no prefix provided
+            # Use album_id as filename if no prefix provided
             if filename_prefix:
                 filename = f"{filename_prefix}.png"
             else:
-                filename = f"{audioPlaylistId}.png"
+                filename = f"{album_id}.png"
                 
             # Use injected config instead of direct import
             cache_dir = getattr(self.config, "STATIC_FILE_PATH", "static_files")
@@ -204,10 +225,10 @@ class SubsonicService:
             logger.info(f"Cached and processed album cover: {local_path}")
             return filename
         except Exception as e:
-            logger.warning(f"Failed to cache album cover from {audioPlaylistId}: {e}")
+            logger.warning(f"Failed to cache album cover from {album_id}: {e}")
             return None
         
-    def add_or_update_album_entry_from_audioPlaylistId(self, audioPlaylistId: str):
+    def add_or_update_album_entry_from_album_id(self, album_id: str):
         """
         Fetch album info from Subsonic and create album data structure.
         Returns the album data dict or None on failure.
@@ -215,16 +236,16 @@ class SubsonicService:
         """
         import json
         try:
-            album_info = self.get_album_info(audioPlaylistId)
+            album_info = self.get_album_info(album_id)
             album_name = album_info.get('name', 'Unknown Album')
             artist_name = album_info.get('artist', 'Unknown Artist')
             year = album_info.get('year', None)
             
             # Fetch and cache cover art using audioPlaylistId as filename
-            thumbnail_filename = self._fetch_and_cache_coverart(audioPlaylistId)
+            thumbnail_filename = self._fetch_and_cache_coverart(album_id)
             
             tracks_data = []
-            tracks = self.get_album_tracks(audioPlaylistId)
+            tracks = self.get_album_tracks(album_id)
             
             for track in tracks:
                 track_info = {
@@ -240,16 +261,16 @@ class SubsonicService:
                 'album_name': album_name,
                 'artist_name': artist_name,
                 'year': year,
-                'audioPlaylistId': audioPlaylistId,
+                'album_id': album_id,
                 'thumbnail': thumbnail_filename,  # Now properly set!
                 'tracks': json.dumps(tracks_data)
             }
             
-            logger.info(f"SubsonicService: Fetched album data for {audioPlaylistId}: {album_name} by {artist_name}")
+            logger.info(f"SubsonicService: Fetched album data for {album_id}: {album_name} by {artist_name}")
             return album_data
             
         except Exception as e:
-            logger.error(f"SubsonicService: Failed to fetch album data for {audioPlaylistId}: {e}")
+            logger.error(f"SubsonicService: Failed to fetch album data for {album_id}: {e}")
             return None
 
     def add_or_update_album_entry(self, rfid: str, audioPlaylistId: str):
@@ -257,7 +278,7 @@ class SubsonicService:
         Fetch album info from Subsonic, cache the cover, and upsert the album entry in the database.
         Returns the DB entry or None on failure.
         """
-        from app.database.album_db import update_album_entry, create_album_entry, get_album_entry_by_rfid
+        from app.database.album_db_old import update_album_entry, create_album_entry, get_album_entry_by_rfid
         
         try:
             # Get the core album data using the new method

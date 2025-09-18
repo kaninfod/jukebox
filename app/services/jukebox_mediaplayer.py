@@ -1,21 +1,29 @@
+
 from importlib.metadata import metadata
 import time
 
+# Prometheus metric for play counts
+
+# Import play_counter from metrics collector
+from app.metrics.collector import play_counter
+
 import logging
 from typing import List, Dict, Optional
-from enum import Enum
+# from enum import Enum
 from app.core import EventType, Event
+from app.core import PlayerStatus
 
 logger = logging.getLogger(__name__)
 
-class PlayerStatus(Enum):
-    PLAY = "playing"
-    PAUSE = "paused"
-    STOP = "idle"
-    STANDBY = "unavailable"
-    OFF = "off"
+# class PlayerStatus(Enum):
+#     PLAY = "playing"
+#     PAUSE = "paused"
+#     STOP = "idle"
+#     STANDBY = "unavailable"
+#     OFF = "off"
 
 class JukeboxMediaPlayer:
+
     def __init__(self, playlist: List[Dict], event_bus, chromecast_service=None):
         """
         Initialize JukeboxMediaPlayer with dependency injection.
@@ -271,10 +279,38 @@ class JukeboxMediaPlayer:
             logger.error(f"Unknown provider: {provider}")
             return None
 
+    def get_subsonic_ids_for_track(self, track: Dict) -> Dict[str, str]:
+        """
+        Returns a dict with Subsonic IDs for artist, album, and track using SubsonicService.get_song_info.
+        If not available, returns 'unknown'.
+        """
+        if track.get('provider') != 'subsonic':
+            return {'artist': 'unknown', 'album': 'unknown', 'track': 'unknown'}
+        video_id = track.get('video_id')
+        if not video_id:
+            return {'artist': 'unknown', 'album': 'unknown', 'track': 'unknown'}
+        from app.services.subsonic_service import SubsonicService
+        service = SubsonicService()
+        song_info = service.get_song_info(video_id)
+        if not song_info:
+            return {'artist': 'unknown', 'album': 'unknown', 'track': video_id}
+        return {
+            'artist': song_info.get('artistId', 'unknown'),
+            'album': song_info.get('albumId', 'unknown'),
+            'track': song_info.get('id', video_id)
+        }
+
     def cast_current_track(self):
         track = self.playlist[self.current_index]
         stream_url = self.get_stream_url_for_track(track)
         track['stream_url'] = stream_url
+        # Use Subsonic IDs for Prometheus labels if available
+        ids = self.get_subsonic_ids_for_track(track)
+        play_counter.labels(
+            artist=ids['artist'],
+            album=ids['album'],
+            song=ids['track']
+        ).inc()
         if stream_url:
             logger.info(f"Casting stream URL for track {track.get('title')}, with url {stream_url}")
             self.cc_service.play_media(stream_url, media_info={

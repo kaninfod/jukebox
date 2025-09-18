@@ -8,6 +8,8 @@ import threading
 from app.ui.menu.menu_data_service import MenuDataService
 from app.core import event_bus, EventType, Event
 from app.config import config
+from app.core import PlayerStatus
+from app.metrics.decorators import track_event_handler
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,7 @@ class MenuController:
         self.page_size = 8  # Increased from 7 to 8 due to removing bottom bar (40px more space)
         self.current_page = 0
         self.all_menu_items = []  # Cache of all items for current menu
+        self._player_status = False
         
         # Remove bottom bar properties - using Button 4 for back navigation
         # self.in_bottom_bar = False  # REMOVED
@@ -44,6 +47,7 @@ class MenuController:
         # Hardware events (when in menu mode)
         event_bus.subscribe(EventType.ROTARY_ENCODER, self._handle_rotary_encoder)
         event_bus.subscribe(EventType.BUTTON_PRESSED, self._handle_button_press)
+        event_bus.subscribe(EventType.STATUS_CHANGED, self._handle_player_changes)
         
         logger.info("MenuController subscribed to EventBus events")
     
@@ -84,7 +88,7 @@ class MenuController:
         self.all_menu_items = []
         
         # Determine which screen to return to based on playback state
-        if self._is_music_playing():
+        if self._player_status():
             event_bus.emit(Event(
                 type=EventType.SHOW_HOME,
                 payload={}
@@ -231,17 +235,17 @@ class MenuController:
             
             if album_id:
                 logger.info(f"Playing album: {album_name} (ID: {album_id})")
-                
+
                 # Emit PLAY_ALBUM event to be handled by playback manager
                 from app.core import event_bus, EventType, Event
                 event_bus.emit(Event(
                     type=EventType.PLAY_ALBUM,
                     payload={
-                        "audioPlaylistId": album_id,
+                        "album_id": album_id,
                         "album_name": album_name
                     }
                 ))
-                
+
                 # Exit menu after triggering playback
                 self.exit_menu_mode()
             else:
@@ -383,6 +387,11 @@ class MenuController:
         self.exit_menu_mode()
     
     # Event handlers
+    @track_event_handler("PLAYER_CHANGE")
+    def _handle_player_changes(self, event):
+        """Update internal player status on status change events"""
+        self._player_status = PlayerStatus(event.payload.get('status'))
+
     def _handle_rotary_encoder(self, event):
         """Handle rotary encoder events when menu is active"""
         
@@ -427,21 +436,21 @@ class MenuController:
         end_idx = start_idx + self.page_size
         return self.all_menu_items[start_idx:end_idx]
     
-    def _is_music_playing(self):
-        """Check if music is currently playing by querying player status via EventBus"""
-        try:
-            # We need a way to get player status - for now use a simple approach
-            # This could be improved by having the player emit status events
-            # or by injecting the player reference
+    # def _is_music_playing(self):
+    #     """Check if music is currently playing by querying player status via EventBus"""
+    #     try:
+    #         # We need a way to get player status - for now use a simple approach
+    #         # This could be improved by having the player emit status events
+    #         # or by injecting the player reference
             
-            # For now, emit a status request and assume we get a response
-            # A more robust implementation would use a status cache or direct reference
-            from app.main import app_state
-            if hasattr(app_state, 'player') and app_state.player:
-                from app.services.jukebox_mediaplayer import PlayerStatus
-                return app_state.player.status in [PlayerStatus.PLAY, PlayerStatus.PAUSE]
-            return False
-        except Exception as e:
-            logger.warning(f"Could not determine player status: {e}")
-            # Default to HOME if we can't determine status
-            return True
+    #         # For now, emit a status request and assume we get a response
+    #         # A more robust implementation would use a status cache or direct reference
+    #         from app.main import app_state
+    #         if hasattr(app_state, 'player') and app_state.player:
+    #             from app.services.jukebox_mediaplayer import PlayerStatus
+    #             return app_state.player.status in [PlayerStatus.PLAY, PlayerStatus.PAUSE]
+    #         return False
+    #     except Exception as e:
+    #         logger.warning(f"Could not determine player status: {e}")
+    #         # Default to HOME if we can't determine status
+    #         return True

@@ -3,14 +3,10 @@ from fastapi.responses import FileResponse
 import os
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from typing import List
-from app.database.album_schema import AlbumEntry, AlbumEntryUpdate
-from app.database.album_db import (
-    create_album_entry,
-    list_album_entries,
-    get_album_entry_by_rfid,
-    update_album_entry,
-    delete_album_entry
-)
+from app.database.album_schema import AlbumEntry
+from app.database.album_db import AlbumDB
+from app.services.subsonic_service import SubsonicService
+from app.config import config
 from app.config import config
 import json
 import logging
@@ -22,67 +18,51 @@ router = APIRouter()
 
 @router.get("/albums", response_model=List[AlbumEntry])
 def list_album_entries_route():
-    entries = list_album_entries()
-    # Convert SQLAlchemy models to dicts for Pydantic
-    return [AlbumEntry.parse_obj({
-        'rfid': e.rfid,
-        'provider': e.provider,
-        'album_name': e.album_name,
-        'artist_name': e.artist_name,
-        'year': e.year,
-        'audioPlaylistId': e.audioPlaylistId,
-        'thumbnail': e.thumbnail,
-        'tracks': e.tracks
-    }) for e in entries]
+    album_db = AlbumDB(config)
+    subsonic = SubsonicService(config)
+    mappings = album_db.list_all()
+    result = []
+    for rfid, album_id in mappings:
+        if album_id is not None:
+            album_info = subsonic.get_album_info(album_id)
+            tracks = subsonic.get_album_tracks(album_id)
+            result.append(AlbumEntry(
+                rfid=rfid,
+                album_id=album_id,
+            ))
+    return result
 
 @router.get("/albums/{rfid}", response_model=AlbumEntry)
 def get_album_entry(rfid: str):
-    entry = get_album_entry_by_rfid(rfid)
-    if not entry:
+    album_db = AlbumDB(config)
+    subsonic = SubsonicService(config)
+    album_id = album_db.get_album_id_by_rfid(rfid)
+    if not album_id:
         raise HTTPException(status_code=404, detail="Entry not found")
-    # Convert SQLAlchemy model to dict for Pydantic
-    return AlbumEntry.parse_obj({
-        'rfid': entry.rfid,
-        'provider': entry.provider,
-        'album_name': entry.album_name,
-        'artist_name': entry.artist_name,
-        'year': entry.year,
-        'audioPlaylistId': entry.audioPlaylistId,
-        'thumbnail': entry.thumbnail,
-        'tracks': entry.tracks
-    })
+    return AlbumEntry(
+        rfid=rfid,
+        album_id=album_id,
+    )
 
 @router.post("/albums/{rfid}")
-def create_album_entry_route(rfid: str):
-    return create_album_entry(rfid)
+def create_album_entry_route(rfid: str, album_id: str = Body(...)):
+    album_db = AlbumDB(config)
+    album_db.set_album_mapping(rfid, album_id)
+    return {"status": "created", "rfid": rfid, "album_id": album_id}
 
-@router.put("/albums/{rfid}/{audioPlaylistId}", response_model=AlbumEntry)
-def update_album_entry_route(rfid: str, audioPlaylistId: str):
-    try:
-        from app.services.subsonic_service import SubsonicService
-        service = SubsonicService()
-        db_entry = service.add_or_update_album_entry(rfid, audioPlaylistId)
-        if not db_entry:
-            raise HTTPException(status_code=404, detail="Entry not found or failed to update")
-        # Convert SQLAlchemy model to dict for Pydantic
-        return AlbumEntry.parse_obj({
-            'rfid': db_entry.rfid,
-            'provider': db_entry.provider,
-            'album_name': db_entry.album_name,
-            'artist_name': db_entry.artist_name,
-            'year': db_entry.year,
-            'audioPlaylistId': db_entry.audioPlaylistId,
-            'thumbnail': db_entry.thumbnail,
-            'tracks': db_entry.tracks
-        })
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to get album info: {str(e)}")
+@router.put("/albums/{rfid}/{album_id}", response_model=AlbumEntry)
+def update_album_entry_route(rfid: str, album_id: str):
+    album_db = AlbumDB(config)
+    album_db.set_album_mapping(rfid, album_id)
+    return AlbumEntry(
+        rfid=rfid,
+        album_id=album_id,
+    )
 
 @router.delete("/albums/{rfid}")
 def delete_album_entry_route(rfid: str):
-    deleted = delete_album_entry(rfid)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Entry not found")
+    album_db = AlbumDB(config)
+    album_db.delete_mapping(rfid)
     return {"status": "deleted"}
 
 

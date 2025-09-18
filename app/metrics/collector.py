@@ -8,6 +8,12 @@ event_handler_success = Counter('event_handler_success_total', 'Event handler su
 event_handler_failure = Counter('event_handler_failure_total', 'Event handler failure', ['event_type'])
 event_handler_duration = Histogram('event_handler_duration_seconds', 'Event handler execution time', ['event_type'])
 
+play_counter = Counter(
+    'jukebox_play_count',
+    'Count of plays by artist, album, and song',
+    ['artist', 'album', 'song']
+)
+
 # Helper functions for compatibility with previous collector API
 class MetricsCollector:
     def inc(self, name, label=None):

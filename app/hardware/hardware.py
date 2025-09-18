@@ -124,23 +124,6 @@ class HardwareManager:
         )
         event_bus.emit(event)
 
-
-
-        # from app.core.event_factory import EventFactory
-        # from app.core import event_bus
-        
-        # event = EventFactory.show_screen_queued( #EventFactory.show_screen_queued(
-        #     screen_type="message",
-        #     context={
-        #         "title": "Reading...",
-        #         "icon_name": "contactless",
-        #         "message": "Reading album card",
-        #         "theme": "message_info"
-        #     },
-        #     duration=5.0
-        # )
-        # event_bus.emit(event)
-
         logger.info("Triggering RFID read due to switch activation")
         # Start reading and handle result in callback
         def rfid_result_callback(result):
@@ -167,22 +150,6 @@ class HardwareManager:
                     )
                     event_bus.emit(event)
 
-
-                    # from app.core.event_factory import EventFactory
-                    # from app.core import event_bus
-                    
-                    # event = EventFactory.show_screen_queued( #EventFactory.show_screen_queued(
-                    #     screen_type="message",
-                    #     context={
-                    #         "title": "Error Reading Card",
-                    #         "icon_name": "error",
-                    #         "message": "Reading timed out. Try again...",
-                    #         "theme": "message_info"
-                    #     },
-                    #     duration=5.0
-                    # )
-                    # event_bus.emit(event)
-
                 elif _callback_result_status == "error":
                     #from app.core.event_factory import EventFactory
                     from app.core import event_bus, EventType, Event
@@ -199,18 +166,6 @@ class HardwareManager:
                     )
                     event_bus.emit(event)
 
-                    # event = EventFactory.show_screen_queued( 
-                    #     screen_type="message",
-                    #     context={
-                    #         "title": "Error Reading Card",
-                    #         "icon_name": "error",
-                    #         "message": "Try again...",
-                    #         "theme": "message_info"
-                    #     },
-                    #     duration=5.0
-                    # )
-                    # event_bus.emit(event)
-
             except Exception as e:
                 logger.error(f"Exception in rfid_result_callback: {e}", exc_info=True)
         try:
@@ -220,7 +175,6 @@ class HardwareManager:
         except Exception as e:
             logger.error(f"Exception in rfid_reader.start_reading: {e}", exc_info=True)
     
-
     def _handle_new_uid(self, uid):
         # Use injected event_bus instead of importing
         self.event_bus.emit(Event(

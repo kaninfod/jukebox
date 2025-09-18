@@ -31,20 +31,15 @@
                     No cover
                 {% endif %}
             </td>
-            <td>{{ album.artist_name or '' }}</td>
-            <td>{{ album.album_name or '' }}</td>
+            <td>artist_name</td>
+            <td>album_name</td>
             <td>{{ album.rfid or '' }}</td>
             <td>
                 <form method="post" action="/jukebox/albums/update_audioPlaylistId">
                     <input type="hidden" name="rfid" value="{{ album.rfid }}">
-                    <input type="text" name="audioPlaylistId" value="{{ album.audioPlaylistId or '' }}">
+                    <input type="text" name="audioPlaylistId" value="{{ album.album_id or '' }}">
             </td>
-            <td>
-                    <select name="provider">
-                        <option value="youtube_music" {% if album.provider == "youtube_music" %}selected{% endif %}>YouTube Music</option>
-                        <option value="subsonic" {% if album.provider == "subsonic" %}selected{% endif %}>Subsonic</option>
-                    </select>
-            </td>
+            <td>  provider          </td>
             <td>
                     <button type="submit">Update</button>
                 </form>

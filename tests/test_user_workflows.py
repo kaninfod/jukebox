@@ -38,7 +38,7 @@ def mock_hardware_dependencies():
 @pytest.fixture
 def full_system_setup():
     """Create a full system setup with mocked hardware"""
-    from app.database.album_db import AlbumDatabase
+    from app.database.album_db_old import AlbumDatabase
     from app.services.subsonic_service import SubsonicService
     from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand
     from app.hardware.hardware import HardwareManager
@@ -176,7 +176,7 @@ class TestRFIDWorkflow:
         
         from app.core import Event, EventType
         
-        # Create an album entry without audioPlaylistId
+    # Create an album entry without album_id
         test_rfid = "existing_rfid_12345"
         album_db.create_album_entry(test_rfid)
         
@@ -208,7 +208,7 @@ class TestRFIDWorkflow:
         album_data = {
             "album_name": "Test Album",
             "artist_name": "Test Artist",
-            "audioPlaylistId": "playlist_123",
+            "album_id": "playlist_123",
             "tracks": [
                 {"title": "Track 1", "video_id": "track1", "duration": 180},
                 {"title": "Track 2", "video_id": "track2", "duration": 200}
@@ -375,13 +375,13 @@ class TestMenuNavigationWorkflow:
         menu_event = Event(
             type=EventType.PLAY_ALBUM,
             payload={
-                "audioPlaylistId": "menu_album_123",
+                "album_id": "menu_album_123",
                 "album_name": "Menu Selected Album"
             }
         )
         
         # Mock album data in database
-        system['album_db'].get_album_data_by_audioPlaylistId.return_value = {
+        system['album_db'].get_album_data_by_album_id.return_value = {
             "album_name": "Menu Selected Album",
             "artist_name": "Menu Artist",
             "tracks": [

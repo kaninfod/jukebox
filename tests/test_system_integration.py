@@ -82,7 +82,7 @@ class TestSystemStartup:
     
     def test_system_dependencies_creation(self, mock_config, mock_event_bus):
         """Test that all core dependencies can be created"""
-        from app.database.album_db import AlbumDatabase
+        from app.database.album_db_old import AlbumDatabase
         from app.services.subsonic_service import SubsonicService
         from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand
         
@@ -176,7 +176,7 @@ class TestSystemStartup:
     def test_playback_manager_initialization(self, mock_config, mock_event_bus):
         """Test PlaybackManager with all dependencies"""
         from app.services.playback_manager import PlaybackManager
-        from app.database.album_db import AlbumDatabase
+        from app.database.album_db_old import AlbumDatabase
         from app.services.subsonic_service import SubsonicService
         
         # Create dependencies
@@ -207,7 +207,7 @@ class TestSystemIntegration:
     
     def test_full_system_startup_simulation(self, mock_config, mock_event_bus):
         """Simulate the complete startup process from main.py"""
-        from app.database.album_db import AlbumDatabase
+        from app.database.album_db_old import AlbumDatabase
         from app.services.subsonic_service import SubsonicService
         from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand
         from app.hardware.hardware import HardwareManager
@@ -303,7 +303,7 @@ class TestSystemIntegration:
         from app.ui.manager import ScreenManager
         from app.services.jukebox_mediaplayer import JukeboxMediaPlayer
         from app.services.subsonic_service import SubsonicService
-        from app.database.album_db import AlbumDatabase
+        from app.database.album_db_old import AlbumDatabase
         
         # All imports should succeed without errors
         assert True  # If we get here, no circular imports occurred

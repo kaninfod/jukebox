@@ -94,12 +94,12 @@ class TestAlbumDatabase:
     
     @pytest.fixture 
     def album_db(self, mock_config):
-        from app.database.album_db import AlbumDatabase
+        from app.database.album_db_old import AlbumDatabase
         return AlbumDatabase(mock_config)
     
     def test_album_database_initialization(self, mock_config):
         """Test AlbumDatabase initializes with injected config"""
-        from app.database.album_db import AlbumDatabase
+        from app.database.album_db_old import AlbumDatabase
         
         db = AlbumDatabase(mock_config)
         
@@ -149,14 +149,14 @@ class TestAlbumDatabase:
         album_data = {
             "album_name": "Test Album",
             "artist_name": "Test Artist", 
-            "audioPlaylistId": "playlist123"
+            "album_id": "playlist123"
         }
         entry = album_db.update_album_entry("test_rfid_123", album_data)
         
         assert entry is not None
         assert entry["album_name"] == "Test Album"
         assert entry["artist_name"] == "Test Artist"
-        assert entry["audioPlaylistId"] == "playlist123"
+    assert entry["album_id"] == "playlist123"
 
 
 class TestJukeboxMediaPlayer:
@@ -273,10 +273,10 @@ class TestPlaybackManager:
         assert pm.subsonic_service == mock_dependencies['subsonic_service']
         assert pm.event_bus == mock_dependencies['event_bus']
     
-    def test_load_from_audioPlaylistId_existing_album(self, mock_dependencies):
-        """Test loading existing album by audioPlaylistId"""
+    def test_load_from_album_id_existing_album(self, mock_dependencies):
+        """Test loading existing album by album_id"""
         from app.services.playback_manager import PlaybackManager
-        
+
         # Mock database response
         mock_album_data = {
             'album_name': 'Test Album',
@@ -286,27 +286,27 @@ class TestPlaybackManager:
                 {'title': 'Track 2', 'video_id': 'track2', 'duration': 200}
             ]
         }
-        mock_dependencies['album_db'].get_album_data_by_audioPlaylistId.return_value = mock_album_data
-        
+        mock_dependencies['album_db'].get_album_data_by_album_id.return_value = mock_album_data
+
         pm = PlaybackManager(**mock_dependencies)
-        result = pm.load_from_audioPlaylistId("test_playlist_123")
-        
+        result = pm.load_from_album_id("test_playlist_123")
+
         assert result is True
-        mock_dependencies['album_db'].get_album_data_by_audioPlaylistId.assert_called_with("test_playlist_123")
+        mock_dependencies['album_db'].get_album_data_by_album_id.assert_called_with("test_playlist_123")
         mock_dependencies['player'].play.assert_called_once()
-    
-    def test_load_from_audioPlaylistId_nonexistent_album(self, mock_dependencies):
+
+    def test_load_from_album_id_nonexistent_album(self, mock_dependencies):
         """Test loading non-existent album"""
         from app.services.playback_manager import PlaybackManager
-        
+
         # Mock database returning None
-        mock_dependencies['album_db'].get_album_data_by_audioPlaylistId.return_value = None
+        mock_dependencies['album_db'].get_album_data_by_album_id.return_value = None
         # Mock subsonic service returning None
-        mock_dependencies['subsonic_service'].add_or_update_album_entry_from_audioPlaylistId.return_value = None
-        
+        mock_dependencies['subsonic_service'].add_or_update_album_entry_from_album_id.return_value = None
+
         pm = PlaybackManager(**mock_dependencies)
-        result = pm.load_from_audioPlaylistId("nonexistent_playlist")
-        
+        result = pm.load_from_album_id("nonexistent_playlist")
+
         assert result is False
 
 

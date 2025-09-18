@@ -45,7 +45,7 @@ def create_event_bus(container):
     return event_bus
 
 def create_album_database(container):
-    from app.database.album_db import AlbumDatabase
+    from app.database.album_db_old import AlbumDatabase
     config = container.get('config')
     return AlbumDatabase(config)
 

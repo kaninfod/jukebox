@@ -24,7 +24,7 @@ class CurrentPlaybackManager:
     """Current implementation with direct imports"""
     def __init__(self, screen_manager=None, oauth_file: str = "oauth.json", player=None):
         # These create tight coupling
-        from app.database.album_db import get_album_entry_by_rfid, create_album_entry
+        from app.database.album_db_old import get_album_entry_by_rfid, create_album_entry
         from app.core import event_bus, EventType, Event
         
         self.player = player or self._get_player_from_main()
@@ -206,7 +206,7 @@ def startup_event_with_dependency_injection():
         return
     
     # Step 2: Create database services with injected config
-    from app.database.album_db import AlbumDatabase
+    from app.database.album_db_old import AlbumDatabase
     album_db = AlbumDatabase(config)
     
     # Step 3: Create music services with injected config

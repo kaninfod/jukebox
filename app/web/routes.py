@@ -39,5 +39,5 @@ async def subsonic_albums(request: Request, artist_id: str):
 @router.post("/jukebox/albums/update_audioPlaylistId")
 async def update_audioPlaylistId(rfid: str = Form(...), audioPlaylistId: str = Form(...), provider: str = Form(...)):
     # Call the Python API directly
-    update_album_entry_route(rfid, audioPlaylistId, provider)
+    update_album_entry_route(rfid, audioPlaylistId)
     return RedirectResponse("/jukebox/albums", status_code=303)
