@@ -1,6 +1,7 @@
-import logging
+import logging, os
 from app.ui.theme import UITheme 
-from app.ui.screens.base import Screen
+from app.config import config
+from app.ui.screens.base import Screen, RectElement, TextElement, ImageElement
 from PIL import Image
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,30 @@ class MessageScreen(Screen):
         self.context = context or {}
         theme = self.theme
         
+
+        box = (0, 0, self.width, self.height)
+        background_element = RectElement(*box, "white")
+        background_element.draw(draw_context)
+
+        box = (20, 30, 350, 50)
+        title = self.context.get("title", "Message")
+        screen_title_element = TextElement(*box, title, fonts["title"])
+        screen_title_element.draw(draw_context)
+
+        icon_name = self.context.get("icon_name", None)
+        path = config.get_image_path(icon_name)
+        img = self._load_album_image(path)
+        box = (150, 80, 120, 120)
+        album_cover_element = ImageElement(*box, img)
+        album_cover_element.draw(draw_context, image)
+
+        box = (20, 250, 350, 50)
+        message = self.context.get("message", "")
+        screen_message_element = TextElement(*box, message, fonts["info"])
+        screen_message_element.draw(draw_context)
+
+        return
+
 
         bg_color = theme.colors["background"]
         color = theme.colors["text"]
@@ -95,6 +120,23 @@ class MessageScreen(Screen):
             draw_context.text((line_x, message_y + i * line_height), line, fill=color, font=info_font)
         
         logger.debug(f"MessageScreen drawn with title '{title}' and message lines: {message_lines}")
+
+
+    def _load_album_image(self, path):
+        """Load album image from local cache if available."""
+        if not path:
+            return None
+
+        logger.debug(f"Loading album image from: {path}")
+        if os.path.exists(path):
+            try:
+                _image = Image.open(path)
+                return _image
+            except Exception as e:
+                logger.error(f"Failed to load cached album image: {e}")
+                return None
+        else:
+            return None
 
     def _draw_icon(self, draw, x, y, size, image=None, icon_name=None):
         from app.config import config

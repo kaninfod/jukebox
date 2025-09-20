@@ -428,7 +428,7 @@ class PyChromecastServiceOnDemand:
             return False
         
         try:
-            logger.info(f"Playing media on {self.cast.name}: {url}")
+            logger.info(f"Playing media on {self.cast.name}: {url} with {media_info}")
             
             if media_info:
                 # Extract metadata from media_info
@@ -450,6 +450,7 @@ class PyChromecastServiceOnDemand:
                     "title": title,
                     "artist": artist,
                     "albumName": album,
+                    
                 }
                 
                 if year:

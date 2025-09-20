@@ -1,31 +1,13 @@
 import requests
 from typing import List, Dict, Any, Optional
 import logging
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
 class SubsonicService:
 
-    def get_song_info(self, track_id: str) -> Optional[Dict[str, str]]:
-        """
-        Fetch song info from Subsonic using getSong endpoint.
-        Returns a dict with 'id', 'albumId', and 'artistId' if found, else None.
-        """
-        try:
-            data = self._api_request("getSong", {"id": track_id})
-            data = data.json()
-            song = data.get("subsonic-response", {}).get("song", {})
-            if not song:
-                logger.warning(f"SubsonicService: No song found for id {track_id}")
-                return None
-            return {
-                "id": song.get("id", "unknown"),
-                "albumId": song.get("albumId", "unknown"),
-                "artistId": song.get("artistId", "unknown")
-            }
-        except Exception as e:
-            logger.error(f"SubsonicService: Failed to fetch song info for id {track_id}: {e}")
-            return None
+    
     def __init__(self, config=None):
         """
         Initialize SubsonicService with dependency injection.
@@ -48,15 +30,6 @@ class SubsonicService:
         self.api_version = getattr(self.config, "SUBSONIC_API_VERSION", "1.16.1")
         logger.info(f"SubsonicService initialized with dependency injection for {self.base_url} as {self.username}")
 
-    def get_stream_url(self, track: dict) -> str:
-        track_id = track.get('video_id')
-        if not track_id:
-            return None
-        # Build Subsonic stream URL
-        params = self._api_params()
-        url = f"{self.base_url}/rest/stream?id={track_id}&u={params['u']}&p={params['p']}&v={params['v']}&c={params['c']}"
-        return url
-
     def _api_params(self) -> Dict[str, str]:
         return {
             "u": self.username,
@@ -78,6 +51,19 @@ class SubsonicService:
         return resp
 
     
+    def get_stream_url(self, track: dict) -> str:
+        track_id = track.get('video_id')
+        if not track_id:
+            return None
+        # Build Subsonic stream URL
+        params = self._api_params()
+        url = f"{self.base_url}/rest/stream?id={track_id}&u={params['u']}&p={params['p']}&v={params['v']}&c={params['c']}"
+        return url
+        
+    def get_cover_url(self, album_id: str) -> str:
+        return f"{self.base_url}/rest/getCoverArt?id={album_id}&u={self.username}&p={self.password}&v={self.api_version}&c={self.client}"
+
+    @lru_cache(maxsize=128)
     def search_song(self, query: str) -> Dict[str, Any]:
         logger.info(f"SubsonicService: Searching for song: {query}")
         data = self._api_request("search3", {"query": query})
@@ -88,6 +74,7 @@ class SubsonicService:
             raise Exception("No songs found.")
         return songs[0]
 
+    @lru_cache(maxsize=128)
     def get_album_tracks(self, album_id: str) -> List[Dict[str, Any]]:
         logger.info(f"SubsonicService: Getting album tracks for album_id: {album_id}")
         data = self._api_request("getMusicDirectory", {"id": album_id})
@@ -102,6 +89,7 @@ class SubsonicService:
         logger.info(f"SubsonicService: Found {len(songs)} tracks for album_id: {album_id}")
         return songs
 
+    @lru_cache(maxsize=128)
     def get_album_info(self, album_id: str) -> Dict[str, Any]:
         logger.info(f"SubsonicService: Getting album info for album_id: {album_id}")
         data = self._api_request("getAlbum", {"id": album_id})
@@ -109,6 +97,7 @@ class SubsonicService:
         album = data.get("subsonic-response", {}).get("album", {})
         return album
 
+    @lru_cache(maxsize=128)
     def list_artists(self) -> list:
         """
         Return a list of all artists from Subsonic (id, name).
@@ -123,6 +112,7 @@ class SubsonicService:
             for artist in artists if artist.get('isDir', False)
         ]
 
+    @lru_cache(maxsize=128)
     def list_albums_for_artist(self, artist_id: str) -> list:
         """
         Return a list of all albums for a given artist (id, name).
@@ -137,6 +127,29 @@ class SubsonicService:
             {"id": album.get("id"), "name": album.get("title")}
             for album in albums if album.get('isDir', False)
         ]
+
+    @lru_cache(maxsize=128)
+    def get_song_info(self, track_id: str) -> Optional[Dict[str, str]]:
+        """
+        Fetch song info from Subsonic using getSong endpoint.
+        Returns a dict with 'id', 'albumId', and 'artistId' if found, else None.
+        """
+        try:
+            data = self._api_request("getSong", {"id": track_id})
+            data = data.json()
+            song = data.get("subsonic-response", {}).get("song", {})
+            if not song:
+                logger.warning(f"SubsonicService: No song found for id {track_id}")
+                return None
+            return {
+                "id": song.get("id", "unknown"),
+                "albumId": song.get("albumId", "unknown"),
+                "artistId": song.get("artistId", "unknown")
+            }
+        except Exception as e:
+            logger.error(f"SubsonicService: Failed to fetch song info for id {track_id}: {e}")
+            return None
+
 
     def get_alphabetical_groups(self) -> List[Dict[str, str]]:
         """
@@ -278,7 +291,7 @@ class SubsonicService:
         Fetch album info from Subsonic, cache the cover, and upsert the album entry in the database.
         Returns the DB entry or None on failure.
         """
-        from app.database.album_db_old import update_album_entry, create_album_entry, get_album_entry_by_rfid
+        from app.database.album_db import update_album_entry, create_album_entry, get_album_entry_by_rfid
         
         try:
             # Get the core album data using the new method

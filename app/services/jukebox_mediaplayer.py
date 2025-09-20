@@ -279,6 +279,23 @@ class JukeboxMediaPlayer:
             logger.error(f"Unknown provider: {provider}")
             return None
 
+    def get_cover_url_for_track(self, album_id: str) -> Optional[str]:
+        """
+        Cover URL resolver for the current track.
+        Returns the cover URL or None if not available.
+        """    
+
+        from app.services.subsonic_service import SubsonicService
+        service = SubsonicService()
+        album_id = album_id
+        if album_id:
+            url = service.get_cover_url(album_id)
+            logger.debug(f"Resolved cover URL for album_id {album_id}: {url}")  
+            return url
+        else:
+            return None
+    
+
     def get_subsonic_ids_for_track(self, track: Dict) -> Dict[str, str]:
         """
         Returns a dict with Subsonic IDs for artist, album, and track using SubsonicService.get_song_info.
@@ -286,18 +303,18 @@ class JukeboxMediaPlayer:
         """
         if track.get('provider') != 'subsonic':
             return {'artist': 'unknown', 'album': 'unknown', 'track': 'unknown'}
-        video_id = track.get('video_id')
-        if not video_id:
+        track_id = track.get('video_id')
+        if not track_id:
             return {'artist': 'unknown', 'album': 'unknown', 'track': 'unknown'}
         from app.services.subsonic_service import SubsonicService
         service = SubsonicService()
-        song_info = service.get_song_info(video_id)
+        song_info = service.get_song_info(track_id)
         if not song_info:
             return {'artist': 'unknown', 'album': 'unknown', 'track': video_id}
         return {
             'artist': song_info.get('artistId', 'unknown'),
             'album': song_info.get('albumId', 'unknown'),
-            'track': song_info.get('id', video_id)
+            'track': song_info.get('id', track_id)
         }
 
     def cast_current_track(self):
@@ -315,7 +332,7 @@ class JukeboxMediaPlayer:
             logger.info(f"Casting stream URL for track {track.get('title')}, with url {stream_url}")
             self.cc_service.play_media(stream_url, media_info={
                 "title": track.get("title"),
-                "thumb": track.get("image_url"),
+                "thumb": self.get_cover_url_for_track(ids['album']),
                 "media_info": {
                     "artist": track.get("artist"),
                     "album": track.get("album"),

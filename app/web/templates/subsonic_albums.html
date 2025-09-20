@@ -66,13 +66,13 @@
             document.getElementById('statusMessage').style.display = 'none';
             
             // Make API call to play album on jukebox
-            fetch('/mediaplayer/playback_audioPlaylistId', {
+            fetch('/mediaplayer/playback_album_id', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    audioPlaylistId: albumId,
+                    album_id: albumId,
                     provider: 'subsonic'
                 })
             })
