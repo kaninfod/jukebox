@@ -25,13 +25,13 @@ logger = logging.getLogger(__name__)
 def test_zeroconf_lifecycle():
     """Test that zeroconf instances are properly managed."""
     try:
-        from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand
+    from app.services.chromecast_service import ChromecastService
         
         logger.info("=== Testing Zeroconf Lifecycle Management ===")
         
         # Test 1: Service creation and cleanup
         logger.info("Test 1: Service creation and cleanup")
-        service = PyChromecastServiceOnDemand("Living Room")
+    service = ChromecastService("Living Room")
         logger.info("✅ Service created successfully")
         
         # Test 2: Discovery without connection
@@ -93,7 +93,7 @@ def test_context_manager():
         
         logger.info("=== Testing Context Manager ===")
         
-        with PyChromecastServiceOnDemand("Living Room") as service:
+    with ChromecastService("Living Room") as service:
             logger.info("✅ Context manager entered")
             
             devices = service.list_chromecasts()

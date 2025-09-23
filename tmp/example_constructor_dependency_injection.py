@@ -24,7 +24,7 @@ class CurrentPlaybackManager:
     """Current implementation with direct imports"""
     def __init__(self, screen_manager=None, oauth_file: str = "oauth.json", player=None):
         # These create tight coupling
-        from app.database.album_db_old import get_album_entry_by_rfid, create_album_entry
+        from app.database.album_db import get_album_entry_by_rfid, create_album_entry
         from app.core import event_bus, EventType, Event
         
         self.player = player or self._get_player_from_main()
@@ -206,15 +206,15 @@ def startup_event_with_dependency_injection():
         return
     
     # Step 2: Create database services with injected config
-    from app.database.album_db_old import AlbumDatabase
+    from app.database.album_db import AlbumDatabase
     album_db = AlbumDatabase(config)
     
     # Step 3: Create music services with injected config
     subsonic_service = SubsonicService(config)
     
     # Step 4: Create chromecast service with injected config
-    from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand
-    chromecast_service = PyChromecastServiceOnDemand(config, event_bus)
+    from app.services.chromecast_service import ChromecastService
+    chromecast_service = ChromecastService(config, event_bus)
     
     # Step 5: Initialize hardware manager with injected dependencies
     hardware_manager = HardwareManager(config, event_bus)

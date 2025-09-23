@@ -415,12 +415,12 @@ class TestPyChromecastService:
     @pytest.mark.asyncio
     async def test_switch_device_success(self, mock_pychromecast, mock_chromecast, mock_new_chromecast):
         """Test successful device switching"""
-        from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand
+    from app.services.chromecast_service import ChromecastService
         
         # Mock pychromecast discovery
         mock_pychromecast.get_chromecasts.return_value = ([mock_new_chromecast], Mock())
         
-        service = PyChromecastServiceOnDemand()
+    service = ChromecastService()
         service.chromecast = mock_chromecast
         service.is_connected = Mock(return_value=True)
         
@@ -440,12 +440,12 @@ class TestPyChromecastService:
     @pytest.mark.asyncio
     async def test_switch_device_not_found(self, mock_pychromecast):
         """Test switching to non-existent device"""
-        from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand
+    from app.services.chromecast_service import ChromecastService
         
         # Mock pychromecast discovery returns empty list
         mock_pychromecast.get_chromecasts.return_value = ([], Mock())
         
-        service = PyChromecastServiceOnDemand()
+    service = ChromecastService()
         
         # Test device switch to non-existent device
         result = service.switch_device("Nonexistent Device")
@@ -455,12 +455,12 @@ class TestPyChromecastService:
     @pytest.mark.asyncio
     async def test_switch_device_no_current_connection(self, mock_new_chromecast):
         """Test switching when no current device is connected"""
-        from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand
+    from app.services.chromecast_service import ChromecastService
         
         with patch('app.services.pychromecast_service_ondemand.pychromecast') as mock_pychromecast:
             mock_pychromecast.get_chromecasts.return_value = ([mock_new_chromecast], Mock())
             
-            service = PyChromecastServiceOnDemand()
+            service = ChromecastService()
             service.chromecast = None  # No current connection
             
             result = service.switch_device("TV Lounge")

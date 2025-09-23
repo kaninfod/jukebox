@@ -8,7 +8,9 @@ import time
 from app.metrics.collector import play_counter
 
 import logging
+# from enum import Enum
 from typing import List, Dict, Optional
+from app.services.chromecast_service import ChromecastService
 # from enum import Enum
 from app.core import EventType, Event
 from app.core import PlayerStatus
@@ -43,9 +45,8 @@ class JukeboxMediaPlayer:
             self.cc_service = chromecast_service
         else:
             # Fallback for backward compatibility - this will be removed later
-            from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand
-            from app.config import config
-            self.cc_service = PyChromecastServiceOnDemand(config.DEFAULT_CHROMECAST_DEVICE)
+                from app.config import config
+                self.cc_service = ChromecastService(config.DEFAULT_CHROMECAST_DEVICE)
             
         self.current_volume = 0  # Ensure attribute exists before any event/context
         self.track_timer = TrackTimer()

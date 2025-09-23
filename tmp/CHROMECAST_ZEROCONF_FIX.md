@@ -77,14 +77,14 @@ discovery_zeroconf.close()  # Safe to close - only used for discovery
 
 ### Regular Usage (Automatic Cleanup):
 ```python
-service = PyChromecastServiceOnDemand("Living Room")
+service = ChromecastService("Living Room")
 # Use service...
 service.cleanup()  # Call when done
 ```
 
 ### Context Manager (Automatic Cleanup):
 ```python
-with PyChromecastServiceOnDemand("Living Room") as service:
+with ChromecastService("Living Room") as service:
     # Use service...
     pass  # Automatic cleanup on exit
 ```

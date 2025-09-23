@@ -72,7 +72,7 @@ RFID_THREAD_JOIN_TIMEOUT: int = int(os.getenv("RFID_THREAD_JOIN_TIMEOUT", "1"))
 - **BEFORE**: Hardcoded `timeout=10`
 - **AFTER**: Uses `config.HTTP_REQUEST_TIMEOUT`
 
-#### `app/services/pychromecast_service_ondemand.py`
+#### `app/services/chromecast_service.py`
 - **BEFORE**: Multiple hardcoded timeouts (`time.sleep(3)`, `timeout=10`)
 - **AFTER**: Uses config values:
   - `config.CHROMECAST_DISCOVERY_TIMEOUT`

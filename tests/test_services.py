@@ -94,12 +94,12 @@ class TestAlbumDatabase:
     
     @pytest.fixture 
     def album_db(self, mock_config):
-        from app.database.album_db_old import AlbumDatabase
+        from app.database.album_db import AlbumDatabase
         return AlbumDatabase(mock_config)
     
     def test_album_database_initialization(self, mock_config):
         """Test AlbumDatabase initializes with injected config"""
-        from app.database.album_db_old import AlbumDatabase
+        from app.database.album_db import AlbumDatabase
         
         db = AlbumDatabase(mock_config)
         

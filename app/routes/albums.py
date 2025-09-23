@@ -4,7 +4,7 @@ import os
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from typing import List
 from app.database.album_schema import AlbumEntry
-from app.database.album_db import AlbumDB
+from app.database.album_db import AlbumDatabase
 from app.services.subsonic_service import SubsonicService
 from app.config import config
 from app.config import config
@@ -18,7 +18,7 @@ router = APIRouter()
 
 @router.get("/albums", response_model=List[AlbumEntry])
 def list_album_entries_route():
-    album_db = AlbumDB(config)
+    album_db = AlbumDatabase(config)
     subsonic = SubsonicService(config)
     mappings = album_db.list_all()
     result = []

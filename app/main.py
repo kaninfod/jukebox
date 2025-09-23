@@ -10,6 +10,7 @@ except ImportError:
     logging.getLogger(__name__).warning("⚠️  RPi.GPIO not available - hardware features disabled")
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import config
@@ -18,7 +19,7 @@ from app.routes.albums import router as album_router
 from app.routes.mediaplayer import router as mediaplayer_router
 from app.routes.pngs import router as pngs_router
 from app.routes.system import router as system_router
-from app.web.routes import router as web_router
+from app.routes.subsonic import router as subsonic_router
 from app.routes.chromecast import router as chromecast_router
 
 from app.services.playback_manager import PlaybackManager
@@ -32,7 +33,17 @@ from app.core.logging_config import setup_logging
 setup_logging(level=logging.DEBUG)
 
 # Initialize FastAPI app
+
 app = FastAPI()
+
+# Add CORS middleware for local frontend development
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins (including all local network clients)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Mount static folders
 app.mount("/pngs-static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "..", "tests")), name="pngs-static")
@@ -48,114 +59,60 @@ app.include_router(album_router)
 app.include_router(mediaplayer_router)
 app.include_router(system_router)
 app.include_router(pngs_router, prefix="/pngs")
-app.include_router(web_router)
+app.include_router(subsonic_router)
 app.include_router(chromecast_router)
 
 
-# Global instances for shared access
-screen_manager = None
-hardware_manager = None
-display = None
-playback_manager = None
-
-jukebox_mediaplayer = None
-
-def get_jukebox_mediaplayer():
-    """Get the global JukeboxMediaPlayer instance"""
-    return jukebox_mediaplayer
-
-def get_screen_manager():
-    """Get the global screen manager instance"""
-    return screen_manager
 
 
-def get_hardware_manager():
-    """Get the global hardware manager instance"""
-    return hardware_manager
+
+# Service container import and eager initialization
+from app.core.service_container import setup_service_container, container as global_container
+if global_container is None:
+    global_container = setup_service_container()
+
 
 
 @app.on_event("startup")
 def startup_event():
-    """Initialize all systems with dependency injection"""
-    global screen_manager, hardware_manager, display, playback_manager, jukebox_mediaplayer
-    
+    """Initialize all systems using the service container"""
     # Step 0: Validate configuration
     if not config.validate_config():
         logging.error("❌ Configuration validation failed. Please check your .env file.")
         return
-    
-    # Step 1: Create core dependencies
-    from app.core.event_bus import event_bus
-    from app.database.album_db import AlbumDB
-    from app.services.subsonic_service import SubsonicService
-    from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand
-
-    # Initialize database and services with config injection
-    album_db = AlbumDB(config)
-    subsonic_service = SubsonicService(config)
-    chromecast_service = PyChromecastServiceOnDemand(config.DEFAULT_CHROMECAST_DEVICE)
-    
-    # Step 2: Initialize hardware manager with dependency injection
-    hardware_manager = HardwareManager(
-        config=config,
-        event_bus=event_bus,
-        screen_manager=None  # Will be set after screen_manager is created
-    )
-
-    # Step 3: Initialize display hardware
-    display = hardware_manager.initialize_hardware()
-
-
-
-    # Step 5: Initialize JukeboxMediaPlayer with dependency injection
-    from app.services.jukebox_mediaplayer import JukeboxMediaPlayer
-    if not jukebox_mediaplayer:
-        jukebox_mediaplayer = JukeboxMediaPlayer(
-            playlist=[],
-            event_bus=event_bus,
-            chromecast_service=chromecast_service
-        )
-    
-    # Step 4: Initialize screen manager with dependency injection
-    screen_manager = ScreenManager(
-        display=display,
-        event_bus=event_bus, 
-        media_player=jukebox_mediaplayer
-    )
-
-    # Step 5.5: Initialize ChromecastDeviceManager for device switching
-    from app.services.chromecast_device_manager import ChromecastDeviceManager
-    chromecast_device_manager = ChromecastDeviceManager(
-        event_bus=event_bus,
-        media_player=jukebox_mediaplayer
-    )
-    
-    # Step 6: Initialize PlaybackManager with dependency injection
-    playback_manager = PlaybackManager(
-        screen_manager=screen_manager,
-        player=jukebox_mediaplayer,
-        album_db=album_db,
-        subsonic_service=subsonic_service,
-        event_bus=event_bus
-    )
-
-    # Step 6: Update hardware manager with screen manager and playback manager
+    # Step 1: Setup service container
+    global_container = setup_service_container()
+    # Step 2: Resolve all main services
+    playback_manager = global_container.get('playback_manager')
+    screen_manager = global_container.get('screen_manager')
+    hardware_manager = global_container.get('hardware_manager')
+    # Step 3: Update hardware manager with references (cross-dependencies)
     hardware_manager.screen_manager = screen_manager
     hardware_manager.playback_manager = playback_manager
-
+    # Step 4: Start the system
     from app.ui.screens import IdleScreen
     IdleScreen.show()
     logging.info("🚀Jukebox app startup complete")
 
 
+
 @app.on_event("shutdown")
 def shutdown_event():
     """Clean up resources on shutdown"""
-    # Clean up hardware
-    if hardware_manager:
-        hardware_manager.cleanup()
-    if screen_manager:
-        screen_manager.cleanup()
+    from app.core.service_container import container as global_container
+    if global_container:
+        try:
+            hardware_manager = global_container.get('hardware_manager')
+            if hardware_manager:
+                hardware_manager.cleanup()
+        except Exception:
+            pass
+        try:
+            screen_manager = global_container.get('screen_manager')
+            if screen_manager:
+                screen_manager.cleanup()
+        except Exception:
+            pass
     logging.info("Jukebox FastAPI app shutdown complete")
 
 

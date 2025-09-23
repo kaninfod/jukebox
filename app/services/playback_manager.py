@@ -15,7 +15,7 @@ class PlaybackManager:
             subsonic_service: SubsonicService instance for music provider operations
             event_bus: EventBus instance for event communication
         """
-        # Inject all dependencies - no more imports needed
+        # Inject all dependencies
         self.screen_manager = screen_manager
         self.player = player
         self.album_db = album_db

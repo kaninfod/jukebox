@@ -38,9 +38,9 @@ def mock_hardware_dependencies():
 @pytest.fixture
 def full_system_setup():
     """Create a full system setup with mocked hardware"""
-    from app.database.album_db_old import AlbumDatabase
+    from app.database.album_db import AlbumDatabase
     from app.services.subsonic_service import SubsonicService
-    from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand
+    from app.services.chromecast_service import ChromecastService
     from app.hardware.hardware import HardwareManager
     from app.ui.manager import ScreenManager
     from app.services.jukebox_mediaplayer import JukeboxMediaPlayer
@@ -93,7 +93,7 @@ def full_system_setup():
         # Use Mock for album_db to allow test control
         album_db = Mock(spec=AlbumDatabase)
         subsonic_service = SubsonicService(mock_config)
-        chromecast_service = PyChromecastServiceOnDemand("Living Room")
+    chromecast_service = ChromecastService("Living Room")
         
         hardware_manager = HardwareManager(
             config=mock_config,

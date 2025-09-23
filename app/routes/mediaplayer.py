@@ -5,8 +5,8 @@ from fastapi import APIRouter, Body, Query
 router = APIRouter()
 
 def get_screen_manager():
-    from app.main import screen_manager
-    return screen_manager
+    from app.core.service_container import get_service
+    return get_service("screen_manager")
 
 @router.post("/mediaplayer/next_track")
 def next_track():
@@ -111,16 +111,16 @@ def volume_down():
 
 
 # Endpoint to trigger load_rfid in PlaybackManager
-@router.post("/mediaplayer/playback_rfid")
-def playbackmanager_load_rfid(rfid: str = Body(..., embed=True)):
-    """Trigger load_rfid in PlaybackManager with the given RFID."""
 
+
+@router.post("/mediaplayer/play_album_from_rfid/{rfid}")
+def play_album_from_rfid(rfid: str):
+    """Play album from RFID using PlaybackManager."""
     from app.core import event_bus, EventType, Event
     result = event_bus.emit(Event(
         type=EventType.RFID_READ,
         payload={"rfid": rfid}
     ))
-
     if result:
         return {"status": "success", "message": result}
     else:
@@ -128,30 +128,31 @@ def playbackmanager_load_rfid(rfid: str = Body(..., embed=True)):
 
 
 # Endpoint to trigger load_from_album_id in PlaybackManager
-@router.post("/mediaplayer/playback_album_id")
-def playbackmanager_load_album_id(album_id: str = Body(..., embed=True), provider: str = Body("subsonic", embed=True)):
-    """Trigger load_from_album_id in PlaybackManager with the given album_id."""
 
+
+@router.post("/mediaplayer/play_album_from_albumid/{albumid}")
+def play_album_from_albumid(albumid: str, provider: str = "subsonic"):
+    """Play album from album_id using PlaybackManager."""
     try:
-        from app.main import playback_manager
-        result = playback_manager.load_from_album_id(album_id)
-        
+        from app.core.service_container import get_service
+        playback_manager = get_service("playback_manager")
+        result = playback_manager.load_from_album_id(albumid)
         if result:
             return {
                 "status": "success",
-                "message": f"Successfully loaded album_id: {album_id}",
-                "album_id": album_id,
+                "message": f"Successfully loaded album_id: {albumid}",
+                "album_id": albumid,
                 "provider": provider
             }
         else:
             return {
                 "status": "error", 
-                "message": f"Failed to load album_id: {album_id}"
+                "message": f"Failed to load album_id: {albumid}"
             }
     except Exception as e:
         return {
             "status": "error", 
-            "message": f"Exception while loading album_id {album_id}: {str(e)}"
+            "message": f"Exception while loading album_id {albumid}: {str(e)}"
         }
 
 
@@ -160,7 +161,8 @@ def playbackmanager_load_album_id(album_id: str = Body(..., embed=True), provide
 def get_current_track_info():
     """Get all info on the current track from JukeboxMediaPlayer."""
     try:
-        from app.main import playback_manager
+        from app.core.service_container import get_service
+        playback_manager = get_service("playback_manager")
         player = playback_manager.player if playback_manager else None
         if player and player.current_track:
             return {
@@ -194,7 +196,7 @@ def get_mediaplayer_info():
                 "album": home_screen.album_name,
                 "year": home_screen.album_year,
                 "track": home_screen.track_title,
-                "image_url": home_screen.album_image_url
+                "image_url": home_screen.album_cover_filename
             }
         }
     

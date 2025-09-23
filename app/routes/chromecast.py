@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
-from app.services.pychromecast_service_ondemand import PyChromecastServiceOnDemand, get_chromecast_service
+from app.services.chromecast_service import ChromecastService, get_chromecast_service
 from app.config import config
 import logging
 
@@ -19,12 +19,15 @@ def list_chromecasts():
         return {"chromecasts": chromecasts}
 
 @router.get("/chromecast/connect")
-def chromecast_connect(device_name: str = Query(config.DEFAULT_CHROMECAST_DEVICE, description="Chromecast device name")):
+def chromecast_connect(
+    device_name: str = Query(config.DEFAULT_CHROMECAST_DEVICE, description="Chromecast device name"),
+    fallback: bool = Query(True, description="Connect to first available device if target not found")
+):
     try:
         with get_chromecast_service(device_name) as service:
-            success = service.connect()
+            success = service.connect(fallback=fallback)
             if not success or not service.cast:
-                logger.warning(f"Failed to connect to Chromecast: {device_name}")
+                logger.warning(f"Failed to connect to Chromecast: {device_name} (fallback={fallback})")
                 return {"status": "not_connected", "device": device_name}
             return {"status": "connected", "device": service.cast.name}
     except Exception as e:

@@ -5,7 +5,7 @@ from app.database.album import AlbumModel, Base
 
 logger = logging.getLogger(__name__)
 
-class AlbumDB:
+class AlbumDatabase:
     def __init__(self, config):
         self.config = config
         database_url = config.get_database_url()
@@ -50,6 +50,7 @@ class AlbumDB:
             session.close()
 
 
+
     def list_all(self):
         session = self.SessionLocal()
         try:
@@ -57,3 +58,6 @@ class AlbumDB:
             return [(album.rfid, album.album_id) for album in albums]
         finally:
             session.close()
+
+# Export for import *
+__all__ = ["AlbumDatabase"]

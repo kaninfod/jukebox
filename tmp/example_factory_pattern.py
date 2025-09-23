@@ -43,7 +43,7 @@ class ServiceFactory:
     def create_album_database(self):
         """Create AlbumDatabase with injected dependencies"""
         if 'album_database' not in self._created_services:
-            from app.database.album_db_old import AlbumDatabase
+            from app.database.album_db import AlbumDatabase
             self._created_services['album_database'] = AlbumDatabase(
                 config=self._config
             )

@@ -18,7 +18,7 @@ This analysis examines the coupling relationships between the main modules in th
 - **services/playback_manager.py** - Main playback orchestration
 - **services/jukebox_mediaplayer.py** - Media player logic
 - **services/subsonic_service.py** - Music provider service
-- **services/pychromecast_service_ondemand.py** - Chromecast integration
+- **services/chromecast_service.py** - Chromecast integration
 - **services/websocket_service.py** - HomeAssistant integration (deprecated)
 
 ### UI Module
@@ -54,13 +54,13 @@ This analysis examines the coupling relationships between the main modules in th
 | **services/playback_manager** | services/jukebox_mediaplayer | Import | Player instantiation | HIGH |
 | **services/playback_manager** | services/subsonic_service | Import | Music data fetching | HIGH |
 | | | | | |
-| **services/jukebox_mediaplayer** | services/pychromecast_service_ondemand | Import | Chromecast control | HIGH |
+| **services/jukebox_mediaplayer** | services/chromecast_service | Import | Chromecast control | HIGH |
 | **services/jukebox_mediaplayer** | core/event_bus | EventBus | VOLUME_CHANGED, TRACK_CHANGED, STATUS_CHANGED events | LOW |
 | | | | | |
 | **services/subsonic_service** | services/music_provider_service | Import | Interface inheritance | HIGH |
 | **services/subsonic_service** | config | Import | API configuration | HIGH |
 | | | | | |
-| **services/pychromecast_service_ondemand** | core/event_bus | EventBus | TRACK_FINISHED events | LOW |
+| **services/chromecast_service** | core/event_bus | EventBus | TRACK_FINISHED events | LOW |
 | | | | | |
 | **ui/manager** | core/event_bus | Import | Event system | MEDIUM |
 | **ui/manager** | core/event_bus | EventBus | Subscribes to 6 screen events | LOW |
@@ -80,7 +80,7 @@ This analysis examines the coupling relationships between the main modules in th
 | | | | | |
 | **routes/albums** | services/subsonic_service | Import | Album data operations | HIGH |
 | **routes/mediaplayer** | services/playback_manager | Import | Playback control | HIGH |
-| **routes/chromecast** | services/pychromecast_service_ondemand | Import | Chromecast control | HIGH |
+| **routes/chromecast** | services/chromecast_service | Import | Chromecast control | HIGH |
 
 ## Event Bus Communication Patterns
 
@@ -89,7 +89,7 @@ This analysis examines the coupling relationships between the main modules in th
 |--------|----------------|---------|
 | **hardware/hardware** | RFID_READ, BUTTON_PRESSED, ROTARY_ENCODER | Hardware input events |
 | **services/jukebox_mediaplayer** | VOLUME_CHANGED, TRACK_CHANGED, STATUS_CHANGED | Playback state changes |
-| **services/pychromecast_service_ondemand** | TRACK_FINISHED | Chromecast playback completion |
+| **services/chromecast_service** | TRACK_FINISHED | Chromecast playback completion |
 | **ui/menu/menu_controller** | SHOW_MENU, PLAY_ALBUM | Menu navigation and actions |
 
 ### Event Consumers (Subscribe to Events)
