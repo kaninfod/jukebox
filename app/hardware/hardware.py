@@ -57,7 +57,12 @@ class HardwareManager:
             self.display = ILI9488()
 
             # Initialize RFID reader using injected config
-            self.rfid_reader = RC522Reader(
+            # self.rfid_reader = RC522Reader(
+            #     cs_pin=self.config.RFID_CS_PIN,
+            #     on_new_uid=self._handle_new_uid
+            # )
+            from .devices.pn532_rfid import PN532Reader
+            self.rfid_reader = PN532Reader(
                 cs_pin=self.config.RFID_CS_PIN,
                 on_new_uid=self._handle_new_uid
             )
@@ -91,6 +96,7 @@ class HardwareManager:
             self.button5 = PushButton(self.config.BUTTON_5_GPIO, callback=self._on_button5_press, bouncetime=self.config.BUTTON_BOUNCETIME)
 
             logger.info("🔧 Hardware initialization complete")
+            
             return self.display
             
         except Exception as e:
