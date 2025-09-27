@@ -1,4 +1,3 @@
-
 """
 Hardware management module for the jukebox.
 Handles initialization and callbacks for all hardware devices.
@@ -87,7 +86,13 @@ class HardwareManager:
             self.button1 = PushButton(self.config.BUTTON_1_GPIO, callback=self._on_button1_press, bouncetime=self.config.BUTTON_BOUNCETIME)
             self.button2 = PushButton(self.config.BUTTON_2_GPIO, callback=self._on_button2_press, bouncetime=self.config.BUTTON_BOUNCETIME)
             self.button3 = PushButton(self.config.BUTTON_3_GPIO, callback=self._on_button3_press, bouncetime=self.config.BUTTON_BOUNCETIME)
-            self.button4 = PushButton(self.config.BUTTON_4_GPIO, callback=self._on_button4_press, bouncetime=self.config.BUTTON_BOUNCETIME)
+            self.button4 = PushButton(
+                self.config.BUTTON_4_GPIO,
+                callback=self._on_button4_press,
+                long_press_callback=self._on_button4_long_press,
+                long_press_threshold=5,
+                bouncetime=self.config.BUTTON_BOUNCETIME
+            )
             self.button5 = PushButton(self.config.BUTTON_5_GPIO, callback=self._on_button5_press, bouncetime=self.config.BUTTON_BOUNCETIME)
 
             logger.info("🔧 Hardware initialization complete")
@@ -186,8 +191,6 @@ class HardwareManager:
     def _on_button0_press(self):
         """Handle button 0 press - Generic button"""
         logger.info("Button 0 was pressed!")
-
-        # Use injected event_bus instead of importing
         self.event_bus.emit(Event(
             type=EventType.BUTTON_PRESSED,
             payload={"button": 0, "action": "generic"}
@@ -195,7 +198,6 @@ class HardwareManager:
     
     def _on_button1_press(self):
         """Handle button 1 press - Previous track"""
-        # Use injected event_bus instead of importing
         self.event_bus.emit(Event(
             type=EventType.BUTTON_PRESSED,
             payload={"button": 1, "action": "previous_track"}
@@ -203,7 +205,6 @@ class HardwareManager:
 
     def _on_button2_press(self):
         """Handle button 2 press - Play/Pause"""
-        # Use injected event_bus instead of importing
         self.event_bus.emit(Event(
             type=EventType.BUTTON_PRESSED,
             payload={"button": 2, "action": "play_pause"}
@@ -211,7 +212,6 @@ class HardwareManager:
 
     def _on_button3_press(self):
         """Handle button 3 press - Next track"""
-        # Use injected event_bus instead of importing
         self.event_bus.emit(Event(
             type=EventType.BUTTON_PRESSED,
             payload={"button": 3, "action": "next_track"}
@@ -220,16 +220,22 @@ class HardwareManager:
     def _on_button4_press(self):
         """Handle button 4 press - Stop"""
         logger.info("Button 4 press detected")
-        # Use injected event_bus instead of importing
         self.event_bus.emit(Event(
             type=EventType.BUTTON_PRESSED,
             payload={"button": 4, "action": "stop"}
         ))
     
+    def _on_button4_long_press(self):
+        """Handle button 4 long press - System Reboot"""
+        logger.info("Button 4 long press detected (requesting system reboot)")
+        self.event_bus.emit(Event(
+            type=EventType.SYSTEM_REBOOT_REQUESTED,
+            payload={"button": 4}
+        ))
+
     def _on_button5_press(self):
         """Handle button 5 press - Rotary encoder button"""
         logger.info("Rotary encoder button was pressed!")
-        # Use injected event_bus instead of importing
         self.event_bus.emit(Event(
             type=EventType.BUTTON_PRESSED,
             payload={"button": "rotary_encoder"}
@@ -237,7 +243,6 @@ class HardwareManager:
 
     def _on_rotate(self, direction, position):
         """Handle rotary encoder rotation"""
-        # Use injected event_bus instead of importing
         if direction > 0:
             self.event_bus.emit(Event(
                 type=EventType.ROTARY_ENCODER,

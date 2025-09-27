@@ -9,6 +9,8 @@ except ImportError:
     import logging
     logging.getLogger(__name__).warning("⚠️  RPi.GPIO not available - hardware features disabled")
 
+import getpass
+from venv import logger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -17,7 +19,7 @@ from app.config import config
 
 from app.routes.albums import router as album_router
 from app.routes.mediaplayer import router as mediaplayer_router
-from app.routes.pngs import router as pngs_router
+#from app.routes.pngs import router as pngs_router
 from app.routes.system import router as system_router
 from app.routes.subsonic import router as subsonic_router
 from app.routes.chromecast import router as chromecast_router
@@ -46,7 +48,7 @@ app.add_middleware(
 )
 
 # Mount static folders
-app.mount("/pngs-static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "..", "tests")), name="pngs-static")
+# app.mount("/pngs-static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "..", "tests")), name="pngs-static")
 
 # Mount album cover cache directory for web access
 album_cover_dir = config.STATIC_FILE_PATH
@@ -58,7 +60,7 @@ app.mount("/album_covers", StaticFiles(directory=album_cover_dir), name="album_c
 app.include_router(album_router)
 app.include_router(mediaplayer_router)
 app.include_router(system_router)
-app.include_router(pngs_router, prefix="/pngs")
+# app.include_router(pngs_router, prefix="/pngs")
 app.include_router(subsonic_router)
 app.include_router(chromecast_router)
 
@@ -92,6 +94,10 @@ def startup_event():
     # Step 4: Start the system
     from app.ui.screens import IdleScreen
     IdleScreen.show()
+
+    import getpass, os
+    logger.info(f"Running as user: {getpass.getuser()}")
+    logger.info(f"PATH: {os.environ.get('PATH')}")
     logging.info("🚀Jukebox app startup complete")
 
 

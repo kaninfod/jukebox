@@ -93,7 +93,7 @@ def full_system_setup():
         # Use Mock for album_db to allow test control
         album_db = Mock(spec=AlbumDatabase)
         subsonic_service = SubsonicService(mock_config)
-    chromecast_service = ChromecastService("Living Room")
+        chromecast_service = ChromecastService("Living Room")
         
         hardware_manager = HardwareManager(
             config=mock_config,
@@ -210,8 +210,8 @@ class TestRFIDWorkflow:
             "artist_name": "Test Artist",
             "album_id": "playlist_123",
             "tracks": [
-                {"title": "Track 1", "video_id": "track1", "duration": 180},
-                {"title": "Track 2", "video_id": "track2", "duration": 200}
+                {"title": "Track 1", "track_id": "track1", "duration": 180},
+                {"title": "Track 2", "track_id": "track2", "duration": 200}
             ]
         }
         album_db.update_album_entry(test_rfid, album_data)
@@ -385,7 +385,7 @@ class TestMenuNavigationWorkflow:
             "album_name": "Menu Selected Album",
             "artist_name": "Menu Artist",
             "tracks": [
-                {"title": "Menu Track 1", "video_id": "menu1", "duration": 180}
+                {"title": "Menu Track 1", "track_id": "menu1", "duration": 180}
             ]
         }
         
@@ -430,7 +430,7 @@ class TestErrorHandlingWorkflows:
         
         # Load track without stream_url
         test_tracks = [
-            {"title": "Track Without URL", "video_id": "no_stream"}
+            {"title": "Track Without URL", "track_id": "no_stream"}
         ]
         player.playlist = test_tracks
         

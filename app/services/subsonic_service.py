@@ -70,7 +70,7 @@ class SubsonicService:
 
     
     def get_stream_url(self, track: dict) -> str:
-        track_id = track.get('video_id')
+        track_id = track.get('id')
         if not track_id:
             return None
         # Build Subsonic stream URL
@@ -283,12 +283,11 @@ class SubsonicService:
                     'title': track.get('title', 'Unknown Title'),
                     'duration': str(track.get('duration', '0:00')),
                     'track_number': track.get('track', 0),
-                    'video_id': track.get('id', '')
+                    'track_id': track.get('id', '')
                 }
                 tracks_data.append(track_info)
                 
             album_data = {
-                'provider': 'subsonic',
                 'album_name': album_name,
                 'artist_name': artist_name,
                 'year': year,

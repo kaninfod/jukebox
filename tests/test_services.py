@@ -39,7 +39,7 @@ class TestSubsonicService:
         from app.services.subsonic_service import SubsonicService
         
         service = SubsonicService(mock_config)
-        track = {"video_id": "test123"}
+        track = {"track_id": "test123"}
         
         url = service.get_stream_url(track)
         
@@ -282,8 +282,8 @@ class TestPlaybackManager:
             'album_name': 'Test Album',
             'artist_name': 'Test Artist',
             'tracks': [
-                {'title': 'Track 1', 'video_id': 'track1', 'duration': 180},
-                {'title': 'Track 2', 'video_id': 'track2', 'duration': 200}
+                {'title': 'Track 1', 'track_id': 'track1', 'duration': 180},
+                {'title': 'Track 2', 'track_id': 'track2', 'duration': 200}
             ]
         }
         mock_dependencies['album_db'].get_album_data_by_album_id.return_value = mock_album_data

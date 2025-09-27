@@ -2,6 +2,7 @@ from enum import Enum
 from app.core.event_bus import Event
 
 class EventType(Enum):
+    SYSTEM_REBOOT_REQUESTED = "system_reboot_requested"
     TRACK_CHANGED = "track_changed"
     VOLUME_CHANGED = "volume_changed"
     STATUS_CHANGED = "status_changed"

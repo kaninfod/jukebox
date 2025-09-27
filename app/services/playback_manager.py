@@ -1,5 +1,6 @@
 import logging
 from app.core import EventType, Event
+from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,28 @@ class PlaybackManager:
     def cleanup(self):
         logger.info("PlaybackManager cleanup called")
 
+    def get_stream_url_for_track(self, track: Dict) -> Optional[str]:
+        """
+        Provider-agnostic stream URL resolver for the current track.
+        Returns the stream URL or None if not available.
+        """
+        from app.core.service_container import get_service
+        service = get_service('subsonic_service')
+        return service.get_stream_url(track)
+
+    def get_cover_url_for_track(self, album_id: str) -> Optional[str]:
+        """
+        Cover URL resolver for the current track.
+        Returns the cover URL or None if not available.
+        """
+        from app.core.service_container import get_service
+        service = get_service('subsonic_service')
+        if album_id:
+            url = service.get_cover_url(album_id)
+            logger.debug(f"Resolved cover URL for album_id {album_id}: {url}")  
+            return url
+        else:
+            return None
 
     def load_from_album_id(self, album_id: str) -> bool:
         """
@@ -130,17 +153,18 @@ class PlaybackManager:
 
             playlist_metadata = []
             for track in tracks:
+                stream_url = self.get_stream_url_for_track(track)
                 playlist_metadata.append({
                     'title': track.get('title'),
-                    'video_id': track.get('id'),
-                    'stream_url': None,
+                    'track_id': track.get('id'),
+                    'stream_url': stream_url,
                     'duration': str(track.get('duration', 0)),
                     'track_number': track.get('track', 0),
                     'artist': album_info.get('artist', ''),
                     'album': album_info.get('name', ''),
                     'year': album_info.get('year', ''),
-                    'album_cover_filename': cover_filename,
-                    'provider': 'subsonic'
+                    'thumb': self.get_cover_url_for_track(album_info.get('id')),
+                    'album_cover_filename': cover_filename
                 })
             logger.info(f"Prepared playlist with {len(playlist_metadata)} tracks for album_id {album_id}")
             self.player.playlist = playlist_metadata
@@ -153,10 +177,10 @@ class PlaybackManager:
 
     def load_rfid(self, event: Event) -> bool:
         """Orchestrate the full playback pipeline from RFID scan using new album DB and SubsonicService."""
-        from app.core import event_bus, EventType, Event
-        
         rfid = event.payload['rfid']
         logger.info(f"RFID scan detected: {rfid}")
+        
+        from app.core import event_bus, EventType, Event
         event = Event(EventType.SHOW_SCREEN_QUEUED,
             payload={
                 "screen_type": "message",
@@ -170,6 +194,7 @@ class PlaybackManager:
             }
         )
         event_bus.emit(event)
+
         # Use new album_db for RFID mapping
         album_id = self.album_db.get_album_id_by_rfid(rfid)
         if not album_id:
@@ -180,12 +205,33 @@ class PlaybackManager:
                     "context": {
                         "title": "Album Not Found",
                         "icon_name": "contactless",
-                        "message": "No album mapped to this RFID.",
+                        "message": "No album mapped to this RFID. Creating new entry...",
                         "theme": "message_info"
                     },
                     "duration": 3
                 }
             )
             event_bus.emit(event)
-            return False
-        return self.load_from_album_id(album_id)
+                
+            logger.info(f"Creating empty album entry for RFID {rfid}")
+            if self.album_db.create_empty_album_entry(rfid):
+                logger.info(f"Successfully created empty album entry for RFID {rfid}")
+                event = Event(EventType.SHOW_SCREEN_QUEUED,
+                payload={
+                    "screen_type": "message",
+                    "context": {
+                        "title": "Album created",
+                        "icon_name": "contactless",
+                        "message": "Please add album details",
+                        "theme": "message_info"
+                    },
+                    "duration": 3
+                }
+            )
+            event_bus.emit(event)
+
+        else:
+            logger.info(f"Found album_id {album_id} for RFID {rfid}, loading album...")
+            self.load_from_album_id(album_id)
+
+        return True

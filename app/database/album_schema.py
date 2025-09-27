@@ -6,7 +6,7 @@ class Track(BaseModel):
     title: str
     duration: str
     track_number: int
-    video_id: str
+    track_id: str
 
 
 class AlbumEntry(BaseModel):

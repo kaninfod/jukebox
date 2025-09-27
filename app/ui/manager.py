@@ -26,6 +26,7 @@ class ScreenManager:
         # Initialize UI components
         self.screens = {}
         self.current_screen = None
+        self.player_status = PlayerStatus.STANDBY
         self.fonts = self._load_fonts()
         self.theme = UITheme(self.fonts)
         self.error_active = False  # Block screen changes while error is active
@@ -94,12 +95,19 @@ class ScreenManager:
     @track_event_handler("PLAYER_CHANGE")
     def _handle_player_changes(self, event):
         status = event.payload.get('status')
-        if status in [PlayerStatus.PLAY.value, PlayerStatus.PAUSE.value]:
+        try:
+            self.player_status = PlayerStatus(status)
+        except Exception:
+            self.player_status = PlayerStatus.STANDBY
+        if self.player_status in [PlayerStatus.PLAY, PlayerStatus.PAUSE]:
             self.screen_queue.add_screen("home", event.payload, None)
             # self.show_home_screen(event.payload)
         else:
             self.screen_queue.add_screen("idle", event.payload, None)
             self.show_idle_screen(event.payload)
+
+    def is_music_playing(self):
+        return self.player_status in [PlayerStatus.PLAY, PlayerStatus.PAUSE]
 
     def show_home_screen(self, context=None):
         self.switch_to_screen("home")

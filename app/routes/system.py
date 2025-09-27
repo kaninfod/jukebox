@@ -4,10 +4,40 @@ System control routes for the jukebox.
 Provides shutdown and reboot functionality.
 """
 from fastapi import APIRouter, HTTPException
+import logging
 import subprocess
 import asyncio
 from typing import Dict
 from app.config import config
+from app.core import EventType, Event, event_bus
+logger = logging.getLogger(__name__)
+
+# --- Synchronous reboot logic for event handler ---
+def reboot_system_sync():
+    """
+    Synchronous system reboot for use in event handlers or threads.
+    """
+    try:
+        logger.info("(sync) System reboot requested via event handler.")
+        result = subprocess.run(
+            ["sudo", "systemctl", "reboot"],
+            capture_output=True,
+            text=True,
+            timeout=config.SYSTEM_OPERATION_TIMEOUT
+        )
+        logger.info("(sync) System reboot command completed (should not happen if reboot works)")
+    except subprocess.TimeoutExpired:
+        logger.info("(sync) System reboot command timed out (expected if reboot works)")
+    except Exception as e:
+        logger.error(f"(sync) Failed to initiate reboot: {e}")
+
+def _subscribe_reboot_event():
+    def handle_reboot_event(event):
+        logger.info("SYSTEM_REBOOT_REQUESTED event received, calling reboot_system_sync()")
+        reboot_system_sync()
+    event_bus.subscribe(EventType.SYSTEM_REBOOT_REQUESTED, handle_reboot_event)
+
+_subscribe_reboot_event()
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
@@ -62,7 +92,7 @@ async def reboot_system() -> Dict[str, str]:
         # Use systemctl reboot for clean restart
         # Note: This command typically doesn't return as the system reboots
         result = subprocess.run(
-            ["systemctl", "reboot"], 
+            ["sudo", "/usr/bin/systemctl", "reboot"],
             capture_output=True, 
             text=True, 
             timeout=config.SYSTEM_OPERATION_TIMEOUT
@@ -107,7 +137,7 @@ async def system_status() -> Dict[str, str]:
             "uptime": uptime_result.stdout.strip() if uptime_result.returncode == 0 else "unknown",
             "hostname": hostname_result.stdout.strip() if hostname_result.returncode == 0 else "unknown"
         }
-        
+
     except Exception as e:
         return {
             "status": "error", 

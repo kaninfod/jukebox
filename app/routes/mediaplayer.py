@@ -131,7 +131,7 @@ def play_album_from_rfid(rfid: str):
 
 
 @router.post("/mediaplayer/play_album_from_albumid/{albumid}")
-def play_album_from_albumid(albumid: str, provider: str = "subsonic"):
+def play_album_from_albumid(albumid: str):
     """Play album from album_id using PlaybackManager."""
     try:
         from app.core.service_container import get_service
@@ -141,8 +141,7 @@ def play_album_from_albumid(albumid: str, provider: str = "subsonic"):
             return {
                 "status": "success",
                 "message": f"Successfully loaded album_id: {albumid}",
-                "album_id": albumid,
-                "provider": provider
+                "album_id": albumid
             }
         else:
             return {
@@ -166,41 +165,22 @@ def get_current_track_info():
         player = playback_manager.player if playback_manager else None
         if player and player.current_track:
             return {
-                "artist": player.artist,
-                "title": player.title,
-                "duration": player.duration,
-                "album": player.album,
-                "year": player.year,
-                "video_id": player.video_id,
-                "track_number": player.track_number,
-                "status": player.status.value
+                "current_track": {
+                    "artist": player.artist,
+                    "title": player.title,
+                    "duration": player.duration,
+                    "album": player.album,
+                    "year": player.year,
+                    "track_id": player.track_id,
+                    "track_number": player.track_number,
+                    "thumb": player.thumb
+                },
+                "status": player.status.value,
+                "playlist": player.playlist
             }
         else:
             return {"status": "error", "message": "No track loaded"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
-@router.get("/mediaplayer/info")
-def get_mediaplayer_info():
-    """Get current media player information"""
-    screen_manager = get_screen_manager()
-    home_screen = screen_manager.screens.get('home')
-    
-    if home_screen:
-        return {
-            "current_screen": screen_manager.current_screen.name if screen_manager.current_screen else None,
-            "volume": home_screen.volume,
-            "status": home_screen.player_status.value,
-            "track_info": {
-                "artist": home_screen.artist_name,
-                "album": home_screen.album_name,
-                "year": home_screen.album_year,
-                "track": home_screen.track_title,
-                "image_url": home_screen.album_cover_filename
-            }
-        }
-    
-    return {"status": "No home screen available"}
-
 
 

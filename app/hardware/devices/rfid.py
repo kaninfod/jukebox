@@ -98,14 +98,12 @@ class RC522Reader:
                 elapsed = time.time() - start_time
                 logger.warning(f"❌ RFID read timeout after {elapsed:.1f}s ({read_attempts} attempts)")
                 status = {"status": "timeout", "error_message": "Card read timeout. Please try again."}
-            self._stop_reading_internal()
         except Exception as e:
             logger.error(f"RFID reading thread error: {e}")
             status = {"status": "error", "error_message": f"Reading error: {str(e)}"}
-            self._stop_reading_internal()
+        self._stop_reading_internal()
         # Call the result callback if provided
         logger.debug(f"Calling result callback with status: {status}")
-        self._result_callback(status)
         if self._result_callback:
             try:
                 logger.info(f"Calling result callback with status: {status}")
@@ -113,6 +111,8 @@ class RC522Reader:
             except Exception as cb_e:
                 logger.error(f"RFID result callback error: {cb_e}")
         self._result_callback = None
+
+
     
     def _stop_reading_internal(self):
         """Internal method to stop reading"""

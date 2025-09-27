@@ -45,8 +45,8 @@ class JukeboxMediaPlayer:
             self.cc_service = chromecast_service
         else:
             # Fallback for backward compatibility - this will be removed later
-                from app.config import config
-                self.cc_service = ChromecastService(config.DEFAULT_CHROMECAST_DEVICE)
+            from app.config import config
+            self.cc_service = ChromecastService(config.DEFAULT_CHROMECAST_DEVICE)
             
         self.current_volume = 0  # Ensure attribute exists before any event/context
         self.track_timer = TrackTimer()
@@ -78,9 +78,9 @@ class JukeboxMediaPlayer:
         return track.get('year') if track else None
 
     @property
-    def video_id(self) -> Optional[str]:
+    def track_id(self) -> Optional[str]:
         track = self.current_track
-        return track.get('video_id') if track else None
+        return track.get('track_id') if track else None
     
     @property
     def current_track(self) -> Optional[Dict]:
@@ -104,6 +104,11 @@ class JukeboxMediaPlayer:
         return track.get('duration') if track else None
 
     @property
+    def thumb(self) -> Optional[str]:
+        track = self.current_track
+        return track.get('thumb') if track else None
+
+    @property
     def album(self) -> Optional[str]:
         track = self.current_track
         return track.get('album') if track else None
@@ -113,12 +118,6 @@ class JukeboxMediaPlayer:
         """Return the current volume (0-100)."""
         return self.current_volume
     
-    @property
-    def provider(self) -> str:
-        """Return the current provider."""
-        track = self.current_track
-        return track.get('provider') if track else None
-
     def sync_volume_from_chromecast(self):
         """Sync volume from Chromecast (0.0-1.0) to 0-100 scale."""
         cc_volume = self.cc_service.get_volume()
@@ -129,13 +128,11 @@ class JukeboxMediaPlayer:
             logger.error(f"[sync_volume_from_chromecast] Failed to set current_volume from cc_volume={cc_volume}: {e}")
             value = 50  # Default fallback volume
         self.current_volume = value
-        
         # Use injected event_bus instead of importing
         self.event_bus.emit(Event(
             type=EventType.VOLUME_CHANGED,
             payload=self._get_context()
         ))
-        
         return self.current_volume
 
     def play(self, event=None):
@@ -264,87 +261,59 @@ class JukeboxMediaPlayer:
     def get_track_elapsed(self):
         """Return the elapsed play time (seconds) for the current track."""
         return self.track_timer.get_elapsed()
-
-    def get_stream_url_for_track(self, track: Dict) -> Optional[str]:
-        """
-        Provider-agnostic stream URL resolver for the current track.
-        Returns the stream URL or None if not available.
-        """
-        provider = track.get('provider')
-        stream_url = track.get('stream_url')
-        if provider == 'subsonic':
-            from app.services.subsonic_service import SubsonicService
-            service = SubsonicService()
-            return service.get_stream_url(track)
-        else:
-            logger.error(f"Unknown provider: {provider}")
-            return None
-
-    def get_cover_url_for_track(self, album_id: str) -> Optional[str]:
-        """
-        Cover URL resolver for the current track.
-        Returns the cover URL or None if not available.
-        """    
-
-        from app.services.subsonic_service import SubsonicService
-        service = SubsonicService()
-        album_id = album_id
-        if album_id:
-            url = service.get_cover_url(album_id)
-            logger.debug(f"Resolved cover URL for album_id {album_id}: {url}")  
-            return url
-        else:
-            return None
     
-
-    def get_subsonic_ids_for_track(self, track: Dict) -> Dict[str, str]:
+    def update_metrics(self, track: Dict) -> Dict[str, str]:
         """
         Returns a dict with Subsonic IDs for artist, album, and track using SubsonicService.get_song_info.
         If not available, returns 'unknown'.
         """
-        if track.get('provider') != 'subsonic':
-            return {'artist': 'unknown', 'album': 'unknown', 'track': 'unknown'}
-        track_id = track.get('video_id')
+        track_id = track.get('track_id')
         if not track_id:
             return {'artist': 'unknown', 'album': 'unknown', 'track': 'unknown'}
-        from app.services.subsonic_service import SubsonicService
-        service = SubsonicService()
+        from app.core.service_container import get_service
+        service = get_service('subsonic_service')
         song_info = service.get_song_info(track_id)
         if not song_info:
-            return {'artist': 'unknown', 'album': 'unknown', 'track': video_id}
-        return {
+            return {'artist': 'unknown', 'album': 'unknown', 'track': track_id}
+
+        ids = {
             'artist': song_info.get('artistId', 'unknown'),
             'album': song_info.get('albumId', 'unknown'),
             'track': song_info.get('id', track_id)
-        }
-
-    def cast_current_track(self):
-        track = self.playlist[self.current_index]
-        stream_url = self.get_stream_url_for_track(track)
-        track['stream_url'] = stream_url
-        # Use Subsonic IDs for Prometheus labels if available
-        ids = self.get_subsonic_ids_for_track(track)
+        }        
+        
         play_counter.labels(
             artist=ids['artist'],
             album=ids['album'],
             song=ids['track']
         ).inc()
-        if stream_url:
-            logger.info(f"Casting stream URL for track {track.get('title')}, with url {stream_url}")
-            self.cc_service.play_media(stream_url, media_info={
-                "title": track.get("title"),
-                "thumb": self.get_cover_url_for_track(ids['album']),
-                "media_info": {
-                    "artist": track.get("artist"),
-                    "album": track.get("album"),
-                    "year": track.get("year"),
-                },
-                "metadata": {
-                    "metadataType": 3,
-                    "albumName": track.get("album"),
-                    "artist": track.get("artist")
+
+        return ids
+
+    def cast_current_track(self):
+        track = self.playlist[self.current_index]
+        
+        ids = self.update_metrics(track)
+
+        logger.info(f"stream url for track: {track.get('stream_url')}")
+        if track['stream_url']:
+            logger.info(f"Casting stream URL for track {track.get('title')}, with url {track['stream_url']}")
+            self.cc_service.play_media(track['stream_url'], 
+                media_info={
+                    "title": track.get("title"),
+                    "thumb": track.get("thumb"),
+                    "media_info": {
+                        "artist": track.get("artist"),
+                        "album": track.get("album"),
+                        "year": track.get("year"),
+                    },
+                    "metadata": {
+                        "metadataType": 3,
+                        "albumName": track.get("album"),
+                        "artist": track.get("artist")
+                    }
                 }
-            })
+            )
             self.track_timer.reset()
             self.track_timer.start()
             logger.info(f"Casting track {self.current_index+1}/{len(self.playlist)}: {track.get('title')}")
