@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 class PushButton:
-    def __init__(self, pin, callback=None, long_press_callback=None, long_press_threshold=3.0, bouncetime=200):
+    def __init__(self, pin, callback=None, long_press_callback=None, long_press_threshold=3.0, bouncetime=200, pull_up_down=GPIO.PUD_UP):
         self.pin = pin
         self.callback = callback
         self.long_press_callback = long_press_callback
@@ -19,7 +19,10 @@ class PushButton:
         try:
             GPIO.setwarnings(False)
             GPIO.setmode(GPIO.BCM)
-            GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            if pull_up_down is not None:
+                GPIO.setup(self.pin, GPIO.IN, pull_up_down=pull_up_down)
+            else:
+                GPIO.setup(self.pin, GPIO.IN)
             GPIO.add_event_detect(
                 self.pin,
                 GPIO.FALLING,

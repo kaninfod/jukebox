@@ -20,7 +20,14 @@ class ILI9488:
         # Initialize display with backlight control
         # Note: The backlight turns OFF during device initialization and the 
         # device.backlight() method doesn't seem to work with our hardware setup
-        self.serial = spi(port=0, device=0, gpio_CS=8, gpio_DC=23, gpio_RST=24, bus_speed_hz=48000000)
+        self.serial = spi(
+            port=0,
+            device=0,
+            gpio_CS=config.DISPLAY_GPIO_CS,
+            gpio_DC=config.DISPLAY_GPIO_DC,
+            gpio_RST=config.DISPLAY_GPIO_RST,
+            bus_speed_hz=48000000
+        )
         self.device = ili9488(self.serial, 
                              rotate=2, 
                              gpio_LIGHT=config.DISPLAY_BACKLIGHT_GPIO, 
@@ -78,7 +85,7 @@ class ILI9488:
         try:
             logger.info("Display: Attempting hardware power OFF...")
             self.gpio_handle = lgpio.gpiochip_open(0)
-            lgpio.gpio_claim_input(self.gpio_handle, config.DISPLAY_POWER_GPIO)
+            #lgpio.gpio_claim_input(self.gpio_handle, config.DISPLAY_POWER_GPIO)
             logger.info("Display: Hardware power OFF (S8550 transistor)")
         except Exception as e:
             logger.error(f"Display: Hardware power OFF failed: {e}")
@@ -88,8 +95,8 @@ class ILI9488:
         try:
             logger.info("Display: Attempting hardware power ON...")
             self.gpio_handle = lgpio.gpiochip_open(0)
-            lgpio.gpio_claim_output(self.gpio_handle, config.DISPLAY_POWER_GPIO)
-            lgpio.gpio_write(self.gpio_handle, config.DISPLAY_POWER_GPIO, 0)  # LOW
+            #lgpio.gpio_claim_output(self.gpio_handle, config.DISPLAY_POWER_GPIO)
+            #lgpio.gpio_write(self.gpio_handle, config.DISPLAY_POWER_GPIO, 0)  # LOW
             logger.info("Display: Hardware power ON (S8550 transistor)")
         except Exception as e:
             logger.error(f"Display: Hardware power ON failed: {e}")

@@ -55,11 +55,14 @@ class HardwareManager:
             # Initialize display
             self.display = ILI9488()
 
+            from .devices.pn532_rfid import PN532Reader
+            self.rfid_reader_class = PN532Reader
+
             # Initialize RFID reader using injected config
-            self.rfid_reader = RC522Reader(
-                cs_pin=self.config.RFID_CS_PIN,
-                on_new_uid=self._handle_new_uid
-            )
+            # self.rfid_reader = RC522Reader(
+            #     cs_pin=self.config.RFID_CS_PIN,
+            #     on_new_uid=self._handle_new_uid
+            # )
 
             # Set up switch pin for RFID using RPi.GPIO for edge detection
             import RPi.GPIO as GPIO
@@ -83,9 +86,9 @@ class HardwareManager:
             )
 
             # Initialize push buttons with callbacks using injected config
-            self.button1 = PushButton(self.config.BUTTON_1_GPIO, callback=self._on_button1_press, bouncetime=self.config.BUTTON_BOUNCETIME)
-            self.button2 = PushButton(self.config.BUTTON_2_GPIO, callback=self._on_button2_press, bouncetime=self.config.BUTTON_BOUNCETIME)
-            self.button3 = PushButton(self.config.BUTTON_3_GPIO, callback=self._on_button3_press, bouncetime=self.config.BUTTON_BOUNCETIME)
+            self.button1 = PushButton(self.config.BUTTON_1_GPIO, callback=self._on_button1_press, bouncetime=self.config.BUTTON_BOUNCETIME, pull_up_down=None)
+            self.button2 = PushButton(self.config.BUTTON_2_GPIO, callback=self._on_button2_press, bouncetime=self.config.BUTTON_BOUNCETIME, pull_up_down=None)
+            self.button3 = PushButton(self.config.BUTTON_3_GPIO, callback=self._on_button3_press, bouncetime=self.config.BUTTON_BOUNCETIME, pull_up_down=None)
             self.button4 = PushButton(
                 self.config.BUTTON_4_GPIO,
                 callback=self._on_button4_press,
@@ -104,16 +107,17 @@ class HardwareManager:
             from .devices.mock_display import MockDisplay
             return MockDisplay()
 
+
     def _on_rfid_switch_activated(self, channel):
         """Handle switch activation (card inserted) for RFID. Triggered by RPi.GPIO event detection."""
-        logger.info(f"RFID switch callback fired: channel={channel}, initialized={getattr(self.rfid_reader, 'initialized', None)}, reading_active={getattr(self.rfid_reader, 'reading_active', None)}")
+        logger.info(f"RFID switch callback fired: channel={channel}")
         # Only proceed if the pin is actually LOW (FALLING edge)
-        if not self.rfid_reader or not self.rfid_reader.initialized or self.rfid_reader.reading_active or GPIO.input(channel) != 0:
-            logger.debug("RFID switch callback blocked by state check.")
+        import RPi.GPIO as GPIO
+        if GPIO.input(channel) != 0:
+            logger.debug("RFID switch callback blocked: pin not LOW.")
             return
 
-        logger.info("🃏 Card insertion detected - starting RFID read...")
-        # Use injected config instead of importing
+        logger.info("🃏 Card insertion detected - starting PN532 read (one-shot)...")
         from app.core import event_bus, EventType, Event
         event = Event(EventType.SHOW_SCREEN_QUEUED,
             payload={
@@ -129,15 +133,12 @@ class HardwareManager:
         )
         event_bus.emit(event)
 
-        logger.info("Triggering RFID read due to switch activation")
-        # Start reading and handle result in callback
+        logger.info("Triggering PN532 read due to switch activation")
         def rfid_result_callback(result):
-            # Called from RFID reader thread when done
             _callback_result_status = result.get('status')
             logger.info(f"RFID read result: {_callback_result_status}")
             try:
                 if _callback_result_status == "success":
-                    # Let the normal new UID handler take over (already called by RC522Reader)
                     pass
                 elif _callback_result_status == "timeout":
                     from app.core import event_bus, EventType, Event
@@ -154,9 +155,7 @@ class HardwareManager:
                         }
                     )
                     event_bus.emit(event)
-
                 elif _callback_result_status == "error":
-                    #from app.core.event_factory import EventFactory
                     from app.core import event_bus, EventType, Event
                     event = Event(EventType.SHOW_SCREEN_QUEUED,
                         payload={
@@ -170,15 +169,15 @@ class HardwareManager:
                         }
                     )
                     event_bus.emit(event)
-
             except Exception as e:
                 logger.error(f"Exception in rfid_result_callback: {e}", exc_info=True)
         try:
-            logger.info("About to call rfid_reader.start_reading...")
-            self.rfid_reader.start_reading(result_callback=rfid_result_callback)
-            logger.info("rfid_reader.start_reading returned (should be non-blocking)")
+            logger.info("About to instantiate and call PN532Reader.start_reading...")
+            reader = self.rfid_reader_class(on_new_uid=self._handle_new_uid)
+            reader.start_reading(result_callback=rfid_result_callback)
+            logger.info("PN532Reader.start_reading returned (one-shot)")
         except Exception as e:
-            logger.error(f"Exception in rfid_reader.start_reading: {e}", exc_info=True)
+            logger.error(f"Exception in PN532Reader.start_reading: {e}", exc_info=True)
     
     def _handle_new_uid(self, uid):
         # Use injected event_bus instead of importing
@@ -320,3 +319,9 @@ class HardwareManager:
                 logger.error(f"Display cleanup error: {e}")
         
         # No final GPIO cleanup needed for lgpio
+
+
+# import RPi.GPIO as GPIO
+# GPIO.setmode(GPIO.BCM)
+# GPIO.setup(26, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+# print(GPIO.input(26))

@@ -86,14 +86,19 @@ class Config:
     # Display pins
     DISPLAY_POWER_GPIO: int = int(os.getenv("DISPLAY_POWER_GPIO", "20"))
     DISPLAY_BACKLIGHT_GPIO: int = int(os.getenv("DISPLAY_BACKLIGHT_GPIO", "18"))
+
+    # ILI9488 SPI GPIOs (configurable)
+    DISPLAY_GPIO_CS: int = int(os.getenv("DISPLAY_GPIO_CS", "8"))
+    DISPLAY_GPIO_DC: int = int(os.getenv("DISPLAY_GPIO_DC", "6"))
+    DISPLAY_GPIO_RST: int = int(os.getenv("DISPLAY_GPIO_RST", "5"))
     
     # Rotary encoder pins
-    ROTARY_ENCODER_PIN_A: int = int(os.getenv("ROTARY_ENCODER_PIN_A", "6"))
-    ROTARY_ENCODER_PIN_B: int = int(os.getenv("ROTARY_ENCODER_PIN_B", "5"))
+    ROTARY_ENCODER_PIN_A: int = int(os.getenv("ROTARY_ENCODER_PIN_A", "27"))
+    ROTARY_ENCODER_PIN_B: int = int(os.getenv("ROTARY_ENCODER_PIN_B", "22"))
     
     # RFID reader pins
     RFID_CS_PIN: int = int(os.getenv("RFID_CS_PIN", "7"))
-    NFC_CARD_SWITCH_GPIO: int = int(os.getenv("NFC_CARD_SWITCH_GPIO", "26"))
+    NFC_CARD_SWITCH_GPIO: int = int(os.getenv("NFC_CARD_SWITCH_GPIO", "4"))
     
     # Button pins
     BUTTON_1_GPIO: int = int(os.getenv("BUTTON_1_GPIO", "14"))

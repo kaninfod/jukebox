@@ -406,21 +406,24 @@ class MenuController:
             self.navigate_up()
     
     def _handle_button_press(self, event):
-        """Handle button press events when in menu mode"""
+        """Central handler for button press events, including button 4 logic."""
         button = event.payload.get("button")
-        
+
         if button == "rotary_encoder":
             if not self.is_active:
-                # Enter menu mode
                 self.enter_menu_mode()
             else:
-                # Activate selected item
                 self.activate_selected()
-        elif button == 4:  # Button 4 dual mode
+        elif button == 4:
             if self.is_active:
                 # Menu mode: Button 4 = Back button
                 self._go_back()
-            # Note: Non-menu mode (playback stop) handled by PlaybackManager
+            else:
+                # Not in menu: emit STOP event for playback manager
+                from app.core import event_bus, EventType, Event
+                event_bus.emit(Event(type=EventType.STOP, payload={}))
+                import logging
+                logging.getLogger(__name__).info("Button 4 pressed outside menu: STOP event emitted")
     
     # === PAGINATION METHODS ===
     
