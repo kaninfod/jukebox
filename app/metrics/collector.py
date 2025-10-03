@@ -1,3 +1,5 @@
+# Custom metric for PN532Reader object creation
+
 from prometheus_client import Counter, Histogram
 from app.config import config
 
@@ -7,6 +9,7 @@ event_dropped = Counter('event_dropped_total', 'Events dropped (no handler)', ['
 event_handler_success = Counter('event_handler_success_total', 'Event handler success', ['event_type'])
 event_handler_failure = Counter('event_handler_failure_total', 'Event handler failure', ['event_type'])
 event_handler_duration = Histogram('event_handler_duration_seconds', 'Event handler execution time', ['event_type'])
+pn532reader_created = Counter('pn532reader_created_total', 'PN532Reader objects created')
 
 play_counter = Counter(
     'jukebox_play_count',
@@ -25,6 +28,8 @@ class MetricsCollector:
             event_handler_success.labels(event_type=label).inc()
         elif name == "event_handler_failure":
             event_handler_failure.labels(event_type=label).inc()
+        elif name == "pn532reader_created":
+            pn532reader_created.inc()
 
     def observe(self, name, value, label=None):
         if name == "event_handler_duration":

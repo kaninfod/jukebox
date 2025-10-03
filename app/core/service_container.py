@@ -29,6 +29,11 @@ class ServiceContainer:
 
 
 # --- Service factory functions ---
+def create_app_state(container):
+    from app.services.appstate import AppStateService
+    return AppStateService()
+
+
 def create_config(container):
     from app.config import config
     return config
@@ -82,6 +87,7 @@ def setup_service_container():
     container = ServiceContainer()
     # Register core services as singletons
     container.register_singleton('config', create_config)
+    container.register_singleton('app_state', create_app_state)
     container.register_singleton('event_bus', create_event_bus)
     container.register_singleton('album_database', create_album_database)
     container.register_singleton('subsonic_service', create_subsonic_service)

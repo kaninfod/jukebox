@@ -11,14 +11,13 @@ logger = logging.getLogger(__name__)
 
 
 
-# List all discovered Chromecasts
-@router.get("/chromecast/listchromecasts")
+@router.get("/api/chromecast/listchromecasts")
 def list_chromecasts():
     with get_chromecast_service() as service:
         chromecasts = service.list_chromecasts()
         return {"chromecasts": chromecasts}
 
-@router.get("/chromecast/connect")
+@router.get("/api/chromecast/connect")
 def chromecast_connect(
     device_name: str = Query(config.DEFAULT_CHROMECAST_DEVICE, description="Chromecast device name"),
     fallback: bool = Query(True, description="Connect to first available device if target not found")
@@ -36,7 +35,7 @@ def chromecast_connect(
 
 
 
-@router.post("/chromecast/play")
+@router.post("/api/chromecast/play")
 def chromecast_play(
     url: str = Query(..., description="Direct stream URL to play on Chromecast"),
     content_type: str = Query("audio/mp3", description="MIME type of the media"),
@@ -55,7 +54,7 @@ def chromecast_play(
 
 
 
-@router.post("/chromecast/pause")
+@router.post("/api/chromecast/pause")
 def chromecast_pause(device_name: str = Query(config.DEFAULT_CHROMECAST_DEVICE, description="Chromecast device name")):
     try:
         with get_chromecast_service(device_name) as service:
@@ -69,7 +68,7 @@ def chromecast_pause(device_name: str = Query(config.DEFAULT_CHROMECAST_DEVICE, 
         raise HTTPException(status_code=500, detail=f"Failed to pause: {e}")
 
 
-@router.post("/chromecast/stop")
+@router.post("/api/chromecast/stop")
 def chromecast_stop(device_name: str = Query(config.DEFAULT_CHROMECAST_DEVICE, description="Chromecast device name")):
     try:
         with get_chromecast_service(device_name) as service:
@@ -83,7 +82,7 @@ def chromecast_stop(device_name: str = Query(config.DEFAULT_CHROMECAST_DEVICE, d
         raise HTTPException(status_code=500, detail=f"Failed to stop: {e}")
 
 
-@router.post("/chromecast/resume")
+@router.post("/api/chromecast/resume")
 def chromecast_resume(device_name: str = Query(config.DEFAULT_CHROMECAST_DEVICE, description="Chromecast device name")):
     try:
         with get_chromecast_service(device_name) as service:
@@ -97,7 +96,7 @@ def chromecast_resume(device_name: str = Query(config.DEFAULT_CHROMECAST_DEVICE,
         raise HTTPException(status_code=500, detail=f"Failed to resume: {e}")
 
 
-@router.post("/chromecast/set_volume")
+@router.post("/api/chromecast/set_volume")
 def chromecast_set_volume(
     volume: float = Query(..., ge=0.0, le=1.0, description="Volume level (0.0 to 1.0)"),
     device_name: str = Query(config.DEFAULT_CHROMECAST_DEVICE, description="Chromecast device name")

@@ -39,6 +39,7 @@ def _subscribe_reboot_event():
 
 _subscribe_reboot_event()
 
+
 router = APIRouter(prefix="/api/system", tags=["system"])
 
 @router.post("/shutdown")

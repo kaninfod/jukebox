@@ -37,6 +37,7 @@ class EventType(Enum):
     # Chromecast events
     CHROMECAST_DEVICE_CHANGED = "chromecast_device_changed"
     SHOW_SCREEN_QUEUED = "show_screen_queued"
+    ENCODE_CARD = "encode_card"
 
 class EventFactory:
     @staticmethod

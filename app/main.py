@@ -17,12 +17,16 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import config
 
+
 from app.routes.albums import router as album_router
 from app.routes.mediaplayer import router as mediaplayer_router
 #from app.routes.pngs import router as pngs_router
 from app.routes.system import router as system_router
 from app.routes.subsonic import router as subsonic_router
 from app.routes.chromecast import router as chromecast_router
+
+from app.routes.nfc_encoding import router as nfc_encoding_router
+from app.web.routes import router as web_router
 
 from app.services.playback_manager import PlaybackManager
 
@@ -56,6 +60,7 @@ if not os.path.isabs(album_cover_dir):
     album_cover_dir = os.path.join(os.path.dirname(__file__), "..", album_cover_dir)
 app.mount("/album_covers", StaticFiles(directory=album_cover_dir), name="album_covers")
 
+
 # Include routers
 app.include_router(album_router)
 app.include_router(mediaplayer_router)
@@ -63,6 +68,8 @@ app.include_router(system_router)
 # app.include_router(pngs_router, prefix="/pngs")
 app.include_router(subsonic_router)
 app.include_router(chromecast_router)
+app.include_router(nfc_encoding_router)
+app.include_router(web_router)
 
 
 

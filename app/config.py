@@ -13,6 +13,11 @@ from typing import Optional
 load_dotenv()
 
 class Config:
+    # === RFID BLOCK CONFIGURATION ===
+    # Dict mapping logical names to block numbers for RFID
+    RFID_BLOCKS = {
+        "album_id": 4
+    }
     # === NETWORK CONFIGURATION ===
     # Subsonic/Navidrome Configuration
     SUBSONIC_URL: str = os.getenv("SUBSONIC_URL", "http://localhost:4747")

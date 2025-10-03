@@ -4,7 +4,7 @@ import os, time
 
 router = APIRouter()
 
-@router.get("/", response_class=HTMLResponse)
+@router.get("/web", response_class=HTMLResponse)
 async def list_images():
     image_folder = os.path.join(os.path.dirname(__file__), "..", "..", "tests")
     files = [f for f in os.listdir(image_folder) if f.endswith(".png")]
@@ -13,7 +13,7 @@ async def list_images():
 
 
 
-@router.get("/view/{filename}", response_class=HTMLResponse)
+@router.get("/web/view/{filename}", response_class=HTMLResponse)
 async def view_image(filename: str):
     timestamp = int(time.time())
     return f"""

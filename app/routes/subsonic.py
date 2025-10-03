@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from app.core.service_container import get_service
 
+
 router = APIRouter()
 
-@router.get("/subsonic/artists")
+@router.get("/api/subsonic/artists")
 def get_all_artists():
     """Return all artists from SubsonicService."""
     subsonic_service = get_service("subsonic_service")
@@ -12,7 +13,7 @@ def get_all_artists():
         raise HTTPException(status_code=404, detail="No artists found")
     return artists
 
-@router.get("/subsonic/artist/{id}")
+@router.get("/api/subsonic/artist/{id}")
 def get_artist_albums(id: str):
     """Return all albums by artist (id) from SubsonicService."""
     subsonic_service = get_service("subsonic_service")
@@ -21,7 +22,7 @@ def get_artist_albums(id: str):
         raise HTTPException(status_code=404, detail="No albums found for artist")
     return albums
 
-@router.get("/subsonic/album/{id}")
+@router.get("/api/subsonic/album/{id}")
 def get_album_songs(id: str):
     """Return all songs on album (id) from SubsonicService."""
     subsonic_service = get_service("subsonic_service")

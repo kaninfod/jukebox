@@ -8,6 +8,7 @@ from typing import Optional, List, Dict, Any
 from .json_menu_adapter import JsonMenuAdapter
 from .subsonic_config_adapter import SubsonicConfigAdapter
 from app.services.subsonic_service import SubsonicService
+from app.core.service_container import get_service
 
 logger = logging.getLogger(__name__)
 

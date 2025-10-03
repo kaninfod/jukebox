@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-@router.get("/albums", response_model=List[AlbumEntry])
+@router.get("/api/albums", response_model=List[AlbumEntry])
 def list_album_entries_route():
     album_db = AlbumDatabase(config)
     subsonic = SubsonicService(config)
@@ -33,7 +33,7 @@ def list_album_entries_route():
             ))
     return result
 
-@router.get("/albums/{rfid}", response_model=AlbumEntry)
+@router.get("/api/albums/{rfid}", response_model=AlbumEntry)
 def get_album_entry(rfid: str):
     album_db = AlbumDB(config)
     subsonic = SubsonicService(config)
@@ -45,28 +45,28 @@ def get_album_entry(rfid: str):
         album_id=album_id,
     )
 
-@router.post("/albums/{rfid}")
+@router.post("/api/albums/{rfid}")
 def create_album_entry_route(rfid: str, album_id: str = Body(...)):
     album_db = AlbumDB(config)
     album_db.set_album_mapping(rfid, album_id)
     return {"status": "created", "rfid": rfid, "album_id": album_id}
 
 # Update RFID for a given album_id
-@router.put("/albums/update/{rfid}/from/{album_id}", response_model=AlbumEntry)
+@router.put("/api/albums/update/{rfid}/from/{album_id}", response_model=AlbumEntry)
 def update_rfid_from_album_id(rfid: str, album_id: str):
     album_db = AlbumDatabase(config)
     album_db.update_rfid_from_album_id(rfid, album_id)
     return AlbumEntry(rfid=rfid, album_id=album_id)
 
 # Update album_id for a given rfid 
-@router.put("/albums/update/{album_id}/from/{rfid}", response_model=AlbumEntry)
+@router.put("/api/albums/update/{album_id}/from/{rfid}", response_model=AlbumEntry)
 def update_album_id_from_rfid(album_id: str, rfid: str):
     album_db = AlbumDatabase(config)
     album_db.update_album_id_from_rfid(rfid, album_id)
     return AlbumEntry(rfid=rfid, album_id=album_id)
 
 
-@router.put("/albums/{rfid}/{album_id}", response_model=AlbumEntry)
+@router.put("/api/albums/{rfid}/{album_id}", response_model=AlbumEntry)
 def update_album_entry_route(rfid: str, album_id: str):
     album_db = AlbumDB(config)
     album_db.set_album_mapping(rfid, album_id)
@@ -75,7 +75,7 @@ def update_album_entry_route(rfid: str, album_id: str):
         album_id=album_id,
     )
 
-@router.delete("/albums/{rfid}")
+@router.delete("/api/albums/{rfid}")
 def delete_album_entry_route(rfid: str):
     album_db = AlbumDB(config)
     album_db.delete_mapping(rfid)

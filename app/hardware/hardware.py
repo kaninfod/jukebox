@@ -5,7 +5,7 @@ Handles initialization and callbacks for all hardware devices.
 import RPi.GPIO as GPIO
 
 from .devices.ili9488 import ILI9488
-from .devices.rfid import RC522Reader
+#from .devices.rfid import RC522Reader
 from .devices.pushbutton import PushButton
 from .devices.rotaryencoder import RotaryEncoder
 import logging
@@ -14,7 +14,6 @@ from app.core import EventType, Event
 logger = logging.getLogger(__name__)
 
 class HardwareManager:
-    """Manages all hardware devices and their interactions"""
     
     def __init__(self, config, event_bus, screen_manager=None):
         """
@@ -41,7 +40,7 @@ class HardwareManager:
         self.button3 = None
         self.button4 = None
         self.button5 = None
-        
+
         logger.info("HardwareManager initialized with dependency injection")
 
     def initialize_hardware(self):
@@ -57,12 +56,6 @@ class HardwareManager:
 
             from .devices.pn532_rfid import PN532Reader
             self.rfid_reader_class = PN532Reader
-
-            # Initialize RFID reader using injected config
-            # self.rfid_reader = RC522Reader(
-            #     cs_pin=self.config.RFID_CS_PIN,
-            #     on_new_uid=self._handle_new_uid
-            # )
 
             # Set up switch pin for RFID using RPi.GPIO for edge detection
             import RPi.GPIO as GPIO
@@ -117,76 +110,112 @@ class HardwareManager:
             logger.debug("RFID switch callback blocked: pin not LOW.")
             return
 
-        logger.info("🃏 Card insertion detected - starting PN532 read (one-shot)...")
-        from app.core import event_bus, EventType, Event
-        event = Event(EventType.SHOW_SCREEN_QUEUED,
-            payload={
-                "screen_type": "message",
-                "context": {
-                    "title": "Reading...",
-                    "icon_name": "contactless",
-                    "message": "Reading album card",
-                    "theme": "message_info"
-                },
-                "duration": 3
-            }
-        )
-        event_bus.emit(event)
-
-        logger.info("Triggering PN532 read due to switch activation")
-        def rfid_result_callback(result):
-            _callback_result_status = result.get('status')
-            logger.info(f"RFID read result: {_callback_result_status}")
+        
+        from app.core.service_container import get_service
+        playback_manager = get_service("playback_manager")
+        encoding_mode = playback_manager.is_encoding_mode_active()
+        if encoding_mode:    
             try:
-                if _callback_result_status == "success":
-                    pass
-                elif _callback_result_status == "timeout":
-                    from app.core import event_bus, EventType, Event
-                    event = Event(EventType.SHOW_SCREEN_QUEUED,
-                        payload={
-                            "screen_type": "message",
-                            "context": {
-                                "title": "Error Reading Card",
-                                "icon_name": "error",
-                                "message": "Reading timed out. Try again...",
-                                "theme": "message_info"
-                            },
-                            "duration": 3
-                        }
-                    )
-                    event_bus.emit(event)
-                elif _callback_result_status == "error":
-                    from app.core import event_bus, EventType, Event
-                    event = Event(EventType.SHOW_SCREEN_QUEUED,
-                        payload={
-                            "screen_type": "message",
-                            "context": {
-                                "title": "Error Reading Card",
-                                "icon_name": "error",
-                                "message": "Try again...",
-                                "theme": "message_info"},
-                            "duration": 3
-                        }
-                    )
-                    event_bus.emit(event)
+                from app.services.nfc_encoding_session import nfc_encoding_session
+            except ImportError:
+                nfc_encoding_session = None
+            if not nfc_encoding_session:
+                logger.error("NFC Encoding session service not available.")
+                return False
+            if nfc_encoding_session.active:
+                album_id = nfc_encoding_session.album_id
+                data = {"album_id": album_id}
+                reader = self.rfid_reader_class()
+                result = reader.write_data(data, result_callback=self._rfid_write_callback)
+                logger.info("PN532Reader.write_data returned (one-shot)")
+
+        else:
+            logger.info("🃏 Card insertion detected - starting PN532 read (one-shot)...")
+            from app.core import event_bus, EventType, Event
+            event = Event(EventType.SHOW_SCREEN_QUEUED,
+                payload={
+                    "screen_type": "message",
+                    "context": {
+                        "title": "Reading...",
+                        "icon_name": "contactless.png",
+                        "message": "Reading album card",
+                        "theme": "message_info"
+                    },
+                    "duration": 3
+                }
+            )
+            event_bus.emit(event)
+
+            logger.info("Triggering PN532 read due to switch activation")
+            try:
+                logger.info("About to instantiate and call PN532Reader.start_reading...")
+                reader = self.rfid_reader_class()
+                # Use lambda to pass encoding_mode and playback_manager
+                reader.start_reading(result_callback= self._rfid_read_callback)
+                logger.info("PN532Reader.start_reading returned (one-shot)")
             except Exception as e:
-                logger.error(f"Exception in rfid_result_callback: {e}", exc_info=True)
-        try:
-            logger.info("About to instantiate and call PN532Reader.start_reading...")
-            reader = self.rfid_reader_class(on_new_uid=self._handle_new_uid)
-            reader.start_reading(result_callback=rfid_result_callback)
-            logger.info("PN532Reader.start_reading returned (one-shot)")
-        except Exception as e:
-            logger.error(f"Exception in PN532Reader.start_reading: {e}", exc_info=True)
-    
-    def _handle_new_uid(self, uid):
-        # Use injected event_bus instead of importing
+                logger.error(f"Exception in PN532Reader.start_reading: {e}", exc_info=True)
+
+    def _rfid_write_callback(self, result):
+        logger.info(f"RFID write result: {result}")
+        uid = result.get('uid')
+        album_id = result.get('blocks', {}).get('album_id')
+        from app.core import event_bus, EventType, Event
         self.event_bus.emit(Event(
-            type=EventType.RFID_READ,
-            payload={"rfid": uid}
+            type=EventType.ENCODE_CARD,
+            payload={"rfid": uid, "album_id": album_id}
         ))
-        return
-    
+
+
+
+    def _rfid_read_callback(self, result):
+        """Callback function to handle RFID read results from PN532Reader."""
+        from app.core import event_bus, EventType, Event
+
+        _callback_result_status = result.get('status')
+        logger.info(f"RFID read result: {_callback_result_status}")
+        try:
+            if _callback_result_status == "success":
+                uid = result.get('uid')
+                album_id = result.get('blocks', {}).get('album_id')
+                from app.core import event_bus, EventType, Event
+                self.event_bus.emit(Event(
+                    type=EventType.RFID_READ,
+                    payload={"rfid": uid, "album_id": album_id}
+                ))
+
+            elif _callback_result_status == "timeout":
+                event = Event(EventType.SHOW_SCREEN_QUEUED,
+                    payload={
+                        "screen_type": "message",
+                        "context": {
+                            "title": "Error Reading Card",
+                            "icon_name": "error.png",
+                            "message": "Reading timed out. Try again...",
+                            "theme": "message_info"
+                        },
+                        "duration": 3
+                    }
+                )
+                event_bus.emit(event)
+            elif _callback_result_status == "error":
+                event = Event(EventType.SHOW_SCREEN_QUEUED,
+                    payload={
+                        "screen_type": "message",
+                        "context": {
+                            "title": "Error Reading Card",
+                            "icon_name": "error.png",
+                            "message": "Try again...",
+                            "theme": "message_info"},
+                        "duration": 3
+                    }
+                )
+                event_bus.emit(event)
+        except Exception as e:
+            logger.error(f"Exception in rfid_result_callback: {e}", exc_info=True)
+
+
+
     def _on_button0_press(self):
         """Handle button 0 press - Generic button"""
         logger.info("Button 0 was pressed!")

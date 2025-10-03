@@ -93,6 +93,15 @@ class ChromecastMediaStatusListener:
         except Exception as e:
             logger.error(f"[{self.device_name}] Error logging full status: {e}")
 
+from pychromecast.discovery import CastBrowser, SimpleCastListener
+
+# Move DiscoveryListener to module level
+class DiscoveryListener(SimpleCastListener):
+    def add_cast(self, uuid, mdns_name):
+        pass
+
+
+
 class ChromecastService:
     """
     Simplified Chromecast service using on-demand discovery.
@@ -103,14 +112,17 @@ class ChromecastService:
         self.mc = None
         self.status_listener = None
         self._zeroconf = None
-        self._discovery_zeroconf = None
+        #self._discovery_zeroconf = None
+
     def __enter__(self):
         if not self._zeroconf:
             self._zeroconf = Zeroconf()
         return self
+    
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.disconnect()
         self._cleanup_zeroconf()
+
     def _cleanup_zeroconf(self):
         if self._zeroconf:
             try:
@@ -123,40 +135,51 @@ class ChromecastService:
                 self._zeroconf = None
         else:
             logger.debug("No persistent zeroconf instance to clean up")
+
     def list_chromecasts(self) -> List[Dict[str, str]]:
+        devices, _, _ = self._discover_chromecasts()
+        return devices
+
+    def _discover_chromecasts(self, timeout=None, target_name=None):
+        """
+        Discover Chromecasts on the network. If target_name is provided, return only that device's info.
+        Returns (devices, target_cast_info, name_to_cast_info)
+        """
         logger.info("Discovering Chromecasts on network using CastBrowser...")
         discovery_zeroconf = Zeroconf()
+        devices = []
+        target_cast_info = None
+        name_to_cast_info = {}
         try:
-            from pychromecast.discovery import CastBrowser, SimpleCastListener
-            devices = []
-            class DiscoveryListener(SimpleCastListener):
-                def add_cast(self, uuid, mdns_name):
-                    pass
-            listener = DiscoveryListener()
-            browser = CastBrowser(listener, discovery_zeroconf)
+            browser = CastBrowser(DiscoveryListener(), discovery_zeroconf)
             browser.start_discovery()
             import time
-            time.sleep(config.CHROMECAST_DISCOVERY_TIMEOUT)
+            time.sleep(timeout or config.CHROMECAST_DISCOVERY_TIMEOUT)
             for uuid, cast_info in browser.services.items():
                 if hasattr(cast_info, 'friendly_name'):
+                    name = cast_info.friendly_name
                     devices.append({
-                        'name': cast_info.friendly_name,
+                        'name': name,
                         'model': getattr(cast_info, 'model_name', 'Unknown'),
                         'host': getattr(cast_info, 'host', 'Unknown'),
                         'uuid': str(uuid)
                     })
-                    logger.debug(f"Found Chromecast: {cast_info.friendly_name} ({getattr(cast_info, 'model_name', 'Unknown')}) at {getattr(cast_info, 'host', 'Unknown')}")
+                    name_to_cast_info[name] = cast_info
+                    logger.debug(f"Found Chromecast: {name} ({getattr(cast_info, 'model_name', 'Unknown')}) at {getattr(cast_info, 'host', 'Unknown')}")
+                    if target_name and name == target_name:
+                        target_cast_info = cast_info
             browser.stop_discovery()
             logger.info(f"Discovery complete: found {len(devices)} Chromecast devices")
-            return devices
+            return devices, target_cast_info, name_to_cast_info
         except Exception as e:
             logger.error(f"Error during Chromecast discovery: {e}")
-            return []
+            return [], None, {}
         finally:
             try:
                 discovery_zeroconf.close()
             except Exception as e:
                 logger.warning(f"Error closing discovery zeroconf: {e}")
+
     def connect(self, device_name: Optional[str] = None, fallback: bool = True) -> bool:
         target_name = device_name or self.device_name
         if self.cast:
@@ -164,47 +187,22 @@ class ChromecastService:
         if not self._zeroconf:
             logger.debug("Creating persistent zeroconf instance for connection")
             self._zeroconf = Zeroconf()
-        logger.debug("Creating temporary zeroconf instance for discovery")
-        discovery_zeroconf = Zeroconf()
+        logger.info(f"Attempting to connect to Chromecast: {target_name or 'any available device'}")
+        devices, target_cast_info, name_to_cast_info = self._discover_chromecasts(target_name=target_name)
+        if not target_cast_info and fallback and devices:
+            # Use first available device from the initial discovery
+            first_device = devices[0]
+            logger.info(f"Using first available device: {first_device['name']}")
+            target_cast_info = name_to_cast_info.get(first_device['name'])
+        if not target_cast_info:
+            logger.error("No Chromecast devices found on network")
+            return False
         try:
-            from pychromecast.discovery import CastBrowser, SimpleCastListener
-            logger.info(f"Attempting to connect to Chromecast: {target_name or 'any available device'}")
-            class ConnectionListener(SimpleCastListener):
-                def add_cast(self, uuid, mdns_name):
-                    pass
-            listener = ConnectionListener()
-            browser = CastBrowser(listener, discovery_zeroconf)
-            browser.start_discovery()
-            import time
-            time.sleep(config.CHROMECAST_DISCOVERY_TIMEOUT)
-            target_cast_info = None
-            if target_name:
-                for uuid, cast_info in browser.services.items():
-                    if hasattr(cast_info, 'friendly_name') and cast_info.friendly_name == target_name:
-                        target_cast_info = cast_info
-                        logger.info(f"Found target device: {cast_info.friendly_name}")
-                        break
-                if not target_cast_info:
-                    logger.warning(f"Device '{target_name}' not found.")
-                    if not fallback:
-                        logger.info("Fallback is disabled. Not connecting to first available device.")
-                        return False
-            if not target_cast_info and fallback:
-                for uuid, cast_info in browser.services.items():
-                    if hasattr(cast_info, 'friendly_name'):
-                        target_cast_info = cast_info
-                        logger.info(f"Using first available device: {cast_info.friendly_name}")
-                        break
-            if not target_cast_info:
-                logger.error("No Chromecast devices found on network")
-                return False
-            browser.stop_discovery()
             self.cast = pychromecast.get_chromecast_from_cast_info(
                 target_cast_info, self._zeroconf
             )
             logger.info(f"Waiting for {self.cast.name} to be ready...")
             self.cast.wait(timeout=config.CHROMECAST_WAIT_TIMEOUT)
-            browser.stop_discovery()
             if not self.cast.status:
                 raise Exception("Device status not available after connection")
             self.mc = self.cast.media_controller
@@ -218,13 +216,7 @@ class ChromecastService:
             logger.error(f"Failed to connect to Chromecast: {e}")
             self.disconnect()
             return False
-        finally:
-            try:
-                logger.debug("Closing temporary discovery zeroconf instance")
-                discovery_zeroconf.close()
-                logger.debug("✅ Discovery zeroconf instance closed successfully")
-            except Exception as e:
-                logger.warning(f"Error closing discovery zeroconf: {e}")
+                
     def disconnect(self):
         if self.cast:
             try:
@@ -249,10 +241,8 @@ class ChromecastService:
                 self.cast = None
                 self.mc = None
                 self.status_listener = None
-    def cleanup(self):
-        logger.info("Performing full cleanup of Chromecast service")
-        self.disconnect()
-        self._cleanup_zeroconf()
+
+
     def is_connected(self) -> bool:
         if not self.cast or not self.mc:
             return False
@@ -260,11 +250,13 @@ class ChromecastService:
             return self.cast.status is not None
         except Exception:
             return False
+        
     def ensure_connected(self) -> bool:
         if self.is_connected():
             return True
         logger.info("Connection lost, attempting to reconnect...")
         return self.connect()
+    
     def play_media(self, url: str, media_info: dict = None, content_type: str = "audio/mp3") -> bool:
         if not self.ensure_connected():
             logger.error("Cannot play media: no Chromecast connection")
@@ -386,6 +378,7 @@ class ChromecastService:
         except Exception as e:
             logger.error(f"Failed to get status: {e}")
             return None
+        
     def switch_device(self, new_device_name: str) -> bool:
         logger.info(f"Switching Chromecast device to: {new_device_name}")
         old_device_name = self.device_name
@@ -411,6 +404,11 @@ class ChromecastService:
             logger.error(f"Error during device switch: {e}")
             self.device_name = old_device_name
             return False
+        
+    def cleanup(self):
+        logger.info("Performing full cleanup of Chromecast service")
+        self.disconnect()
+        self._cleanup_zeroconf()        
 
 _service_instance = None
 def get_chromecast_service(device_name: Optional[str] = None) -> ChromecastService:

@@ -90,7 +90,7 @@ def test_chromecast_device_manager():
     print("🧪 Testing ChromecastDeviceManager...")
     
     try:
-        from app.services.chromecast_device_manager import ChromecastDeviceManager
+        from tmp.chromecast_device_manager import ChromecastDeviceManager
         from app.core.event_bus import EventBus, Event
         from app.core.event_factory import EventType
         

@@ -8,7 +8,7 @@ def get_screen_manager():
     from app.core.service_container import get_service
     return get_service("screen_manager")
 
-@router.post("/mediaplayer/next_track")
+@router.post("/api/mediaplayer/next_track")
 def next_track():
     """Advance to the next track."""
     from app.core import event_bus, EventType, Event
@@ -22,7 +22,7 @@ def next_track():
     else:
         return {"status": "error", "message": "Failed to advance to next track"}
 
-@router.post("/mediaplayer/previous_track")
+@router.post("/api/mediaplayer/previous_track")
 def previous_track():
     from app.core import event_bus, EventType, Event
     result = event_bus.emit(Event(
@@ -35,7 +35,7 @@ def previous_track():
     else:
         return {"status": "error", "message": "Failed to go to previous track"}
 
-@router.post("/mediaplayer/play_pause")
+@router.post("/api/mediaplayer/play_pause")
 def play_pause():
     """Toggle playback."""
     from app.core import event_bus, EventType, Event
@@ -50,7 +50,7 @@ def play_pause():
         return {"status": "error", "message": "Failed to toggle playback"}
 
 
-@router.post("/mediaplayer/play")
+@router.post("/api/mediaplayer/play")
 def play():
     """Resume playback."""
     from app.core import event_bus, EventType, Event
@@ -64,7 +64,7 @@ def play():
     else:
         return {"status": "error", "message": "Failed to start playback"}
 
-@router.post("/mediaplayer/stop")
+@router.post("/api/mediaplayer/stop")
 def stop():
     """Stop playback."""
     from app.core import event_bus, EventType, Event
@@ -80,7 +80,7 @@ def stop():
 
 
 
-@router.post("/mediaplayer/volume_up")
+@router.post("/api/mediaplayer/volume_up")
 def volume_up():
     """Increase volume using JukeboxMediaPlayer (master of volume, syncs to HA)."""
     from app.core import event_bus, EventType, Event
@@ -95,7 +95,7 @@ def volume_up():
         return {"status": "error", "message": "Failed to increase volume"}
 
 
-@router.post("/mediaplayer/volume_down")
+@router.post("/api/mediaplayer/volume_down")
 def volume_down():
     """Decrease volume using JukeboxMediaPlayer (master of volume, syncs to HA)."""
     from app.core import event_bus, EventType, Event
@@ -113,7 +113,7 @@ def volume_down():
 # Endpoint to trigger load_rfid in PlaybackManager
 
 
-@router.post("/mediaplayer/play_album_from_rfid/{rfid}")
+@router.post("/api/mediaplayer/play_album_from_rfid/{rfid}")
 def play_album_from_rfid(rfid: str):
     """Play album from RFID using PlaybackManager."""
     from app.core import event_bus, EventType, Event
@@ -130,7 +130,7 @@ def play_album_from_rfid(rfid: str):
 # Endpoint to trigger load_from_album_id in PlaybackManager
 
 
-@router.post("/mediaplayer/play_album_from_albumid/{albumid}")
+@router.post("/api/mediaplayer/play_album_from_albumid/{albumid}")
 def play_album_from_albumid(albumid: str):
     """Play album from album_id using PlaybackManager."""
     try:
@@ -156,7 +156,7 @@ def play_album_from_albumid(albumid: str):
 
 
 # Endpoint to get all info on the current track from JukeboxMediaPlayer
-@router.get("/mediaplayer/current_track")
+@router.get("/api/mediaplayer/current_track")
 def get_current_track_info():
     """Get all info on the current track from JukeboxMediaPlayer."""
     try:

@@ -6,6 +6,7 @@ from enum import Enum
 from app.services.jukebox_mediaplayer import PlayerStatus
 from app.core import EventType
 from app.ui.screen_queue import ScreenQueue
+from app.core.service_container import get_service
 from app.metrics.decorators import track_event_handler
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,9 @@ class ScreenManager:
 
     def show_home_screen(self, context=None):
         self.switch_to_screen("home")
+        if context is None:
+            player = get_service("jukebox_mediaplayer")
+            context = player.get_context()
         self.render(context=context)
 
     def show_idle_screen(self, context=None):
@@ -149,11 +153,10 @@ class ScreenManager:
             except Exception as e:
                 logger.error(f"Failed to draw {self.current_screen.name}: {e}")
                 self.error_active = True
-                from app.config import config
-                file_name = config.get_icon_path("error")
+
                 context = {
                     "title": f"Error.",
-                    "icon_name": file_name,
+                    "icon_name": "error.png",
                     "message": f"Error drawing {self.current_screen.name}: {e}",
                     "background": "#DA0F0F",
                 }

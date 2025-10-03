@@ -39,6 +39,7 @@
             <th>Album Name</th>
             <th>Album ID</th>
             <th>Action</th>
+            <th>NFC Encode</th>
         </tr>
         {% for album in albums %}
         <tr>
@@ -49,38 +50,34 @@
                     Play on Jukebox
                 </button>
             </td>
+            <td>
+                <button class="play-btn" onclick="startNfcEncoding('{{ album.id }}', '{{ album.name }}', this)">
+                    Encode NFC Card
+                </button>
+            </td>
         </tr>
         {% endfor %}
     </table>
+
     <div style="text-align:center; margin-top:20px;">
-        <a href="/subsonic/artists">Back to Artists</a>
+        <a href="/subsonic/artists">Back to Artists</a> |
+        <a href="/nfc-encoding/status-page">NFC Encoding Status</a>
     </div>
 
     <script>
         function playOnJukebox(albumId, albumName, button) {
-            // Disable button and show loading state
             button.disabled = true;
             button.textContent = 'Loading...';
-            
-            // Hide any previous status messages
             document.getElementById('statusMessage').style.display = 'none';
-            
-            // Make API call to play album on jukebox
             fetch('/mediaplayer/playback_album_id', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    album_id: albumId,
-                    provider: 'subsonic'
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ album_id: albumId, provider: 'subsonic' })
             })
             .then(response => response.json())
             .then(data => {
                 const statusDiv = document.getElementById('statusMessage');
                 statusDiv.style.display = 'block';
-                
                 if (data.status === 'success') {
                     statusDiv.className = 'status-message success';
                     statusDiv.textContent = `✅ Now playing: ${albumName}`;
@@ -99,6 +96,30 @@
                 statusDiv.className = 'status-message error';
                 statusDiv.textContent = `❌ Error: ${error.message}`;
                 button.textContent = 'Play on Jukebox';
+                button.disabled = false;
+            });
+        }
+
+        function startNfcEncoding(albumId, albumName, button) {
+            button.disabled = true;
+            button.textContent = 'Starting...';
+            document.getElementById('statusMessage').style.display = 'none';
+            fetch('/nfc-encoding/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ album_id: albumId })
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Failed to start encoding session');
+                // Prompt user to present card and poll for status
+                window.location.href = `/nfc-encoding/status-page?album_id=${albumId}&album_name=${encodeURIComponent(albumName)}`;
+            })
+            .catch(error => {
+                const statusDiv = document.getElementById('statusMessage');
+                statusDiv.style.display = 'block';
+                statusDiv.className = 'status-message error';
+                statusDiv.textContent = `❌ Error: ${error.message}`;
+                button.textContent = 'Encode NFC Card';
                 button.disabled = false;
             });
         }

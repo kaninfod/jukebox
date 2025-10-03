@@ -1,11 +1,15 @@
+
 import logging
+
 from app.core import EventType, Event
 from typing import List, Dict, Optional
+from app.services.appstate import AppStateService, AppState
 
 logger = logging.getLogger(__name__)
 
+
 class PlaybackManager:
-    def __init__(self, screen_manager, player, album_db, subsonic_service, event_bus):
+    def __init__(self, screen_manager, player, album_db, subsonic_service, event_bus, appstate_service=None):
         """
         Initialize PlaybackManager with dependency injection.
         
@@ -15,6 +19,7 @@ class PlaybackManager:
             album_db: AlbumDatabase instance for album data operations
             subsonic_service: SubsonicService instance for music provider operations
             event_bus: EventBus instance for event communication
+            appstate_service: AppStateService instance for app state management
         """
         # Inject all dependencies
         self.screen_manager = screen_manager
@@ -23,14 +28,35 @@ class PlaybackManager:
         self.subsonic_service = subsonic_service
         self.event_bus = event_bus
 
+        # App state management
+        self.appstate_service = appstate_service or AppStateService()
+
         # Setup event subscriptions using injected event_bus
         self._setup_event_subscriptions()
         
         logger.info("PlaybackManager initialized with dependency injection.")
+
+
+    # --- App State Management ---
+    def set_app_state(self, state: AppState):
+        self.appstate_service.set_app_state(state)
+
+    def get_app_state(self) -> AppState:
+        return self.appstate_service.get_app_state()
+
+    def is_encoding_mode_active(self) -> bool:
+        return self.appstate_service.is_encoding_mode_active()
+
+    def enable_encoding_mode(self):
+        self.appstate_service.enable_encoding_mode()
+
+    def disable_encoding_mode(self):
+        self.appstate_service.disable_encoding_mode()
         
     def _setup_event_subscriptions(self):
         """Setup all event subscriptions using injected event_bus"""
         self.event_bus.subscribe(EventType.RFID_READ, self.load_rfid)
+        self.event_bus.subscribe(EventType.ENCODE_CARD, self._encode_card)
         self.event_bus.subscribe(EventType.BUTTON_PRESSED, self._handle_button_pressed_event)
         self.event_bus.subscribe(EventType.ROTARY_ENCODER, self._handle_rotary_encoder_event)
         self.event_bus.subscribe(EventType.NEXT_TRACK, self.player.next_track)
@@ -116,7 +142,6 @@ class PlaybackManager:
         service = get_service('subsonic_service')
         if album_id:
             url = service.get_cover_url(album_id)
-            logger.debug(f"Resolved cover URL for album_id {album_id}: {url}")  
             return url
         else:
             return None
@@ -176,17 +201,18 @@ class PlaybackManager:
             return False
 
     def load_rfid(self, event: Event) -> bool:
-        """Orchestrate the full playback pipeline from RFID scan using new album DB and SubsonicService."""
+        """Orchestrate the full playback pipeline from RFID scan using new album DB and SubsonicService, or perform NFC encoding if active."""
         rfid = event.payload['rfid']
+        album_id = event.payload['album_id']
         logger.info(f"RFID scan detected: {rfid}")
-        
+        logger.info(f"USE THIS ALBUM ID: {album_id}")
         from app.core import event_bus, EventType, Event
         event = Event(EventType.SHOW_SCREEN_QUEUED,
             payload={
                 "screen_type": "message",
                 "context": {
                     "title": "Getting Album Info...",
-                    "icon_name": "contactless",
+                    "icon_name": "contactless.png",
                     "message": "Reading card...",
                     "theme": "message_info"
                 },
@@ -196,33 +222,21 @@ class PlaybackManager:
         event_bus.emit(event)
 
         # Use new album_db for RFID mapping
-        album_id = self.album_db.get_album_id_by_rfid(rfid)
+        
+        
         if not album_id:
-            logger.info(f"No album mapping found for RFID {rfid}")
+            logger.info(f"No album info on card, RFID {rfid}")
+            album_id = self.album_db.get_album_id_by_rfid(rfid)
+
+        if not album_id:
+            logger.info(f"No album mapping found for RFID {rfid} in DB")
             event = Event(EventType.SHOW_SCREEN_QUEUED,
                 payload={
                     "screen_type": "message",
                     "context": {
                         "title": "Album Not Found",
-                        "icon_name": "contactless",
-                        "message": "No album mapped to this RFID. Creating new entry...",
-                        "theme": "message_info"
-                    },
-                    "duration": 3
-                }
-            )
-            event_bus.emit(event)
-                
-            logger.info(f"Creating empty album entry for RFID {rfid}")
-            if self.album_db.create_empty_album_entry(rfid):
-                logger.info(f"Successfully created empty album entry for RFID {rfid}")
-                event = Event(EventType.SHOW_SCREEN_QUEUED,
-                payload={
-                    "screen_type": "message",
-                    "context": {
-                        "title": "Album created",
-                        "icon_name": "contactless",
-                        "message": "Please add album details",
+                        "icon_name": "error.png",
+                        "message": "No album mapped to this RFID. You should fix that!",
                         "theme": "message_info"
                     },
                     "duration": 3
@@ -234,4 +248,38 @@ class PlaybackManager:
             logger.info(f"Found album_id {album_id} for RFID {rfid}, loading album...")
             self.load_from_album_id(album_id)
 
+        return True
+
+    def _encode_card(self, event: Event) -> bool:
+        """Start an NFC encoding session for the given album_id."""
+        from app.core import event_bus, EventType, Event
+
+        try:
+            from app.services.nfc_encoding_session import nfc_encoding_session
+        except ImportError:
+            nfc_encoding_session = None
+        if not nfc_encoding_session:
+            logger.error("NFC Encoding session service not available.")
+            return False
+        if nfc_encoding_session.active:
+            album_id = nfc_encoding_session.album_id
+            rfid = event.payload['rfid']
+            logger.info(f"NFC encoding session started for album_id {album_id}")
+            self.album_db.set_album_mapping(str(rfid), album_id)
+            nfc_encoding_session.complete(rfid)
+            self.disable_encoding_mode()
+            
+            event = Event(EventType.SHOW_SCREEN_QUEUED,
+                payload={
+                    "screen_type": "message",
+                    "context": {
+                        "title": "Card Encoded!",
+                        "icon_name": "contactless.png",
+                        "message": f"RFID {rfid} mapped to album {nfc_encoding_session.album_id}",
+                        "theme": "message_success"
+                    },
+                    "duration": 3
+                }
+            )
+            event_bus.emit(event)
         return True

@@ -39,6 +39,7 @@ class HomeScreen(Screen):
             return {"dirty": self.dirty}
 
         self.context = context
+        logger.debug(f"HomeScreen.draw() called with context: {context}")
         if self.context is not None:
             self._set_context(context)
         

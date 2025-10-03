@@ -84,7 +84,7 @@ class TestSystemStartup:
         """Test that all core dependencies can be created"""
         from app.database.album_db import AlbumDatabase
         from app.services.subsonic_service import SubsonicService
-    from app.services.chromecast_service import ChromecastService
+        from app.services.chromecast_service import ChromecastService
         
         # Test database creation
         album_db = AlbumDatabase(mock_config)
@@ -209,7 +209,7 @@ class TestSystemIntegration:
         """Simulate the complete startup process from main.py"""
         from app.database.album_db import AlbumDatabase
         from app.services.subsonic_service import SubsonicService
-    from app.services.chromecast_service import ChromecastService
+        from app.services.chromecast_service import ChromecastService
         from app.hardware.hardware import HardwareManager
         from app.ui.manager import ScreenManager
         from app.services.jukebox_mediaplayer import JukeboxMediaPlayer

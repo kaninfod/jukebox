@@ -22,7 +22,7 @@ def setup_logging(log_file="jukebox.log", level=logging.DEBUG):
     logging.getLogger().addHandler(screen_handler)
     
     # Suppress noisy logs from third-party libraries
-    for lib in ["requests", "PIL", "urllib3", "websockets", "pychromecast"]:
+    for lib in ["requests", "PIL", "urllib3", "websockets", "pychromecast", "httpcore"]:
         logging.getLogger(lib).setLevel(logging.WARNING)
 
 

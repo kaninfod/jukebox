@@ -76,7 +76,7 @@ class TestChromecastDevices:
 
     def test_chromecast_device_manager_initialization(self):
         """Test ChromecastDeviceManager initialization and event handling"""
-        from app.services.chromecast_device_manager import ChromecastDeviceManager
+        from tmp.chromecast_device_manager import ChromecastDeviceManager
         from app.core.event_bus import EventBus, Event
         from app.core.event_factory import EventType
         
@@ -137,7 +137,7 @@ class TestChromecastDevices:
     @patch('app.services.chromecast_device_manager.logger')
     def test_device_switching_flow(self, mock_logger):
         """Test the complete device switching flow"""
-        from app.services.chromecast_device_manager import ChromecastDeviceManager
+        from tmp.chromecast_device_manager import ChromecastDeviceManager
         from app.core.event_bus import EventBus, Event
         from app.core.event_factory import EventType
         
@@ -301,7 +301,7 @@ class TestChromecastDeviceManager:
     @pytest.fixture
     def chromecast_device_manager(self, mock_event_bus, mock_pychromecast_service):
         """Create ChromecastDeviceManager with mocked dependencies"""
-        from app.services.chromecast_device_manager import ChromecastDeviceManager
+        from tmp.chromecast_device_manager import ChromecastDeviceManager
         
         manager = ChromecastDeviceManager(mock_event_bus)
         manager.pychromecast_service = mock_pychromecast_service
@@ -375,7 +375,7 @@ class TestChromecastDeviceManager:
     
     def test_device_manager_initialization(self, mock_event_bus):
         """Test ChromecastDeviceManager initializes correctly"""
-        from app.services.chromecast_device_manager import ChromecastDeviceManager
+        from tmp.chromecast_device_manager import ChromecastDeviceManager
         
         manager = ChromecastDeviceManager(mock_event_bus)
         
@@ -525,7 +525,7 @@ class TestChromecastIntegration:
         """Test complete workflow from menu selection to device switch"""
         from app.core.event_bus import EventBus
         # Test that the event is published correctly
-        from app.services.chromecast_device_manager import ChromecastDeviceManager
+        from tmp.chromecast_device_manager import ChromecastDeviceManager
         
         # Create real event bus for integration test
         event_bus = EventBus()

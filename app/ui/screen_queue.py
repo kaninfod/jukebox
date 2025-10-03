@@ -89,6 +89,7 @@ class ScreenQueue:
 		if self.screen_manager.is_music_playing():
 			logger.info("[ScreenQueue] Fallback: Showing home screen (music playing)")
 			self.screen_manager.show_home_screen({})
+			#self.screen_manager.show_idle_screen({})
 		else:
 			logger.info("[ScreenQueue] Fallback: Showing idle screen (music not playing)")
 			self.screen_manager.show_idle_screen({})

@@ -43,7 +43,7 @@ def test_chromecast_device_manager():
     print("=" * 50)
     
     try:
-        from app.services.chromecast_device_manager import ChromecastDeviceManager
+        from tmp.chromecast_device_manager import ChromecastDeviceManager
         
         # Create a mock media player
         class MockMediaPlayer:

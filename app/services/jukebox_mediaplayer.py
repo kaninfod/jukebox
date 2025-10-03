@@ -17,13 +17,6 @@ from app.core import PlayerStatus
 
 logger = logging.getLogger(__name__)
 
-# class PlayerStatus(Enum):
-#     PLAY = "playing"
-#     PAUSE = "paused"
-#     STOP = "idle"
-#     STANDBY = "unavailable"
-#     OFF = "off"
-
 class JukeboxMediaPlayer:
 
     def __init__(self, playlist: List[Dict], event_bus, chromecast_service=None):
@@ -53,14 +46,7 @@ class JukeboxMediaPlayer:
         self.sync_volume_from_chromecast()
         logger.info(f"JukeboxMediaPlayer initialized with dependency injection. Chromecast device={self.cc_service.device_name}")
 
-    def cleanup(self):
-        logger.info("JukeboxMediaPlayer cleanup called")
-        # Add any additional cleanup logic here if needed
 
-
-    def _emit_event(self, event_type, data=None):
-        # Use injected event_bus instead of importing
-        self.event_bus.emit(Event(type=event_type, payload=data))
 
     @property
     def album_cover(self) -> Optional[str]:
@@ -131,7 +117,7 @@ class JukeboxMediaPlayer:
         # Use injected event_bus instead of importing
         self.event_bus.emit(Event(
             type=EventType.VOLUME_CHANGED,
-            payload=self._get_context()
+            payload=self.get_context()
         ))
         return self.current_volume
 
@@ -159,7 +145,7 @@ class JukeboxMediaPlayer:
         # Use injected event_bus instead of importing
         self.event_bus.emit(Event(
             type=EventType.TRACK_CHANGED,
-            payload=self._get_context()
+            payload=self.get_context()
         ))
         return True
 
@@ -176,7 +162,7 @@ class JukeboxMediaPlayer:
         # Use injected event_bus instead of importing
         self.event_bus.emit(Event(
             type=EventType.TRACK_CHANGED,
-            payload=self._get_context()
+            payload=self.get_context()
         ))
 
         return True
@@ -199,7 +185,7 @@ class JukeboxMediaPlayer:
         # Use injected event_bus instead of importing
         self.event_bus.emit(Event(
             type=EventType.VOLUME_CHANGED,
-            payload=self._get_context()
+            payload=self.get_context()
         ))
         return normalized_volume
 
@@ -250,6 +236,8 @@ class JukeboxMediaPlayer:
             return True
         else:
             self.stop()
+            self.current_index = 0  # Reset to start of playlist
+            self.playlist = []  # Clear playlist at end
             return False
 
     def previous_track(self, event=None):
@@ -296,6 +284,7 @@ class JukeboxMediaPlayer:
         ids = self.update_metrics(track)
 
         logger.info(f"stream url for track: {track.get('stream_url')}")
+        self.sync_volume_from_chromecast()
         if track['stream_url']:
             logger.info(f"Casting stream URL for track {track.get('title')}, with url {track['stream_url']}")
             self.cc_service.play_media(track['stream_url'], 
@@ -321,12 +310,23 @@ class JukeboxMediaPlayer:
             # Use injected event_bus instead of importing
             self.event_bus.emit(Event(
                 type=EventType.TRACK_CHANGED,
-                payload=self._get_context()
+                payload=self.get_context()
             ))
         else:
             logger.error("No stream_url for current track.")
 
-    def _get_context(self):
+    def _update_app_state(self):
+        from app.core.service_container import get_service
+        app_state = get_service("app_state")
+        if self.status == PlayerStatus.PLAY:
+            app_state.set_app_state("PLAYING")
+        elif self.status == PlayerStatus.PAUSE:
+            app_state.set_app_state("PAUSED")
+        else:
+            app_state.set_app_state("STANDBY")
+    
+    
+    def get_context(self):
         return {
             'status': self.status.value,
             'volume': self.current_volume,
@@ -341,6 +341,14 @@ class JukeboxMediaPlayer:
             'current_index': self.current_index,
             'current_track': self.playlist[self.current_index] if self.playlist else None
         }
+    
+    def _emit_event(self, event_type, data=None):
+        # Use injected event_bus instead of importing
+        self.event_bus.emit(Event(type=event_type, payload=data))
+
+    def cleanup(self):
+        logger.info("JukeboxMediaPlayer cleanup called")
+        # Add any additional cleanup logic here if needed        
 
 
 class TrackTimer:

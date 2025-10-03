@@ -52,6 +52,15 @@ class ILI9488:
             logger.warning(f"Font loading failed: {e}, using default font")
             self.font = ImageFont.load_default()
 
+        # Clear the display to black after initialization to avoid garbage/partial frames
+        try:
+            from PIL import Image
+            black = Image.new('RGB', (self.device.width, self.device.height), 'black')
+            self.device.display(black)
+            logger.info("Display cleared to black after initialization")
+        except Exception as e:
+            logger.warning(f"Display clear after init failed: {e}")
+
         logger.info("ILI9488 display initialized")
 
 
