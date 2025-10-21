@@ -1,5 +1,6 @@
 from app.services.playback_manager import PlaybackManager
-from fastapi import APIRouter, Body, Query
+from fastapi import APIRouter, Body, Query, WebSocket, WebSocketDisconnect
+import asyncio
 
 
 router = APIRouter()
@@ -155,6 +156,7 @@ def play_album_from_albumid(albumid: str):
         }
 
 
+
 # Endpoint to get all info on the current track from JukeboxMediaPlayer
 @router.get("/api/mediaplayer/current_track")
 def get_current_track_info():
@@ -182,5 +184,72 @@ def get_current_track_info():
             return {"status": "error", "message": "No track loaded"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+
+# Dedicated WebSocket route for current track updates (event-driven)
+@router.websocket("/ws/mediaplayer/current_track")
+async def websocket_current_track(websocket: WebSocket):
+    await websocket.accept()
+    import asyncio
+    from app.core import event_bus, EventType
+    from app.core.service_container import get_service
+
+    q = asyncio.Queue()
+    loop = asyncio.get_event_loop()
+    handler_active = True
+
+    def handler(event):
+        # Called in event bus thread (may be non-async)
+        try:
+            playback_manager = get_service("playback_manager")
+            player = playback_manager.player if playback_manager else None
+            if player and player.current_track:
+                data = {
+                    "current_track": {
+                        "artist": player.artist,
+                        "title": player.title,
+                        "duration": player.duration,
+                        "album": player.album,
+                        "year": player.year,
+                        "track_id": player.track_id,
+                        "track_number": player.track_number,
+                        "thumb": player.thumb
+                    },
+                    "status": player.status.value,
+                    "playlist": player.playlist
+                }
+            else:
+                data = {"status": "error", "message": "No track loaded"}
+            # Use thread-safe coroutine submission
+            if handler_active:
+                asyncio.run_coroutine_threadsafe(q.put(data), loop)
+        except Exception as e:
+            if handler_active:
+                asyncio.run_coroutine_threadsafe(q.put({"status": "error", "message": str(e)}), loop)
+
+    # Subscribe handler to TRACK_CHANGED
+    event_bus.subscribe(EventType.TRACK_CHANGED, handler)
+
+    try:
+        # Send initial state
+        handler(None)
+        while True:
+            try:
+                # Wait for new data from event handler (with timeout for ping)
+                data = await asyncio.wait_for(q.get(), timeout=60)
+                await websocket.send_json(data)
+            except asyncio.TimeoutError:
+                # Keep connection alive (ping)
+                await websocket.send_json({"status": "ping"})
+    except WebSocketDisconnect:
+        pass
+    finally:
+        # Unsubscribe handler (cleanup)
+        handler_active = False
+        try:
+            event_bus._handlers[EventType.TRACK_CHANGED].remove(handler)
+        except Exception:
+            pass
 
 

@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Subsonic Albums</title>
+    {% include '_global_styles.html' %}
     <style>
         table { margin: auto; border-collapse: collapse; }
         th, td { padding: 8px 12px; border: 1px solid #ccc; }
@@ -30,12 +31,21 @@
     </style>
 </head>
 <body>
-    <h2 style="text-align:center;">Albums for Artist: {{ artist_id }}</h2>
+    {% from '_navbar.html' import navbar %}
+    {{ navbar('library') }}
+    <div style="margin-bottom:20px;text-align:center;">
+        <a href="/subsonic/artists">Music Library</a>
+        {% if artist_name %}
+            &gt; <span>{{ artist_name }}</span>
+        {% endif %}
+    </div>
+    <h2 style="text-align:center;">Albums for Artist: {{ artist_name or artist_id }}</h2>
     
     <div id="statusMessage" class="status-message" style="display:none;"></div>
     
     <table>
         <tr>
+            <th>Cover</th>
             <th>Album Name</th>
             <th>Album ID</th>
             <th>Action</th>
@@ -43,7 +53,22 @@
         </tr>
         {% for album in albums %}
         <tr>
-            <td>{{ album.name }}</td>
+            <td>
+                {% if album.cover_url %}
+                    {% set cover_url = album.cover_url %}
+                    {% if request.scheme == 'https' and cover_url.startswith('http://192.168.68.102:4747') %}
+                        {% set cover_url = cover_url.replace('http://192.168.68.102:4747', 'https://gonic.hinge.lan') %}
+                    {% endif %}
+                    <img data-src="{{ cover_url }}" src="" alt="Cover" style="width:80px;height:80px;object-fit:cover;border-radius:6px;" class="album-cover-img" />
+                {% else %}
+                    <span style="color:#aaa;font-size:12px;">No image</span>
+                {% endif %}
+            </td>
+            <td>
+                <a href="/subsonic/album/{{ album.id }}?artist_id={{ artist_id }}&artist_name={{ artist_name|urlencode }}&album_name={{ album.name|urlencode }}" style="text-decoration:none;color:#333;">
+                    {{ album.name }}
+                </a>
+            </td>
             <td>{{ album.id }}</td>
             <td>
                 <button class="play-btn" onclick="playOnJukebox('{{ album.id }}', '{{ album.name }}', this)">
@@ -65,14 +90,24 @@
     </div>
 
     <script>
+        // Set album cover src from data-src, rewriting to HTTPS if needed, before any HTTP request is made
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.album-cover-img').forEach(function(img) {
+                let url = img.getAttribute('data-src');
+                if (window.location.protocol === 'https:' && url && url.startsWith('http://192.168.68.102:4747')) {
+                    url = url.replace('http://192.168.68.102:4747', 'https://gonic.hinge.lan');
+                }
+                if (url) img.src = url;
+            });
+        });
         function playOnJukebox(albumId, albumName, button) {
             button.disabled = true;
             button.textContent = 'Loading...';
             document.getElementById('statusMessage').style.display = 'none';
-            fetch('/mediaplayer/playback_album_id', {
+            fetch(`/api/mediaplayer/play_album_from_albumid/${albumId}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ album_id: albumId, provider: 'subsonic' })
+                headers: { 'Content-Type': 'application/json' }
+                // body: JSON.stringify({ album_id: albumId, provider: 'subsonic' })
             })
             .then(response => response.json())
             .then(data => {
@@ -104,7 +139,7 @@
             button.disabled = true;
             button.textContent = 'Starting...';
             document.getElementById('statusMessage').style.display = 'none';
-            fetch('/nfc-encoding/start', {
+            fetch('/api/nfc-encoding/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ album_id: albumId })

@@ -1,4 +1,5 @@
 
+
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -8,6 +9,11 @@ import httpx
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/web/templates")
+
+# Mediaplayer status page with live updates
+@router.get("/mediaplayer/status", response_class=HTMLResponse)
+async def mediaplayer_status(request: Request):
+    return templates.TemplateResponse("mediaplayer_status.html", {"request": request})
 
 # NFC Encoding Status Page
 @router.get("/nfc-encoding/status-page", response_class=HTMLResponse)
@@ -42,13 +48,25 @@ async def subsonic_artists(request: Request):
 
 # Subsonic: List albums for a given artist (fetch from JSON API)
 
+
+# Subsonic: List albums for a given artist (fetch from JSON API)
 @router.get("/subsonic/albums/{artist_id}", response_class=HTMLResponse)
-async def subsonic_albums(request: Request, artist_id: str):
+async def subsonic_albums(request: Request, artist_id: str, artist_name: str = None):
     async with httpx.AsyncClient() as client:
         resp = await client.get(f"http://127.0.0.1:8000/api/subsonic/artist/{artist_id}")
         resp.raise_for_status()
         albums = resp.json()
-    return templates.TemplateResponse("subsonic_albums.html", {"request": request, "albums": albums, "artist_id": artist_id})
+    return templates.TemplateResponse("subsonic_albums.html", {"request": request, "albums": albums, "artist_id": artist_id, "artist_name": artist_name})
+
+# Subsonic: List songs for a given album (fetch from JSON API)
+@router.get("/subsonic/album/{album_id}", response_class=HTMLResponse)
+async def subsonic_album_songs(request: Request, album_id: str, artist_id: str = None, artist_name: str = None, album_name: str = None):
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"http://127.0.0.1:8000/api/subsonic/album/{album_id}")
+        resp.raise_for_status()
+        songs = resp.json()
+    # Pass artist_id, artist_name, album_name to template for breadcrumbs
+    return templates.TemplateResponse("subsonic_album_songs.html", {"request": request, "songs": songs, "album_id": album_id, "artist_id": artist_id, "artist_name": artist_name, "album_name": album_name})
 
 @router.post("/jukebox/albums/update_audioPlaylistId")
 async def update_audioPlaylistId(rfid: str = Form(...), audioPlaylistId: str = Form(...), provider: str = Form(...)):

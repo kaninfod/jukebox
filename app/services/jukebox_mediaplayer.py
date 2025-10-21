@@ -271,9 +271,9 @@ class JukeboxMediaPlayer:
         }        
         
         play_counter.labels(
-            artist=ids['artist'],
-            album=ids['album'],
-            song=ids['track']
+            artist=track.get('artist', 'unknown'),
+            album=track.get('album', 'unknown'),
+            song=track.get('title', 'unknown')
         ).inc()
 
         return ids

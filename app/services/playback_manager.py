@@ -27,9 +27,9 @@ class PlaybackManager:
         self.album_db = album_db
         self.subsonic_service = subsonic_service
         self.event_bus = event_bus
-
-        # App state management
-        self.appstate_service = appstate_service or AppStateService()
+        self.appstate_service = appstate_service
+        
+        
 
         # Setup event subscriptions using injected event_bus
         self._setup_event_subscriptions()
@@ -121,8 +121,7 @@ class PlaybackManager:
         else:
             logger.warning("No audioPlaylistId provided in PLAY_ALBUM event")
 
-    def cleanup(self):
-        logger.info("PlaybackManager cleanup called")
+
 
     def get_stream_url_for_track(self, track: Dict) -> Optional[str]:
         """
@@ -283,3 +282,6 @@ class PlaybackManager:
             )
             event_bus.emit(event)
         return True
+    
+    def cleanup(self):
+        logger.info("PlaybackManager cleanup called")

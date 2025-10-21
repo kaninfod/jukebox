@@ -114,6 +114,7 @@ class HardwareManager:
         from app.core.service_container import get_service
         playback_manager = get_service("playback_manager")
         encoding_mode = playback_manager.is_encoding_mode_active()
+        logger.debug(f"Encoding_mode={encoding_mode}")
         if encoding_mode:    
             try:
                 from app.services.nfc_encoding_session import nfc_encoding_session

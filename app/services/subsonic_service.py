@@ -7,23 +7,23 @@ logger = logging.getLogger(__name__)
 
 class SubsonicService:
 
-    def get_all_artists(self) -> list:
-        """
-        Return all artists for API endpoint.
-        """
-        return self.list_artists()
+    # def get_all_artists(self) -> list:
+    #     """
+    #     Return all artists for API endpoint.
+    #     """
+    #     return self.list_artists()
 
-    def get_albums_by_artist(self, artist_id: str) -> list:
-        """
-        Return all albums for a given artist for API endpoint.
-        """
-        return self.list_albums_for_artist(artist_id)
+    # def get_albums_by_artist(self, artist_id: str) -> list:
+    #     """
+    #     Return all albums for a given artist for API endpoint.
+    #     """
+    #     return self.list_albums_for_artist(artist_id)
 
-    def get_songs_by_album(self, album_id: str) -> list:
-        """
-        Return all songs for a given album for API endpoint.
-        """
-        return self.get_album_tracks(album_id)
+    # def get_songs_by_album(self, album_id: str) -> list:
+    #     """
+    #     Return all songs for a given album for API endpoint.
+    #     """
+    #     return self.get_album_tracks(album_id)
 
     
     def __init__(self, config=None):
@@ -142,7 +142,7 @@ class SubsonicService:
         albums = directory.get("child", [])
         # Each album is a dict with 'id' and 'title'
         return [
-            {"id": album.get("id"), "name": album.get("title")}
+            {"id": album.get("id"), "name": album.get("title"), "cover_url": self.get_cover_url(album.get("id"))}
             for album in albums if album.get('isDir', False)
         ]
 

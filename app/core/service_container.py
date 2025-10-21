@@ -77,7 +77,8 @@ def create_playback_manager(container):
         player=container.get('jukebox_mediaplayer'),
         album_db=container.get('album_database'),
         subsonic_service=container.get('subsonic_service'),
-        event_bus=container.get('event_bus')
+        event_bus=container.get('event_bus'),
+        appstate_service=container.get('app_state')
     )
 
 # --- Setup function ---

@@ -31,7 +31,7 @@
         let pollInterval = null;
         async function fetchStatus() {
             if (!polling) return;
-            const resp = await fetch('/nfc-encoding/status');
+            const resp = await fetch('/api/nfc-encoding/status');
             const data = await resp.json();
             const statusDiv = document.getElementById('encodingStatus');
             const stopBtn = document.getElementById('stopBtn');
@@ -43,7 +43,7 @@
                 stopBtn.disabled = false;
                 successDiv.style.display = 'none';
             } else {
-                statusDiv.textContent = 'No encoding session active.';
+                statusDiv.textContent = 'No encoding session active. last encoding data: ' + (data.album_id || 'N/A') + ' / ' + (data.last_uid || 'N/A');
                 statusDiv.className = 'status-inactive';
                 stopBtn.style.display = 'none';
                 // Show success message and stop polling
