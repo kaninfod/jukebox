@@ -25,6 +25,12 @@ class Config:
     SUBSONIC_PASS: str = os.getenv("SUBSONIC_PASS", "")  # Required from .env
     SUBSONIC_CLIENT: str = os.getenv("SUBSONIC_CLIENT", "jukebox")
     SUBSONIC_API_VERSION: str = os.getenv("SUBSONIC_API_VERSION", "1.15.0")
+    # Optional: LAN-only base URL for Chromecast streaming (bypasses public Basic Auth)
+    # Example: http://192.168.68.102:4747 or https://gonic.hinge.lan (LAN DNS)
+    SUBSONIC_CAST_BASE_URL: str = os.getenv("SUBSONIC_CAST_BASE_URL", "")
+    # Optional: Basic Auth at reverse proxy (NPM) for Subsonic/Gonic
+    SUBSONIC_PROXY_BASIC_USER: str = os.getenv("SUBSONIC_PROXY_BASIC_USER", "")
+    SUBSONIC_PROXY_BASIC_PASS: str = os.getenv("SUBSONIC_PROXY_BASIC_PASS", "")
     
     # === TIMEOUT CONFIGURATION ===
     # Chromecast Operation Timeouts (seconds)
@@ -86,6 +92,29 @@ class Config:
     LOG_SERVER_PORT: int = int(os.getenv("LOG_SERVER_PORT", "514"))
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     DEBUG_MODE: bool = os.getenv("DEBUG_MODE", "false").lower() == "true"
+    # API Docs / OpenAPI exposure (can enable without DEBUG_MODE)
+    ENABLE_DOCS: bool = os.getenv("ENABLE_DOCS", "false").lower() == "true"
+    DOCS_URL: str = os.getenv("DOCS_URL", "/docs")
+    OPENAPI_URL: str = os.getenv("OPENAPI_URL", "/openapi.json")
+
+    # === API SECURITY ===
+    # API key used to protect public API endpoints. If unset, only localhost is allowed by default.
+    API_KEY: str = os.getenv("API_KEY", "")
+    # Comma-separated list of allowed CORS origins, e.g. "https://example.com,https://www.example.com"
+    CORS_ALLOW_ORIGINS: str = os.getenv("CORS_ALLOW_ORIGINS", "*")
+    # Comma-separated list of allowed hosts for Host header, e.g. "example.com,www.example.com"
+    ALLOWED_HOSTS: str = os.getenv("ALLOWED_HOSTS", "*")
+    # Allow 127.0.0.1 to access API without API key (for internal server-side calls)
+    ALLOW_LOCAL_API_BYPASS: bool = os.getenv("ALLOW_LOCAL_API_BYPASS", "true").lower() == "true"
+    # Toggle automatic HTTP -> HTTPS redirect (use when running behind TLS-terminating reverse proxy)
+    ENABLE_HTTPS_REDIRECT: bool = os.getenv("ENABLE_HTTPS_REDIRECT", "false").lower() == "true"
+    # Allow exposing Prometheus metrics endpoint without auth
+    ALLOW_PUBLIC_METRICS: bool = os.getenv("ALLOW_PUBLIC_METRICS", "false").lower() == "true"
+
+    # === WEB URL CONFIGURATION ===
+    # Public base URL where this jukebox is reachable by browsers/Chromecast
+    # Example: https://jukeplayer.example.com
+    PUBLIC_BASE_URL: str = os.getenv("PUBLIC_BASE_URL", "")
 
     # === GPIO CONFIGURATION ===
     # Display pins
@@ -177,6 +206,12 @@ class Config:
             logger.error(f"❌ Missing required environment variables: {', '.join(missing_vars)}")
             return False
         
+        # Security warnings (informational)
+        if cls.CORS_ALLOW_ORIGINS == "*" and not cls.DEBUG_MODE:
+            logger.warning("⚠️  CORS is set to '*' in a non-debug environment. Set CORS_ALLOW_ORIGINS to your public domain(s).")
+        if not cls.API_KEY:
+            logger.warning("⚠️  API_KEY is not set. Public API access will be limited to localhost if ALLOW_LOCAL_API_BYPASS=true.")
+
         logger.info("✅ All required configuration variables are present")
         return True
 

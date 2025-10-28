@@ -7,6 +7,11 @@ from app.config import config
 from app.routes.albums import list_album_entries_route, update_album_entry_route
 import httpx
 
+# Internal API access settings
+LOCAL_API_BASE = "http://127.0.0.1:8000"
+# Tell the app that original scheme is HTTPS to avoid HTTP->HTTPS redirect on loopback
+FORWARDED_HEADERS = {"X-Forwarded-Proto": "https"}
+
 router = APIRouter()
 templates = Jinja2Templates(directory="app/web/templates")
 
@@ -39,7 +44,11 @@ async def albums(request: Request):
 @router.get("/subsonic/artists", response_class=HTMLResponse)
 async def subsonic_artists(request: Request):
     async with httpx.AsyncClient() as client:
-        resp = await client.get("http://127.0.0.1:8000/api/subsonic/artists")
+        resp = await client.get(
+            f"{LOCAL_API_BASE}/api/subsonic/artists",
+            headers=FORWARDED_HEADERS,
+            follow_redirects=True,
+        )
         resp.raise_for_status()
         artists = resp.json()
     return templates.TemplateResponse("subsonic_artists.html", {"request": request, "artists": artists})
@@ -53,7 +62,11 @@ async def subsonic_artists(request: Request):
 @router.get("/subsonic/albums/{artist_id}", response_class=HTMLResponse)
 async def subsonic_albums(request: Request, artist_id: str, artist_name: str = None):
     async with httpx.AsyncClient() as client:
-        resp = await client.get(f"http://127.0.0.1:8000/api/subsonic/artist/{artist_id}")
+        resp = await client.get(
+            f"{LOCAL_API_BASE}/api/subsonic/artist/{artist_id}",
+            headers=FORWARDED_HEADERS,
+            follow_redirects=True,
+        )
         resp.raise_for_status()
         albums = resp.json()
     return templates.TemplateResponse("subsonic_albums.html", {"request": request, "albums": albums, "artist_id": artist_id, "artist_name": artist_name})
@@ -62,7 +75,11 @@ async def subsonic_albums(request: Request, artist_id: str, artist_name: str = N
 @router.get("/subsonic/album/{album_id}", response_class=HTMLResponse)
 async def subsonic_album_songs(request: Request, album_id: str, artist_id: str = None, artist_name: str = None, album_name: str = None):
     async with httpx.AsyncClient() as client:
-        resp = await client.get(f"http://127.0.0.1:8000/api/subsonic/album/{album_id}")
+        resp = await client.get(
+            f"{LOCAL_API_BASE}/api/subsonic/album/{album_id}",
+            headers=FORWARDED_HEADERS,
+            follow_redirects=True,
+        )
         resp.raise_for_status()
         songs = resp.json()
     # Pass artist_id, artist_name, album_name to template for breadcrumbs

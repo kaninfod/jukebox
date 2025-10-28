@@ -14,24 +14,26 @@ from venv import logger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 from app.config import config
+from app.core.security import APIKeyMiddleware
+from app.core.security_headers import SecurityHeadersMiddleware
 
 
 from app.routes.albums import router as album_router
 from app.routes.mediaplayer import router as mediaplayer_router
-#from app.routes.pngs import router as pngs_router
 from app.routes.system import router as system_router
 from app.routes.subsonic import router as subsonic_router
 from app.routes.chromecast import router as chromecast_router
-
 from app.routes.nfc_encoding import router as nfc_encoding_router
 from app.web.routes import router as web_router
 
-from app.services.playback_manager import PlaybackManager
+#from app.services.playback_manager import PlaybackManager
 
-from app.ui import ScreenManager
-from app.hardware import HardwareManager
+#from app.ui import ScreenManager
+#from app.hardware import HardwareManager
 
 import logging, os
 from app.core.logging_config import setup_logging
@@ -40,19 +42,38 @@ setup_logging(level=logging.DEBUG)
 
 # Initialize FastAPI app
 
-app = FastAPI()
-
-# Add CORS middleware for local frontend development
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins (including all local network clients)
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+# Enable interactive API docs when DEBUG_MODE=true or ENABLE_DOCS=true
+enable_docs = getattr(config, "ENABLE_DOCS", False) or config.DEBUG_MODE
+app = FastAPI(
+    docs_url=(config.DOCS_URL if enable_docs else None),
+    redoc_url=None,
+    openapi_url=(config.OPENAPI_URL if enable_docs else None),
 )
 
-# Mount static folders
-# app.mount("/pngs-static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "..", "tests")), name="pngs-static")
+# Trusted hosts (Host header) to reduce host header attacks
+allowed_hosts = [h.strip() for h in config.ALLOWED_HOSTS.split(",") if h.strip()]
+if allowed_hosts and allowed_hosts != ["*"]:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+
+# Optional HTTP -> HTTPS redirect
+if config.ENABLE_HTTPS_REDIRECT:
+    app.add_middleware(HTTPSRedirectMiddleware)
+
+# Add CORS middleware
+cors_origins = [o.strip() for o in config.CORS_ALLOW_ORIGINS.split(",") if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins if cors_origins else ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
+
+# Security: API key protection for /api/*
+app.add_middleware(APIKeyMiddleware)
+
+# Add common security headers
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Mount album cover cache directory for web access
 album_cover_dir = config.STATIC_FILE_PATH
@@ -65,7 +86,6 @@ app.mount("/album_covers", StaticFiles(directory=album_cover_dir), name="album_c
 app.include_router(album_router)
 app.include_router(mediaplayer_router)
 app.include_router(system_router)
-# app.include_router(pngs_router, prefix="/pngs")
 app.include_router(subsonic_router)
 app.include_router(chromecast_router)
 app.include_router(nfc_encoding_router)

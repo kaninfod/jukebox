@@ -31,25 +31,10 @@ For development, testing, or web-only operation:
 
 #### **Display**
 - ILI9488 480x320 TFT display with SPI interface
-- Touch support (optional)
-
-#### **RFID Reader**
-- RC522 RFID reader module (13.56MHz)
-- Or PN532 NFC/RFID module (alternative)
 
 #### **Input Controls**
-- Rotary encoder with push button
-- 5x tactile push buttons
-- Breadboard or custom PCB for connections
-
-#### **Audio Output**
-- Chromecast device(s) for wireless audio
 - Or local audio via Pi's 3.5mm jack/HDMI
 
-## 📋 GPIO Pin Configuration
-
-| Component | GPIO Pin | Purpose |
-|-----------|----------|---------|
 | Display Power | 20 | Display power control |
 | Display Backlight | 18 | Backlight PWM control |
 | RFID CS | 7 | SPI chip select |
@@ -83,20 +68,13 @@ For development, testing, or web-only operation:
    ./install_service.sh
    ```
 
-3. **Configure your environment:**
-   ```bash
    nano .env
    ```
-
-4. **Validate configuration:**
    ```bash
    python3 setup_env.py
    ```
 
 5. **Start the service:**
-   ```bash
-   sudo systemctl start jukebox
-   ```
 
 ### **🖥️ Headless Mode Installation**
 

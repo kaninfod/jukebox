@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from app.core.service_container import get_service
 
 
@@ -30,3 +30,18 @@ def get_album_songs(id: str):
     if songs is None:
         raise HTTPException(status_code=404, detail="No songs found for album")
     return songs
+
+@router.get("/api/subsonic/cover/{album_id}")
+def get_cover_art(album_id: str):
+    """
+    Proxy cover art through the jukebox API so the browser doesn't need
+    credentials for the Gonic host. Uses SubsonicService with optional
+    proxy Basic auth configured in ENV.
+    """
+    subsonic_service = get_service("subsonic_service")
+    try:
+        resp = subsonic_service._api_request("getCoverArt", {"id": album_id})
+        content_type = resp.headers.get("Content-Type", "image/png")
+        return Response(content=resp.content, media_type=content_type)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch cover art: {e}")

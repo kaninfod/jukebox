@@ -287,10 +287,25 @@ class JukeboxMediaPlayer:
         self.sync_volume_from_chromecast()
         if track['stream_url']:
             logger.info(f"Casting stream URL for track {track.get('title')}, with url {track['stream_url']}")
+            # Build a Chromecast-friendly absolute thumb URL
+            thumb_url = track.get('thumb')
+            try:
+                from app.config import config
+                # Fallback to cached local cover if explicit thumb missing
+                if not thumb_url:
+                    cover_file = track.get('album_cover_filename')
+                    if cover_file:
+                        thumb_url = f"/album_covers/{cover_file}"
+                # Prefix with PUBLIC_BASE_URL if still relative
+                if thumb_url and not (thumb_url.startswith('http://') or thumb_url.startswith('https://')) and config.PUBLIC_BASE_URL:
+                    thumb_url = f"{config.PUBLIC_BASE_URL.rstrip('/')}{thumb_url}"
+            except Exception:
+                pass
+            logger.info(f"Thumb URL for track {track.get('title')}: {thumb_url}")
             self.cc_service.play_media(track['stream_url'], 
                 media_info={
                     "title": track.get("title"),
-                    "thumb": track.get("thumb"),
+                    "thumb": thumb_url,
                     "media_info": {
                         "artist": track.get("artist"),
                         "album": track.get("album"),

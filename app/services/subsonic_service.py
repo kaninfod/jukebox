@@ -40,18 +40,25 @@ class SubsonicService:
             # Fallback for backward compatibility - this will be removed later
             from app.config import config as default_config
             self.config = default_config
-            
+
         self.base_url = self.config.SUBSONIC_URL.rstrip("/")
         self.username = getattr(self.config, "SUBSONIC_USER", "jukebox")
         self.password = getattr(self.config, "SUBSONIC_PASS", "123jukepi")
         self.client = getattr(self.config, "SUBSONIC_CLIENT", "jukebox")
         self.api_version = getattr(self.config, "SUBSONIC_API_VERSION", "1.16.1")
+        # Optional Basic Auth at proxy (NPM) for all Subsonic requests
+        self.basic_user = getattr(self.config, "SUBSONIC_PROXY_BASIC_USER", "")
+        self.basic_pass = getattr(self.config, "SUBSONIC_PROXY_BASIC_PASS", "")
         logger.info(f"SubsonicService initialized with dependency injection for {self.base_url} as {self.username}")
 
     def _api_params(self) -> Dict[str, str]:
+        import hashlib, random, string
+        salt = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+        token = hashlib.md5((self.password + salt).encode('utf-8')).hexdigest()
         return {
             "u": self.username,
-            "p": self.password,
+            "t": token,
+            "s": salt,
             "c": self.client,
             "v": self.api_version,
             "f": "json"
@@ -63,9 +70,12 @@ class SubsonicService:
             params.update(extra_params)
         url = f"{self.base_url}/rest/{endpoint}"
         logger.info(f"SubsonicService: Requesting {url} with params {params}")
-        resp = requests.get(url, params=params, timeout=self.config.HTTP_REQUEST_TIMEOUT)
+        auth = None
+        if self.basic_user and self.basic_pass:
+            auth = (self.basic_user, self.basic_pass)
+        resp = requests.get(url, params=params, timeout=self.config.HTTP_REQUEST_TIMEOUT, auth=auth)
         resp.raise_for_status()
-    # logger.info(f"SubsonicService: Response: {resp.json()}")  # Commented to reduce excessive logging
+    
         return resp
 
     
@@ -73,13 +83,33 @@ class SubsonicService:
         track_id = track.get('id')
         if not track_id:
             return None
-        # Build Subsonic stream URL
+        # Use _api_params for authentication
         params = self._api_params()
-        url = f"{self.base_url}/rest/stream?id={track_id}&u={params['u']}&p={params['p']}&v={params['v']}&c={params['c']}"
+        params['id'] = track_id
+        # Remove 'f' param for binary endpoints
+        params.pop('f', None)
+        # Build URL with token-based authentication
+        from urllib.parse import urlencode
+        cast_base = getattr(self.config, "SUBSONIC_CAST_BASE_URL", "").strip()
+        base = cast_base if cast_base else self.base_url
+        url = f"{base.rstrip('/')}/rest/stream?{urlencode(params)}"
         return url
         
     def get_cover_url(self, album_id: str) -> str:
-        return f"{self.base_url}/rest/getCoverArt?id={album_id}&u={self.username}&p={self.password}&v={self.api_version}&c={self.client}"
+        params = self._api_params()
+        params['id'] = album_id
+        # Remove 'f' param for binary endpoints
+        params.pop('f', None)
+        from urllib.parse import urlencode
+        url = f"{self.base_url}/rest/getCoverArt?{urlencode(params)}"
+        return url
+
+    def get_cover_proxy_url(self, album_id: str) -> str:
+        """
+        Return the local proxy URL for cover art so the browser never hits Subsonic directly.
+        This avoids Basic Auth prompts and respects CSP by staying same-origin.
+        """
+        return f"/api/subsonic/cover/{album_id}"
 
     @lru_cache(maxsize=128)
     def search_song(self, query: str) -> Dict[str, Any]:
@@ -142,7 +172,7 @@ class SubsonicService:
         albums = directory.get("child", [])
         # Each album is a dict with 'id' and 'title'
         return [
-            {"id": album.get("id"), "name": album.get("title"), "cover_url": self.get_cover_url(album.get("id"))}
+            {"id": album.get("id"), "name": album.get("title"), "cover_url": self.get_cover_proxy_url(album.get("id"))}
             for album in albums if album.get('isDir', False)
         ]
 

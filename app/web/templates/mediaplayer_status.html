@@ -50,9 +50,6 @@
                     Track ${data.current_track.track_number} of ${data.playlist.length} in playlist
                 `;
                 let thumbUrl = data.current_track.thumb;
-                if (window.location.protocol === 'https:' && thumbUrl && thumbUrl.startsWith('http://192.168.68.102:4747')) {
-                    thumbUrl = thumbUrl.replace('http://192.168.68.102:4747', 'https://gonic.hinge.lan');
-                }
                 if (thumbUrl) {
                     thumbDiv.innerHTML = `<img src="${thumbUrl}" alt="Cover" style="width:120px;height:120px;object-fit:cover;border-radius:10px;box-shadow:0 2px 8px #aaa;" />`;
                 } else {

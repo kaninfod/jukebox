@@ -55,11 +55,7 @@
         <tr>
             <td>
                 {% if album.cover_url %}
-                    {% set cover_url = album.cover_url %}
-                    {% if request.scheme == 'https' and cover_url.startswith('http://192.168.68.102:4747') %}
-                        {% set cover_url = cover_url.replace('http://192.168.68.102:4747', 'https://gonic.hinge.lan') %}
-                    {% endif %}
-                    <img data-src="{{ cover_url }}" src="" alt="Cover" style="width:80px;height:80px;object-fit:cover;border-radius:6px;" class="album-cover-img" />
+                    <img src="{{ album.cover_url }}" alt="Cover" style="width:80px;height:80px;object-fit:cover;border-radius:6px;" />
                 {% else %}
                     <span style="color:#aaa;font-size:12px;">No image</span>
                 {% endif %}
@@ -90,16 +86,6 @@
     </div>
 
     <script>
-        // Set album cover src from data-src, rewriting to HTTPS if needed, before any HTTP request is made
-        document.addEventListener('DOMContentLoaded', function() {
-            document.querySelectorAll('.album-cover-img').forEach(function(img) {
-                let url = img.getAttribute('data-src');
-                if (window.location.protocol === 'https:' && url && url.startsWith('http://192.168.68.102:4747')) {
-                    url = url.replace('http://192.168.68.102:4747', 'https://gonic.hinge.lan');
-                }
-                if (url) img.src = url;
-            });
-        });
         function playOnJukebox(albumId, albumName, button) {
             button.disabled = true;
             button.textContent = 'Loading...';
