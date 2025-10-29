@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>NFC Encoding Status</title>
+    {% include '_global_styles.html' %}
     <style>
         .status-container {
             margin: 40px auto;
@@ -20,6 +21,8 @@
     </style>
 </head>
 <body>
+    {% from '_navbar.html' import navbar %}
+    {{ navbar() }}
     <div class="status-container">
         <div class="status-title">NFC Encoding Session Status</div>
     <div id="encodingStatus" class="status-inactive">Loading...</div>
@@ -54,7 +57,7 @@
         }
         document.getElementById('stopBtn').onclick = async function() {
             this.disabled = true;
-            await fetch('/nfc-encoding/stop', { method: 'POST' });
+            await fetch('/api/nfc-encoding/stop', { method: 'POST' });
             await fetchStatus();
         };
         fetchStatus();

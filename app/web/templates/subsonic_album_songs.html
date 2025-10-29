@@ -12,9 +12,9 @@
     {% from '_navbar.html' import navbar %}
     {{ navbar('library') }}
     <div style="margin-bottom:20px;text-align:center;">
-        <a href="/subsonic/artists">Music Library</a>
+        <a href="/library/artists">Music Library</a>
         {% if artist_id and artist_name %}
-            &gt; <a href="/subsonic/albums/{{ artist_id }}?artist_name={{ artist_name|urlencode }}">{{ artist_name }}</a>
+            &gt; <a href="/library/artists/{{ artist_id }}?artist_name={{ artist_name|urlencode }}">{{ artist_name }}</a>
         {% endif %}
         {% if album_name %}
             &gt; <span>{{ album_name }}</span>
@@ -43,7 +43,7 @@
         {% endfor %}
     </table>
     <div style="text-align:center;margin-top:20px;">
-        <a href="/subsonic/albums/{{ artist_id }}?artist_name={{ artist_name|urlencode }}">Back to Albums</a>
+        <a href="/library/artists/{{ artist_id }}?artist_name={{ artist_name|urlencode }}">Back to Albums</a>
     </div>
 </body>
 </html>

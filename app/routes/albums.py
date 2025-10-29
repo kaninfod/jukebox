@@ -35,7 +35,7 @@ def list_album_entries_route():
 
 @router.get("/api/albums/{rfid}", response_model=AlbumEntry)
 def get_album_entry(rfid: str):
-    album_db = AlbumDB(config)
+    album_db = AlbumDatabase(config)
     subsonic = SubsonicService(config)
     album_id = album_db.get_album_id_by_rfid(rfid)
     if not album_id:
@@ -47,7 +47,7 @@ def get_album_entry(rfid: str):
 
 @router.post("/api/albums/{rfid}")
 def create_album_entry_route(rfid: str, album_id: str = Body(...)):
-    album_db = AlbumDB(config)
+    album_db = AlbumDatabase(config)
     album_db.set_album_mapping(rfid, album_id)
     return {"status": "created", "rfid": rfid, "album_id": album_id}
 
@@ -68,7 +68,7 @@ def update_album_id_from_rfid(album_id: str, rfid: str):
 
 @router.put("/api/albums/{rfid}/{album_id}", response_model=AlbumEntry)
 def update_album_entry_route(rfid: str, album_id: str):
-    album_db = AlbumDB(config)
+    album_db = AlbumDatabase(config)
     album_db.set_album_mapping(rfid, album_id)
     return AlbumEntry(
         rfid=rfid,
@@ -77,7 +77,7 @@ def update_album_entry_route(rfid: str, album_id: str):
 
 @router.delete("/api/albums/{rfid}")
 def delete_album_entry_route(rfid: str):
-    album_db = AlbumDB(config)
+    album_db = AlbumDatabase(config)
     album_db.delete_mapping(rfid)
     return {"status": "deleted"}
 

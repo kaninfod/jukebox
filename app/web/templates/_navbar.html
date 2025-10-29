@@ -3,8 +3,9 @@
     <div style="font-size:1.7em;font-weight:bold;letter-spacing:1px;">Jukeplayer</div>
     <nav class="nav">
         <div style="flex:1 1 auto;"></div>
-        <a href="/subsonic/artists" {% if active_page == 'library' %}class="active"{% endif %}>Music Library</a>
-        <a href="/mediaplayer/status" {% if active_page == 'player' %}class="active"{% endif %}>Player</a>
+    <a href="/library/artists" {% if active_page == 'library' %}class="active"{% endif %}>Music Library</a>
+    <a href="/albums" {% if active_page == 'albums' %}class="active"{% endif %}>Albums</a>
+    <a href="/status" {% if active_page == 'player' %}class="active"{% endif %}>Player</a>
     </nav>
 </header>
 {% endmacro %}

@@ -34,7 +34,7 @@
     {% from '_navbar.html' import navbar %}
     {{ navbar('library') }}
     <div style="margin-bottom:20px;text-align:center;">
-        <a href="/subsonic/artists">Music Library</a>
+        <a href="/library/artists">Music Library</a>
         {% if artist_name %}
             &gt; <span>{{ artist_name }}</span>
         {% endif %}
@@ -61,7 +61,7 @@
                 {% endif %}
             </td>
             <td>
-                <a href="/subsonic/album/{{ album.id }}?artist_id={{ artist_id }}&artist_name={{ artist_name|urlencode }}&album_name={{ album.name|urlencode }}" style="text-decoration:none;color:#333;">
+                <a href="/library/albums/{{ album.id }}?artist_id={{ artist_id }}&artist_name={{ artist_name|urlencode }}&album_name={{ album.name|urlencode }}" style="text-decoration:none;color:#333;">
                     {{ album.name }}
                 </a>
             </td>
@@ -81,8 +81,8 @@
     </table>
 
     <div style="text-align:center; margin-top:20px;">
-        <a href="/subsonic/artists">Back to Artists</a> |
-        <a href="/nfc-encoding/status-page">NFC Encoding Status</a>
+        <a href="/library/artists">Back to Artists</a> |
+        <a href="/nfc">NFC Encoding Status</a>
     </div>
 
     <script>

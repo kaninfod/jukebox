@@ -16,7 +16,6 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
     Behavior:
     - If config.API_KEY is set: require header X-API-Key to match, or Authorization: Bearer <token>.
     - If config.API_KEY is NOT set: allow requests only from localhost (127.0.0.1, ::1) when ALLOW_LOCAL_API_BYPASS is true.
-    - Optionally allow public access to /api/system/metrics when ALLOW_PUBLIC_METRICS is true.
     """
 
     def __init__(self, app):
@@ -33,10 +32,6 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
 
         # Allow localhost for internal server-side calls if enabled
         if config.ALLOW_LOCAL_API_BYPASS and client_host in self._localhost_hosts:
-            return await call_next(request)
-
-        # Optionally allow public metrics
-        if config.ALLOW_PUBLIC_METRICS and path == "/api/system/metrics":
             return await call_next(request)
 
         # If API key configured, enforce header check

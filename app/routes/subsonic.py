@@ -45,3 +45,17 @@ def get_cover_art(album_id: str):
         return Response(content=resp.content, media_type=content_type)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to fetch cover art: {e}")
+
+@router.get("/api/subsonic/album_info/{id}")
+def get_album_info(id: str):
+    """Return album metadata (name, artist, etc.) for the given album id."""
+    subsonic_service = get_service("subsonic_service")
+    try:
+        album = subsonic_service.get_album_info(id)
+        if not album:
+            raise HTTPException(status_code=404, detail="Album not found")
+        return album
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch album info: {e}")
