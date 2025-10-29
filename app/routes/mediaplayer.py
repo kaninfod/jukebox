@@ -1,6 +1,7 @@
 from app.services.playback_manager import PlaybackManager
 from fastapi import APIRouter, Body, Query, WebSocket, WebSocketDisconnect
 import asyncio
+from app.config import config
 
 
 router = APIRouter()
@@ -8,6 +9,15 @@ router = APIRouter()
 def get_screen_manager():
     from app.core.service_container import get_service
     return get_service("screen_manager")
+
+# Helper: build absolute URL for thumbs using PUBLIC_BASE_URL when a relative path is provided
+def _abs_url(url: str):
+    if not url:
+        return url
+    if isinstance(url, str) and (url.startswith("http://") or url.startswith("https://")):
+        return url
+    base = getattr(config, "PUBLIC_BASE_URL", "").rstrip("/")
+    return f"{base}{url}" if base else url
 
 @router.post("/api/mediaplayer/next_track")
 def next_track():
@@ -111,6 +121,21 @@ def volume_down():
         return {"status": "error", "message": "Failed to decrease volume"}
 
 
+@router.post("/api/mediaplayer/volume_set")
+def volume_set(volume: int = Query(..., ge=0, le=100)):
+    """Set volume to an explicit level (0-100) via event bus."""
+    from app.core import event_bus, EventType, Event
+    result = event_bus.emit(Event(
+        type=EventType.SET_VOLUME,
+        payload={"volume": volume}
+    ))
+
+    if result is not None:
+        return {"status": "success", "volume": volume}
+    else:
+        return {"status": "error", "message": "Failed to set volume"}
+
+
 # Endpoint to trigger load_rfid in PlaybackManager
 
 
@@ -166,6 +191,9 @@ def get_current_track_info():
         playback_manager = get_service("playback_manager")
         player = playback_manager.player if playback_manager else None
         if player and player.current_track:
+            # Build absolute thumb for integrations that need fully-qualified URL
+            thumb_rel = player.thumb
+            thumb_abs = _abs_url(thumb_rel)
             return {
                 "current_track": {
                     "artist": player.artist,
@@ -175,10 +203,12 @@ def get_current_track_info():
                     "year": player.year,
                     "track_id": player.track_id,
                     "track_number": player.track_number,
-                    "thumb": player.thumb
+                    "thumb": thumb_rel,
+                    "thumb_abs": thumb_abs
                 },
                 "status": player.status.value,
-                "playlist": player.playlist
+                "playlist": player.playlist,
+                "volume": player.volume
             }
         else:
             return {"status": "error", "message": "No track loaded"}
@@ -205,6 +235,8 @@ async def websocket_current_track(websocket: WebSocket):
             playback_manager = get_service("playback_manager")
             player = playback_manager.player if playback_manager else None
             if player and player.current_track:
+                thumb_rel = player.thumb
+                thumb_abs = _abs_url(thumb_rel)
                 data = {
                     "current_track": {
                         "artist": player.artist,
@@ -214,10 +246,12 @@ async def websocket_current_track(websocket: WebSocket):
                         "year": player.year,
                         "track_id": player.track_id,
                         "track_number": player.track_number,
-                        "thumb": player.thumb
+                        "thumb": thumb_rel,
+                        "thumb_abs": thumb_abs
                     },
                     "status": player.status.value,
-                    "playlist": player.playlist
+                    "playlist": player.playlist,
+                    "volume": player.volume
                 }
             else:
                 data = {"status": "error", "message": "No track loaded"}
@@ -230,6 +264,7 @@ async def websocket_current_track(websocket: WebSocket):
 
     # Subscribe handler to TRACK_CHANGED
     event_bus.subscribe(EventType.TRACK_CHANGED, handler)
+    event_bus.subscribe(EventType.VOLUME_CHANGED, handler)
 
     try:
         # Send initial state
@@ -251,5 +286,11 @@ async def websocket_current_track(websocket: WebSocket):
             event_bus._handlers[EventType.TRACK_CHANGED].remove(handler)
         except Exception:
             pass
+        try:
+            event_bus._handlers[EventType.VOLUME_CHANGED].remove(handler)
+        except Exception:
+            pass
+
+
 
 

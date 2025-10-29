@@ -146,15 +146,6 @@ class PlaybackManager:
             except AttributeError:
                 # Backward compatibility if service hasn't been updated
                 url = f"/api/subsonic/cover/{album_id}"
-            # For Chromecast, ensure absolute URL if PUBLIC_BASE_URL is configured
-            try:
-                from app.config import config
-                if url and not (url.startswith('http://') or url.startswith('https://')) and config.PUBLIC_BASE_URL:
-                    base = config.PUBLIC_BASE_URL.rstrip('/')
-                    url = f"{base}{url}"
-            except Exception:
-                # If config import fails for any reason, keep relative URL (web UI still works)
-                pass
             return url
         else:
             return None

@@ -167,13 +167,28 @@ class JukeboxMediaPlayer:
 
         return True
 
-    def set_volume(self, volume, event=None):
-        """Set volume (0-100) and sync with Chromecast."""
-        logger.debug(f"[set_volume] Requested volume: {volume}")
+    def set_volume(self, volume=None, event=None):
+        """Set volume (0-100) and sync with Chromecast.
+
+        Supports two invocation styles:
+        - Direct call with numeric volume (used by volume_up/down)
+        - EventBus call where the first argument is an Event carrying payload{"volume": X}
+        """
+        # Normalize input volume from either direct call or event payload
+        requested = None
+        if hasattr(volume, "payload") and isinstance(getattr(volume, "payload", None), dict):
+            # Called via EventBus: 'volume' is actually the Event instance
+            requested = volume.payload.get("volume")
+        elif volume is not None:
+            requested = volume
+        elif event is not None and hasattr(event, "payload"):
+            requested = event.payload.get("volume")
+
+        logger.debug(f"[set_volume] Requested volume: {requested}")
         try:
-            self.current_volume = max(0, min(100, int(volume)))
+            self.current_volume = max(0, min(100, int(requested)))
         except Exception as e:
-            logger.error(f"[set_volume] Failed to set current_volume from volume={volume}: {e}")
+            logger.error(f"[set_volume] Failed to set current_volume from volume={requested}: {e}")
             self.current_volume = 0
         logger.debug(f"[set_volume] current_volume set to: {self.current_volume}")
         # Convert to Chromecast's 0.0-1.0 scale

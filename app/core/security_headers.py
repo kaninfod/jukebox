@@ -23,16 +23,46 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         style_sources = ["'self'", "'unsafe-inline'", "data:"]
         script_sources = ["'self'", "'unsafe-inline'"]
 
+        # Helper to robustly extract a host from either a URL or a bare hostname
+        def _extract_host(value: str) -> str:
+            try:
+                if not value:
+                    return ""
+                parsed = urlparse(value)
+                host = parsed.netloc
+                if not host:
+                    # If no scheme was provided (bare hostname), try parsing with // prefix
+                    parsed2 = urlparse(f"//{value}")
+                    host = parsed2.netloc or value.split('/')[0]
+                # Strip credentials if any (user:pass@host)
+                if '@' in host:
+                    host = host.split('@', 1)[1]
+                # Remove trailing port if present for CSP host entries
+                if ':' in host:
+                    host = host.split(':', 1)[0]
+                return host
+            except Exception:
+                return ""
+
         try:
             subsonic = getattr(config, "SUBSONIC_URL", None)
-            if subsonic:
-                host = urlparse(subsonic).netloc
-                if host:
-                    # Allow either scheme explicitly to be safe with redirects/cert offload
-                    img_sources.append(f"https://{host}")
-                    img_sources.append(f"http://{host}")
+            host = _extract_host(subsonic)
+            if host:
+                # Allow either scheme explicitly to be safe with redirects/cert offload
+                img_sources.append(f"https://{host}")
+                img_sources.append(f"http://{host}")
         except Exception:
             # Fall back to defaults if parsing fails
+            pass
+
+        # Also allow the PUBLIC_BASE_URL host (used to generate absolute cover URLs for Chromecast/UI)
+        try:
+            public_base = getattr(config, "PUBLIC_BASE_URL", None)
+            host = _extract_host(public_base)
+            if host:
+                img_sources.append(f"https://{host}")
+                img_sources.append(f"http://{host}")
+        except Exception:
             pass
 
         # If API docs are enabled, allow Swagger UI assets from CDN
