@@ -140,13 +140,15 @@ class PlaybackManager:
         from app.core.service_container import get_service
         service = get_service('subsonic_service')
         if album_id:
-            # Use local proxy to avoid exposing Subsonic URL or triggering Basic auth in the browser
+            # Prefer static 512px cover to maximize cacheability and avoid proxying
             try:
-                url = service.get_cover_proxy_url(album_id)
+                return service.get_cover_static_url(album_id, size=512, absolute=False)
             except AttributeError:
-                # Backward compatibility if service hasn't been updated
-                url = f"/api/subsonic/cover/{album_id}"
-            return url
+                # Fallback to proxy if service doesn't support static covers yet
+                try:
+                    return service.get_cover_proxy_url(album_id)
+                except Exception:
+                    return f"/api/subsonic/cover/{album_id}"
         else:
             return None
 
@@ -169,16 +171,11 @@ class PlaybackManager:
                 logger.error(f"No tracks found in Subsonic for album_id {album_id}")
                 return False
 
-            # Hybrid cover caching: check for local cover, fetch if missing
-            import os
-            from app.config import config
-            cover_filename = f"{album_id}.png"
-            cover_path = os.path.join(config.STATIC_FILE_PATH, cover_filename)
-            if not os.path.exists(cover_path):
-                logger.info(f"Cover not found locally, fetching from Subsonic: {cover_filename}")
-                self.subsonic_service._fetch_and_cache_coverart(album_id)
-            else:
-                logger.info(f"Using cached album cover: {cover_filename}")
+            # Ensure static cover variants exist (180/512). Non-blocking if it fails.
+            try:
+                self.subsonic_service.ensure_cover_variants(album_id, sizes=(180, 512))
+            except Exception:
+                pass
 
             playlist_metadata = []
             for track in tracks:
@@ -193,7 +190,7 @@ class PlaybackManager:
                     'album': album_info.get('name', ''),
                     'year': album_info.get('year', ''),
                     'thumb': self.get_cover_url_for_track(album_info.get('id')),
-                    'album_cover_filename': cover_filename
+                    'album_cover_filename': f"{album_id}"
                 })
             logger.info(f"Prepared playlist with {len(playlist_metadata)} tracks for album_id {album_id}")
             self.player.playlist = playlist_metadata

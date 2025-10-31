@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from app.config import config
+from app.core.service_container import get_service
 import httpx
 import asyncio
 
@@ -60,6 +61,7 @@ async def albums(request: Request):
         infos = await asyncio.gather(*tasks)
 
     enriched = []
+    subsonic_service = get_service("subsonic_service")
     for entry, info in zip(entries, infos):
         if hasattr(entry, 'rfid') and hasattr(entry, 'album_id'):
             rfid = entry.rfid
@@ -68,12 +70,13 @@ async def albums(request: Request):
             rfid = entry.get('rfid') if isinstance(entry, dict) else None
             album_id = entry.get('album_id') if isinstance(entry, dict) else None
 
+        cover_url = subsonic_service.get_cover_static_url(album_id, size=180, absolute=False) if album_id else None
         enriched.append({
             "rfid": rfid,
             "album_id": album_id,
             "album_name": (info or {}).get("name", ""),
             "artist_name": (info or {}).get("artist", ""),
-            "cover_url": f"/api/subsonic/cover/{album_id}" if album_id else None,
+            "cover_url": cover_url,
         })
 
     return templates.TemplateResponse(

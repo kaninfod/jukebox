@@ -21,7 +21,8 @@ class HomeScreen(Screen):
         self.album_name = "Unknown Album"
         self.album_year = "----"
         self.track_title = "No Track"
-        self.album_cover_filename = None
+        # Album identifier used to resolve static cover file from cache
+        self.album_id = None
         
     @staticmethod
     def show(context=None):
@@ -59,7 +60,8 @@ class HomeScreen(Screen):
         screen_title_element = TextElement(*box, self.name, fonts["title"])
         screen_title_element.draw(draw_context)
 
-        path = config.get_image_path(self.album_cover_filename)
+        # Resolve static cover from local cache: /static_files/covers/{album_id}/cover-180.(webp|jpg)
+        path = self._get_cover_file_path(self.album_id, size=180)
         img = self._load_album_image(path)
         box = (20, 60, 120, 120)
         album_cover_element = ImageElement(*box, img)
@@ -112,13 +114,15 @@ class HomeScreen(Screen):
         if self.current_track:
             self.artist_name = self.current_track.get('artist', 'Unknown Artist')
             self.track_title = self.current_track.get('title', 'No Track')
-            self.album_cover_filename = self.current_track.get('album_cover_filename')
+            # Playlist metadata provides 'album_cover_filename' as album_id for compatibility
+            self.album_id = self.current_track.get('album_cover_filename')
             self.album_name = self.current_track.get('album', 'Unknown Album')
             self.album_year = str(self.current_track.get('year', '----'))
         else:
             self.artist_name = 'Unknown Artist'
             self.track_title = 'No Track'
-            self.album_cover_filename = context.get('album_cover_filename')
+            # Fallback when current_track is not set
+            self.album_id = context.get('album_cover_filename')
             self.album_name = 'Unknown Album'
             self.album_year = '----'
         
@@ -140,6 +144,31 @@ class HomeScreen(Screen):
                 return None
         else:
             return None
+
+    def _get_cover_file_path(self, album_id, size=180):
+        """Return local filesystem path for static cover image variants.
+        Tries WebP then JPEG for the given size, falling back to the default placeholder.
+        """
+        if not album_id:
+            return None
+        try:
+            base = config.STATIC_FILE_PATH
+            # Candidate paths for album-specific cover
+            candidates = [
+                os.path.join(base, 'covers', str(album_id), f'cover-{size}.webp'),
+                os.path.join(base, 'covers', str(album_id), f'cover-{size}.jpg'),
+            ]
+            # Fallback to default placeholder
+            candidates += [
+                os.path.join(base, 'covers', '_default', f'cover-{size}.webp'),
+                os.path.join(base, 'covers', '_default', f'cover-{size}.jpg'),
+            ]
+            for p in candidates:
+                if os.path.exists(p):
+                    return p
+        except Exception:
+            pass
+        return None
 
 
     def _get_icon_filename(self):

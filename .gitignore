@@ -80,3 +80,4 @@ secrets.json
 
 # PI specific
 *.lgd-nfy0
+static_files/covers/

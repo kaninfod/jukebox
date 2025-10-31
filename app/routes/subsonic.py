@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Response
+from fastapi import Query
 from app.core.service_container import get_service
 
 
@@ -59,3 +60,16 @@ def get_album_info(id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to fetch album info: {e}")
+
+
+@router.get("/api/images/covers/{album_id}")
+def get_cover_static_url(album_id: str, size: int = Query(180, ge=64, le=1024), absolute: bool = Query(False)):
+    """
+    Return the static cover URL for a given album id and size. Ensures generation if missing.
+    """
+    subsonic_service = get_service("subsonic_service")
+    try:
+        url = subsonic_service.get_cover_static_url(album_id, size=size, absolute=absolute)
+        return {"url": url}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to resolve cover URL: {e}")

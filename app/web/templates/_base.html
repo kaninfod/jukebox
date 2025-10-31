@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Jukeplayer{% endblock %}</title>
+    {% include '_global_styles.html' %}
+    {% block head_extra %}{% endblock %}
+  </head>
+  <body>
+    {% from '_navbar.html' import navbar %}
+    {# Allow pages to set an active nav item using a tiny overrideable block #}
+    <!-- {% block active_page %}{% endblock %} -->
+    {% set _active = self.active_page()|trim %}
+    {{ navbar(_active if _active else None) }}
+
+    <main class="container">
+      {% block content %}{% endblock %}
+    </main>
+
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

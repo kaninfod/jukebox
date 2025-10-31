@@ -75,11 +75,13 @@ app.add_middleware(APIKeyMiddleware)
 # Add common security headers
 app.add_middleware(SecurityHeadersMiddleware)
 
-# Mount album cover cache directory for web access
+# Mount static directories for web access
 album_cover_dir = config.STATIC_FILE_PATH
 if not os.path.isabs(album_cover_dir):
     album_cover_dir = os.path.join(os.path.dirname(__file__), "..", album_cover_dir)
 app.mount("/album_covers", StaticFiles(directory=album_cover_dir), name="album_covers")
+app.mount("/static", StaticFiles(directory=album_cover_dir), name="static")
+app.mount("/assets", StaticFiles(directory=album_cover_dir), name="assets")
 
 
 # Include routers

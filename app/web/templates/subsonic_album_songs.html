@@ -1,49 +1,51 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Songs for Album {{ album_id }}</title>
-    {% include '_global_styles.html' %}
-    <style>
-        table { margin: auto; border-collapse: collapse; }
-        th, td { padding: 8px 12px; border: 1px solid #ccc; }
-    </style>
-</head>
-<body>
-    {% from '_navbar.html' import navbar %}
-    {{ navbar('library') }}
-    <div style="margin-bottom:20px;text-align:center;">
-        <a href="/library/artists">Music Library</a>
-        {% if artist_id and artist_name %}
-            &gt; <a href="/library/artists/{{ artist_id }}?artist_name={{ artist_name|urlencode }}">{{ artist_name }}</a>
-        {% endif %}
-        {% if album_name %}
-            &gt; <span>{{ album_name }}</span>
-        {% endif %}
+{% extends "_base.html" %}
+
+{% block title %}Album — {{ album_name or album_id }}{% endblock %}
+
+{% block active_page %}library{% endblock %}
+
+{% block content %}
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/library/artists">Music Library</a></li>
+            {% if artist_id and artist_name %}
+                <li class="breadcrumb-item"><a href="/library/artists/{{ artist_id }}?artist_name={{ artist_name|urlencode }}">{{ artist_name }}</a></li>
+            {% endif %}
+            {% if album_name %}
+                <li class="breadcrumb-item active" aria-current="page">{{ album_name }}</li>
+            {% else %}
+                <li class="breadcrumb-item active" aria-current="page">{{ album_id }}</li>
+            {% endif %}
+        </ol>
+    </nav>
+
+    <h2 class="h4 mb-3">Songs for: {{ album_name or album_id }}</h2>
+
+    <div class="table-responsive">
+        <table class="table table-sm align-middle">
+            <thead>
+                <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Title</th>
+                    <th scope="col">Duration</th>
+                    <th scope="col">Song ID</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for song in songs %}
+                    <tr>
+                        <td class="text-muted" style="width:60px;">{{ song.track }}</td>
+                        <td>{{ song.title }}</td>
+                        <td class="text-muted" style="width:90px;">
+                            {% set seconds = song.duration|int %}
+                            {% set minutes = seconds // 60 %}
+                            {% set secs = seconds % 60 %}
+                            {{ '%d:%02d' % (minutes, secs) }}
+                        </td>
+                        <td class="text-muted" style="width:140px;">{{ song.id }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
-    <h2 style="text-align:center;">Songs for Album: {{ album_name or album_id }}</h2>
-    <table>
-        <tr>
-            <th>Track #</th>
-            <th>Title</th>
-            <th>Duration</th>
-            <th>Song ID</th>
-        </tr>
-        {% for song in songs %}
-        <tr>
-            <td>{{ song.track }}</td>
-            <td>{{ song.title }}</td>
-            <td>
-                {% set seconds = song.duration|int %}
-                {% set minutes = seconds // 60 %}
-                {% set secs = seconds % 60 %}
-                {{ '%d:%02d' % (minutes, secs) }}
-            </td>
-            <td>{{ song.id }}</td>
-        </tr>
-        {% endfor %}
-    </table>
-    <div style="text-align:center;margin-top:20px;">
-        <a href="/library/artists/{{ artist_id }}?artist_name={{ artist_name|urlencode }}">Back to Albums</a>
-    </div>
-</body>
-</html>
+{% endblock %}

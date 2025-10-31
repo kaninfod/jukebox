@@ -111,6 +111,135 @@ class SubsonicService:
         """
         return f"/api/subsonic/cover/{album_id}"
 
+    # --- New unified cover pipeline helpers ---
+    def _cover_dir(self, album_id: str) -> str:
+        import os
+        base = getattr(self.config, "STATIC_FILE_PATH", "static_files")
+        return os.path.join(base, "covers", str(album_id))
+
+    def _default_cover_dir(self) -> str:
+        import os
+        base = getattr(self.config, "STATIC_FILE_PATH", "static_files")
+        return os.path.join(base, "covers", "_default")
+
+    def _cover_paths(self, album_id: str, size: int) -> dict:
+        import os
+        d = self._cover_dir(album_id)
+        return {
+            "webp": os.path.join(d, f"cover-{size}.webp"),
+            "jpg": os.path.join(d, f"cover-{size}.jpg"),
+        }
+
+    def _default_cover_paths(self, size: int) -> dict:
+        import os
+        d = self._default_cover_dir()
+        return {
+            "webp": os.path.join(d, f"cover-{size}.webp"),
+            "jpg": os.path.join(d, f"cover-{size}.jpg"),
+        }
+
+    def _ensure_dir(self, path: str) -> None:
+        import os
+        os.makedirs(path, exist_ok=True)
+
+    def _center_square(self, image):
+        w, h = image.size
+        if w == h:
+            return image
+        side = min(w, h)
+        left = (w - side) // 2
+        top = (h - side) // 2
+        return image.crop((left, top, left + side, top + side))
+
+    def _save_variants(self, pil_image, out_paths: dict, size: int) -> None:
+        from PIL import Image
+        img = self._center_square(pil_image.convert("RGB")).resize((size, size), Image.Resampling.LANCZOS)
+        # Save WebP and JPEG
+        try:
+            img.save(out_paths["webp"], format="WEBP", quality=80)
+        except Exception:
+            pass
+        try:
+            img.save(out_paths["jpg"], format="JPEG", quality=85)
+        except Exception:
+            pass
+
+    def _ensure_default_placeholder(self, size: int) -> None:
+        # Generate a simple placeholder if not present
+        from PIL import Image, ImageDraw
+        import os
+        paths = self._default_cover_paths(size)
+        self._ensure_dir(self._default_cover_dir())
+        if not (os.path.exists(paths["webp"]) or os.path.exists(paths["jpg"])):
+            img = Image.new("RGB", (size, size), color=(240, 240, 240))
+            draw = ImageDraw.Draw(img)
+            # Simple music note placeholder
+            draw.rectangle([(size*0.25, size*0.25), (size*0.75, size*0.75)], outline=(200,200,200), width=2)
+            self._save_variants(img, paths, size)
+
+    def ensure_cover(self, album_id: str, size: int = 180) -> str:
+        """
+        Ensure a static cover exists at static_files/covers/{album_id}/cover-{size}.webp|jpg.
+        Returns a relative URL to the preferred WebP file if available, else JPEG, else default placeholder.
+        """
+        from io import BytesIO
+        from PIL import Image
+        import os
+
+        # If file exists, return URL immediately
+        paths = self._cover_paths(album_id, size)
+        self._ensure_dir(self._cover_dir(album_id))
+        if os.path.exists(paths["webp"]) or os.path.exists(paths["jpg"]):
+            return self._cover_url(album_id, size)
+
+        # Try to fetch original from Subsonic and generate variants
+        try:
+            resp = self._api_request("getCoverArt", {"id": album_id})
+            img = Image.open(BytesIO(resp.content))
+            self._save_variants(img, paths, size)
+            return self._cover_url(album_id, size)
+        except Exception:
+            # Fallback to default placeholder
+            self._ensure_default_placeholder(size)
+            return self._default_cover_url(size)
+
+    def ensure_cover_variants(self, album_id: str, sizes=(180, 512)) -> None:
+        for s in sizes:
+            try:
+                self.ensure_cover(album_id, s)
+            except Exception:
+                pass
+
+    def _cover_url(self, album_id: str, size: int, prefer: str = "webp") -> str:
+        # Return relative URL under /assets
+        ext = "webp" if prefer == "webp" else "jpg"
+        # Prefer the one that exists
+        import os
+        paths = self._cover_paths(album_id, size)
+        chosen = f"/assets/covers/{album_id}/cover-{size}.{ext}"
+        if prefer == "webp" and not os.path.exists(paths["webp"]) and os.path.exists(paths["jpg"]):
+            chosen = f"/assets/covers/{album_id}/cover-{size}.jpg"
+        return chosen
+
+    def _default_cover_url(self, size: int, prefer: str = "webp") -> str:
+        import os
+        paths = self._default_cover_paths(size)
+        if prefer == "webp" and os.path.exists(paths["webp"]):
+            return f"/assets/covers/_default/cover-{size}.webp"
+        if os.path.exists(paths["jpg"]):
+            return f"/assets/covers/_default/cover-{size}.jpg"
+        # As a last resort, point to a proxy (should rarely happen)
+        return f"/assets/covers/_default/cover-{size}.jpg"
+
+    def get_cover_static_url(self, album_id: str, size: int = 180, absolute: bool = False, prefer: str = "webp") -> str:
+        """Return a ready-to-use URL (ensuring generation if missing)."""
+        import os
+        rel = self.ensure_cover(album_id, size)
+        if not absolute:
+            return rel
+        base = getattr(self.config, "PUBLIC_BASE_URL", "").rstrip("/")
+        return f"{base}{rel}" if base else rel
+
     @lru_cache(maxsize=128)
     def search_song(self, query: str) -> Dict[str, Any]:
         logger.info(f"SubsonicService: Searching for song: {query}")
@@ -171,10 +300,20 @@ class SubsonicService:
         directory = data.get("subsonic-response", {}).get("directory", {})
         albums = directory.get("child", [])
         # Each album is a dict with 'id' and 'title'
-        return [
-            {"id": album.get("id"), "name": album.get("title"), "cover_url": self.get_cover_proxy_url(album.get("id"))}
-            for album in albums if album.get('isDir', False)
-        ]
+        result = []
+        for album in albums:
+            if not album.get('isDir', False):
+                continue
+            aid = album.get("id")
+            # Ensure a small cover for grids
+            cover_small = self.get_cover_static_url(aid, 180, absolute=False)
+            result.append({
+                "id": aid,
+                "name": album.get("title"),
+                "year": album.get("year"),
+                "cover_url": cover_small,
+            })
+        return result
 
     @lru_cache(maxsize=128)
     def get_song_info(self, track_id: str) -> Optional[Dict[str, str]]:

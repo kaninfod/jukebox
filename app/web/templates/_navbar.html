@@ -1,39 +1,26 @@
 {% macro navbar(active_page=None) %}
-<header>
-    <div style="font-size:1.7em;font-weight:bold;letter-spacing:1px;">Jukeplayer</div>
-    <nav class="nav">
-        <div style="flex:1 1 auto;"></div>
-    <a href="/library/artists" {% if active_page == 'library' %}class="active"{% endif %}>Music Library</a>
-    <a href="/albums" {% if active_page == 'albums' %}class="active"{% endif %}>Albums</a>
-    <a href="/status" {% if active_page == 'player' %}class="active"{% endif %}>Player</a>
-    </nav>
-</header>
+<nav class="navbar navbar-expand-md navbar-dark bg-dark">
+    <div class="container-fluid px-3 px-md-4">
+        <a class="navbar-brand fw-bold" href="/">Jukeplayer</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mainNav">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <a class="nav-link {% if active_page == 'library' %}active{% endif %}" href="/library/artists">Music Library</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if active_page == 'albums' %}active{% endif %}" href="/albums">Albums</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if active_page == 'encoding' %}active{% endif %}" href="/nfc">Encoding Status</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if active_page == 'player' %}active{% endif %}" href="/status">Player</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
 {% endmacro %}
-
-<style>
-header {
-    background: #222;
-    color: #fff;
-    padding: 18px 32px 10px 32px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-.nav {
-    display: flex;
-    gap: 24px;
-    width: 100%;
-}
-.nav a {
-    color: #fff;
-    text-decoration: none;
-    font-weight: bold;
-    font-size: 1.1em;
-    padding: 4px 12px;
-    border-radius: 4px;
-    transition: background 0.2s;
-}
-.nav a.active, .nav a:hover {
-    background: #444;
-}
-</style>

@@ -1,77 +1,73 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Subsonic Artists</title>
-    {% include '_global_styles.html' %}
-    <style>
-        table { margin: auto; border-collapse: collapse; }
-        th, td { padding: 8px 12px; border: 1px solid #ccc; }
-        .artist-link { text-decoration: none; color: #0074d9; }
-    </style>
-</head>
-<body>
-    {% from '_navbar.html' import navbar %}
-    {{ navbar('library') }}
-    <div style="position:sticky;top:0;z-index:10;background:#fff;padding-top:12px;padding-bottom:12px;box-shadow:0 2px 8px #eee;">
-        <h2 style="text-align:center;margin-bottom:0;">Subsonic Artists</h2>
-        <div id="artist-groups" style="display:flex;justify-content:center;gap:18px;margin:12px 0 0 0;">
-            <!-- Quick links will be rendered here -->
-        </div>
+{% extends "_base.html" %}
+
+{% block title %}Subsonic Artists{% endblock %}
+
+{% block active_page %}library{% endblock %}
+
+{% block content %}
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item active" aria-current="page">Music Library</li>
+        </ol>
+    </nav>
+
+    <div class="sticky-top bg-body pt-2 pb-2 border-bottom">
+        <h2 class="h4 text-center mb-2">Subsonic Artists</h2>
+        <div id="artist-groups" class="d-flex justify-content-center gap-2 my-2"></div>
     </div>
-    <div style="max-height:80vh;overflow-y:auto;margin-top:0.5em;">
-        <table id="artists-table" style="width:100%;">
-        <tr>
-            <th>Artist Name</th>
-            <th>Artist ID</th>
-        </tr>
-        {% for artist in artists %}
-        <tr data-artist-name="{{ artist.name|upper }}">
-            <td><a href="/library/artists/{{ artist.id }}?artist_name={{ artist.name|urlencode }}">{{ artist.name }}</a></td>
-            <td>{{ artist.id }}</td>
-        </tr>
-        {% endfor %}
+
+    <div class="table-responsive mt-3">
+        <table id="artists-table" class="table table-sm align-middle">
+            <thead>
+                <tr>
+                    <th scope="col">Artist Name</th>
+                    <th scope="col">Artist ID</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for artist in artists %}
+                    <tr data-artist-name="{{ artist.name|upper }}">
+                        <td>
+                            <a href="/library/artists/{{ artist.id }}?artist_name={{ artist.name|urlencode }}">{{ artist.name }}</a>
+                        </td>
+                        <td class="text-muted">{{ artist.id }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
         </table>
     </div>
-    <script>
-    // Artist group quick links
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Artist group quick links (Bootstrap buttons)
     const groups = [
-        { name: "A-D", range: ["A", "D"] },
-        { name: "E-H", range: ["E", "H"] },
-        { name: "I-L", range: ["I", "L"] },
-        { name: "M-P", range: ["M", "P"] },
-        { name: "Q-T", range: ["Q", "T"] },
-        { name: "U-Z", range: ["U", "Z"] }
+        { name: 'A-D', range: ['A', 'D'] },
+        { name: 'E-H', range: ['E', 'H'] },
+        { name: 'I-L', range: ['I', 'L'] },
+        { name: 'M-P', range: ['M', 'P'] },
+        { name: 'Q-T', range: ['Q', 'T'] },
+        { name: 'U-Z', range: ['U', 'Z'] },
     ];
     const groupDiv = document.getElementById('artist-groups');
     groups.forEach(group => {
         const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-primary btn-sm';
         btn.textContent = group.name;
-        btn.style.padding = '8px 18px';
-        btn.style.borderRadius = '6px';
-        btn.style.border = 'none';
-        btn.style.background = '#1976d2';
-        btn.style.color = '#fff';
-        btn.style.fontWeight = 'bold';
-        btn.style.cursor = 'pointer';
-        btn.style.fontSize = '1em';
-        btn.style.boxShadow = '0 2px 6px #ddd';
-        btn.onmouseover = () => btn.style.background = '#1565c0';
-        btn.onmouseout = () => btn.style.background = '#1976d2';
         btn.onclick = () => {
-            // Scroll to first artist in group
-            const rows = document.querySelectorAll('#artists-table tr[data-artist-name]');
+            const rows = document.querySelectorAll('#artists-table tbody tr[data-artist-name]');
             for (const row of rows) {
                 const name = row.getAttribute('data-artist-name');
                 if (name && name[0] >= group.range[0] && name[0] <= group.range[1]) {
                     row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    row.style.background = '#e3f2fd';
-                    setTimeout(() => row.style.background = '', 1200);
+                    row.classList.add('table-info');
+                    setTimeout(() => row.classList.remove('table-info'), 1200);
                     break;
                 }
             }
         };
         groupDiv.appendChild(btn);
     });
-    </script>
-</body>
-</html>
+</script>
+{% endblock %}
