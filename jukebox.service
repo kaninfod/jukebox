@@ -24,10 +24,10 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=jukebox
 
-# Security settings
-NoNewPrivileges=true
+# Security settings (modified to allow system operations like reboot/shutdown)
+NoNewPrivileges=false
 PrivateTmp=true
-ProtectSystem=strict
+ProtectSystem=false
 ProtectHome=false
 ReadWritePaths=/home/pi/shared/jukebox
 ProtectKernelTunables=true

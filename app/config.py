@@ -54,8 +54,17 @@ class Config:
     # Hardware Mode - Set to false for headless/development mode without physical hardware
     HARDWARE_MODE: bool = os.getenv("HARDWARE_MODE", "true").lower() == "true"
     
-    # Default Chromecast Device
+    # Chromecast Device Configuration
+    # List of all available Chromecast devices in your home
+    CHROMECAST_DEVICES: list = [
+        device.strip() for device in os.getenv("CHROMECAST_DEVICES", "Living Room,Bedroom,Kitchen").split(",")
+    ]
+    # Default Chromecast device to connect to on startup
     DEFAULT_CHROMECAST_DEVICE: str = os.getenv("DEFAULT_CHROMECAST_DEVICE", "Living Room")
+    # Fallback devices to try if primary device is offline (in priority order)
+    CHROMECAST_FALLBACK_DEVICES: list = [
+        device.strip() for device in os.getenv("CHROMECAST_FALLBACK_DEVICES", "Bedroom,Kitchen").split(",")
+    ]
     
     # Display Configuration  
     DISPLAY_WIDTH: int = int(os.getenv("DISPLAY_WIDTH", "480"))

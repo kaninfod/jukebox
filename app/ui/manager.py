@@ -3,8 +3,7 @@ from PIL import Image, ImageDraw, ImageFont
 from app.ui.theme import UITheme
 from app.ui.factory import screen_factory
 from enum import Enum
-from app.services.jukebox_mediaplayer import PlayerStatus
-from app.core import EventType
+from app.core import PlayerStatus, EventType
 from app.ui.screen_queue import ScreenQueue
 from app.core.service_container import get_service
 from app.metrics.decorators import track_event_handler
@@ -113,7 +112,7 @@ class ScreenManager:
     def show_home_screen(self, context=None):
         self.switch_to_screen("home")
         if context is None:
-            player = get_service("jukebox_mediaplayer")
+            player = get_service("media_player_service")
             context = player.get_context()
         self.render(context=context)
 
@@ -148,7 +147,7 @@ class ScreenManager:
             try:
                 self.current_screen.draw(draw, self.fonts, context=context, image=image)
                 self.display.device.display(image)
-                self.current_screen.dirty = True
+                self.current_screen.dirty = False
                 logger.info(f"🖥️  SCREEN CHANGED SUCCESSFULLY: {self.current_screen.name}")
             except Exception as e:
                 logger.error(f"Failed to draw {self.current_screen.name}: {e}")

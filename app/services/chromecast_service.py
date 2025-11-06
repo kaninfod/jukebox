@@ -120,8 +120,10 @@ class ChromecastService:
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.disconnect()
-        self._cleanup_zeroconf()
+        # Don't disconnect or cleanup zeroconf when using context manager
+        # The singleton needs to persist across calls
+        # Cleanup happens only when explicitly calling cleanup() or at shutdown
+        pass
 
     def _cleanup_zeroconf(self):
         if self._zeroconf:
@@ -137,8 +139,55 @@ class ChromecastService:
             logger.debug("No persistent zeroconf instance to clean up")
 
     def list_chromecasts(self) -> List[Dict[str, str]]:
-        devices, _, _ = self._discover_chromecasts()
+        """
+        Return the configured list of Chromecast devices from config.
+        No network scanning required - devices are statically configured.
+        """
+        devices = []
+        for device_name in config.CHROMECAST_DEVICES:
+            devices.append({
+                'name': device_name,
+                'model': 'Unknown',
+                'host': 'Unknown',
+                'uuid': 'Unknown'
+            })
+        logger.info(f"Returning {len(devices)} configured Chromecast devices")
         return devices
+    
+    def scan_network_for_devices(self, timeout: Optional[int] = None) -> List[Dict[str, str]]:
+        """
+        Scan the network for available Chromecast devices.
+        
+        This performs a full network discovery and returns actual device information
+        from the network. Useful for troubleshooting and verification.
+        
+        Args:
+            timeout: Discovery timeout in seconds (defaults to CHROMECAST_DISCOVERY_TIMEOUT from config)
+            
+        Returns:
+            List of discovered devices with full details:
+            [
+                {
+                    'name': 'Living Room',
+                    'model': 'Nest Audio',
+                    'host': '192.168.68.46',
+                    'uuid': 'uuid-string'
+                },
+                ...
+            ]
+        """
+        devices, _, _ = self._discover_chromecasts(timeout=timeout)
+        return devices
+    
+    def get_available_devices(self) -> List[str]:
+        """
+        Get list of available Chromecast device names from config.
+        Useful for UI dropdowns and device selection.
+        
+        Returns:
+            List of configured device names
+        """
+        return config.CHROMECAST_DEVICES
 
     def _discover_chromecasts(self, timeout=None, target_name=None):
         """
@@ -181,41 +230,76 @@ class ChromecastService:
                 logger.warning(f"Error closing discovery zeroconf: {e}")
 
     def connect(self, device_name: Optional[str] = None, fallback: bool = True) -> bool:
+        """
+        Connect to a Chromecast device from the statically configured device list.
+        
+        If the target device is unavailable and fallback=True, tries fallback devices
+        in priority order from CHROMECAST_FALLBACK_DEVICES config.
+        
+        Args:
+            device_name: Target device name (must be in CHROMECAST_DEVICES config)
+            fallback: If True, try fallback devices if target is unavailable
+            
+        Returns:
+            True if connected successfully, False otherwise
+        """
         target_name = device_name or self.device_name
         if self.cast:
             self.disconnect()
         if not self._zeroconf:
             logger.debug("Creating persistent zeroconf instance for connection")
             self._zeroconf = Zeroconf()
-        logger.info(f"Attempting to connect to Chromecast: {target_name or 'any available device'}")
-        devices, target_cast_info, name_to_cast_info = self._discover_chromecasts(target_name=target_name)
-        if not target_cast_info and fallback and devices:
-            # Use first available device from the initial discovery
-            first_device = devices[0]
-            logger.info(f"Using first available device: {first_device['name']}")
-            target_cast_info = name_to_cast_info.get(first_device['name'])
-        if not target_cast_info:
-            logger.error("No Chromecast devices found on network")
-            return False
-        try:
-            self.cast = pychromecast.get_chromecast_from_cast_info(
-                target_cast_info, self._zeroconf
-            )
-            logger.info(f"Waiting for {self.cast.name} to be ready...")
-            self.cast.wait(timeout=config.CHROMECAST_WAIT_TIMEOUT)
-            if not self.cast.status:
-                raise Exception("Device status not available after connection")
-            self.mc = self.cast.media_controller
-            self.status_listener = ChromecastMediaStatusListener(self.cast.name)
-            self.mc.register_status_listener(self.status_listener)
-            logger.info(f"Registered media status listener for {self.cast.name}")
-            logger.info(f"Successfully connected to {self.cast.name}")
-            logger.debug(f"Device status: {self.cast.status}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to connect to Chromecast: {e}")
-            self.disconnect()
-            return False
+        
+        logger.info(f"Attempting to connect to Chromecast: {target_name}")
+        
+        # Determine device list to try (target first, then fallbacks)
+        devices_to_try = [target_name]
+        if fallback:
+            devices_to_try.extend(config.CHROMECAST_FALLBACK_DEVICES)
+        
+        # Try each device in order
+        for attempt_device in devices_to_try:
+            if attempt_device not in config.CHROMECAST_DEVICES:
+                logger.warning(f"Device '{attempt_device}' not in configured devices list, skipping")
+                continue
+            
+            try:
+                logger.info(f"Trying to connect to {attempt_device}...")
+                # Discover only the target device on the network
+                devices, target_cast_info, _ = self._discover_chromecasts(target_name=attempt_device)
+                
+                if not target_cast_info:
+                    logger.warning(f"Device '{attempt_device}' not found on network")
+                    if attempt_device == target_name and fallback:
+                        logger.info(f"Primary device unavailable, trying fallback devices...")
+                    continue
+                
+                # Found the device, establish connection
+                self.cast = pychromecast.get_chromecast_from_cast_info(
+                    target_cast_info, self._zeroconf
+                )
+                logger.info(f"Waiting for {self.cast.name} to be ready...")
+                self.cast.wait(timeout=config.CHROMECAST_WAIT_TIMEOUT)
+                if not self.cast.status:
+                    raise Exception("Device status not available after connection")
+                
+                self.mc = self.cast.media_controller
+                self.status_listener = ChromecastMediaStatusListener(self.cast.name)
+                self.mc.register_status_listener(self.status_listener)
+                logger.info(f"Registered media status listener for {self.cast.name}")
+                logger.info(f"Successfully connected to {self.cast.name}")
+                logger.debug(f"Device status: {self.cast.status}")
+                return True
+                
+            except Exception as e:
+                logger.warning(f"Failed to connect to {attempt_device}: {e}")
+                self.disconnect()
+                if attempt_device == target_name and fallback:
+                    logger.info(f"Primary device failed, trying fallback devices...")
+                continue
+        
+        logger.error(f"Failed to connect to any device (tried: {', '.join(devices_to_try)})")
+        return False
                 
     def disconnect(self):
         if self.cast:
@@ -379,31 +463,119 @@ class ChromecastService:
             logger.error(f"Failed to get status: {e}")
             return None
         
-    def switch_device(self, new_device_name: str) -> bool:
-        logger.info(f"Switching Chromecast device to: {new_device_name}")
-        old_device_name = self.device_name
+    def switch_and_resume_playback(self, new_device_name: str) -> Dict:
+        """
+        Seamlessly switch to a new Chromecast device and resume playback.
+        
+        Fetches current playback state from JukeboxMediaPlayer, orchestrates the switch,
+        and resumes playback from the same album and track on the new device.
+        
+        Args:
+            new_device_name: Target Chromecast device name to switch to
+            
+        Returns:
+            Dict with operation status and details:
+            {
+                'status': 'switched' or 'error',
+                'switched_from': old device name,
+                'switched_to': new device name,
+                'playback_resumed': bool,
+                'album_id': str or None,
+                'track_index': int or None,
+                'error': str (if status is 'error')
+            }
+        """
         try:
-            if self.is_connected():
-                logger.info(f"Stopping current playback on {self.cast.name}")
-                try:
-                    self.stop()
-                except Exception as e:
-                    logger.warning(f"Error stopping playback: {e}")
-            logger.info(f"Disconnecting from current device: {old_device_name}")
+            from app.core.service_container import get_service
+            
+            # Get singleton instances
+            jukebox_player = get_service("media_player_service")
+            playback_service = get_service("playback_service")
+            
+            # Get current device info before switching
+            old_device = self.cast.name if self.cast else "unknown"
+            
+            # 1. Save playback state (album_id and current track index)
+            saved_album_id = None
+            saved_track_index = 0
+            playback_was_active = False
+            
+            if jukebox_player and jukebox_player.current_track:
+                saved_album_id = jukebox_player.current_track.get('album_cover_filename')
+                saved_track_index = jukebox_player.current_index
+                playback_was_active = jukebox_player.status.value == "playing"
+                logger.info(f"[SwitchAndResume] Saved playback state: album_id={saved_album_id}, track_index={saved_track_index}, was_playing={playback_was_active}")
+            
+            # 2. Stop playback on current device
+            logger.info(f"[SwitchAndResume] Stopping playback on {old_device}")
+            if jukebox_player:
+                jukebox_player.stop()
+            
+            # 3. Disconnect from current device
+            logger.info(f"[SwitchAndResume] Disconnecting from {old_device}")
             self.disconnect()
+            
+            # 4. Connect to new device
+            logger.info(f"[SwitchAndResume] Connecting to {new_device_name}")
+            if not self.connect(device_name=new_device_name, fallback=False):
+                logger.error(f"[SwitchAndResume] Failed to connect to new device: {new_device_name}")
+                return {
+                    "status": "error",
+                    "error": f"Failed to connect to device: {new_device_name}",
+                    "switched_from": old_device,
+                    "switched_to": new_device_name
+                }
             self.device_name = new_device_name
-            logger.info(f"Attempting to connect to new device: {new_device_name}")
-            if self.connect(new_device_name):
-                logger.info(f"Successfully switched from '{old_device_name}' to '{new_device_name}'")
-                return True
-            else:
-                logger.error(f"Failed to connect to '{new_device_name}', reverting to '{old_device_name}'")
-                self.device_name = old_device_name
-                return False
+            # 5. Reload album and resume playback if we had an active session
+            if saved_album_id and playback_service:
+                logger.info(f"[SwitchAndResume] Reloading album {saved_album_id} on {new_device_name}, resuming from track {saved_track_index}")
+                success = playback_service.load_from_album_id(saved_album_id, start_track_index=saved_track_index)
+                if not success:
+                    logger.error(f"[SwitchAndResume] Failed to reload album {saved_album_id}")
+                    return {
+                        "status": "error",
+                        "error": f"Failed to reload album on new device",
+                        "switched_from": old_device,
+                        "switched_to": new_device_name,
+                        "album_id": saved_album_id,
+                        "track_index": saved_track_index
+                    }
+            elif saved_album_id and playback_service:
+                logger.info(f"[SwitchAndResume] Loading album {saved_album_id} on {new_device_name} (playback was paused, not auto-playing)")
+                success = playback_service.load_from_album_id(saved_album_id, start_track_index=saved_track_index)
+                if not success:
+                    logger.error(f"[SwitchAndResume] Failed to reload album {saved_album_id}")
+                    return {
+                        "status": "error",
+                        "error": f"Failed to reload album on new device",
+                        "switched_from": old_device,
+                        "switched_to": new_device_name,
+                        "album_id": saved_album_id,
+                        "track_index": saved_track_index
+                    }
+            
+            new_status = self.get_status()
+            
+            return {
+                "status": "switched",
+                "switched_from": old_device,
+                "switched_to": new_device_name,
+                "playback_resumed": playback_was_active,
+                "album_id": saved_album_id,
+                "track_index": saved_track_index,
+                "new_device_status": {
+                    "volume_level": new_status.get("volume_level") if new_status else None,
+                    "volume_muted": new_status.get("volume_muted") if new_status else None,
+                    "connected": True
+                }
+            }
         except Exception as e:
-            logger.error(f"Error during device switch: {e}")
-            self.device_name = old_device_name
-            return False
+            logger.error(f"[SwitchAndResume] Failed to switch and resume: {e}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "switched_to": new_device_name
+            }
         
     def cleanup(self):
         logger.info("Performing full cleanup of Chromecast service")

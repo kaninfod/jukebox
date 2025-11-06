@@ -4,7 +4,7 @@ from PIL import Image, ImageDraw, ImageFont
 from app.ui.screens.rfid_loading import RfidLoadingScreen, RfidLoadingStatus
 from app.ui.screens.home import HomeScreen
 from app.ui.theme import UITheme
-from app.ui.manager import ScreenManager
+from app.ui.screen_manager import ScreenManager
 class DummyTheme:
     def __init__(self):
         

@@ -50,6 +50,6 @@ class UITheme:
             "title": {"font": self.fonts["title"], "size": 24, "color": self.colors["text"], "y": 10},
             "volume_bar":  {"width": 15, "height": 200},
             "status_icon": {"size": 30}, 
-            "album_image": {"size": 120},
+            "album_image": {"size": 180},
             "content": {"y": 60}
         }

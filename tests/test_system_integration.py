@@ -132,7 +132,7 @@ class TestSystemStartup:
     
     def test_screen_manager_initialization(self, mock_config, mock_event_bus):
         """Test ScreenManager with dependency injection"""
-        from app.ui.manager import ScreenManager
+        from app.ui.screen_manager import ScreenManager
         
         mock_display = Mock()
         
@@ -157,13 +157,13 @@ class TestSystemStartup:
     
     def test_jukebox_mediaplayer_initialization(self, mock_config, mock_event_bus):
         """Test JukeboxMediaPlayer with dependency injection"""
-        from app.services.jukebox_mediaplayer import JukeboxMediaPlayer
+        from app.services.media_player_service import MediaPlayerService
         
         mock_chromecast = Mock()
         mock_chromecast.device_name = "Test Chromecast"
         mock_chromecast.get_volume.return_value = 0.5
         
-        player = JukeboxMediaPlayer(
+        player = MediaPlayerService(
             playlist=[],
             event_bus=mock_event_bus,
             chromecast_service=mock_chromecast
@@ -173,9 +173,9 @@ class TestSystemStartup:
         assert player.cc_service == mock_chromecast
         assert player.current_volume == 50  # 0.5 * 100
     
-    def test_playback_manager_initialization(self, mock_config, mock_event_bus):
+    def test_playback_service_initialization(self, mock_config, mock_event_bus):
         """Test PlaybackManager with all dependencies"""
-        from app.services.playback_manager import PlaybackManager
+        from app.services.playback_service import PlaybackService
         from app.database.album_db import AlbumDatabase
         from app.services.subsonic_service import SubsonicService
         
@@ -185,8 +185,8 @@ class TestSystemStartup:
         album_db = AlbumDatabase(mock_config)
         subsonic_service = SubsonicService(mock_config)
         
-        # Create PlaybackManager with all dependencies
-        playback_manager = PlaybackManager(
+        # Create PlaybackService with all dependencies
+        playback_service = PlaybackService(
             screen_manager=mock_screen_manager,
             player=mock_player,
             album_db=album_db,
@@ -195,11 +195,11 @@ class TestSystemStartup:
         )
         
         # Verify all dependencies are set
-        assert playback_manager.screen_manager == mock_screen_manager
-        assert playback_manager.player == mock_player
-        assert playback_manager.album_db == album_db
-        assert playback_manager.subsonic_service == subsonic_service
-        assert playback_manager.event_bus == mock_event_bus
+        assert playback_service.screen_manager == mock_screen_manager
+        assert playback_service.player == mock_player
+        assert playback_service.album_db == album_db
+        assert playback_service.subsonic_service == subsonic_service
+        assert playback_service.event_bus == mock_event_bus
 
 
 class TestSystemIntegration:
@@ -211,9 +211,9 @@ class TestSystemIntegration:
         from app.services.subsonic_service import SubsonicService
         from app.services.chromecast_service import ChromecastService
         from app.hardware.hardware import HardwareManager
-        from app.ui.manager import ScreenManager
-        from app.services.jukebox_mediaplayer import JukeboxMediaPlayer
-        from app.services.playback_manager import PlaybackManager
+        from app.ui.screen_manager import ScreenManager
+        from app.services.media_player_service import MediaPlayerService
+        from app.services.playback_service import PlaybackService
         
         with patch('pychromecast.get_chromecasts'), \
              patch('app.hardware.hardware.ILI9488') as mock_display_class, \
@@ -255,15 +255,15 @@ class TestSystemIntegration:
                 event_bus=mock_event_bus
             )
             
-            # Step 5: Initialize JukeboxMediaPlayer
-            jukebox_mediaplayer = JukeboxMediaPlayer(
+            # Step 5: Initialize MediaPlayerService
+            jukebox_mediaplayer = MediaPlayerService(
                 playlist=[],
                 event_bus=mock_event_bus,
                 chromecast_service=chromecast_service
             )
             
-            # Step 6: Initialize PlaybackManager
-            playback_manager = PlaybackManager(
+            # Step 6: Initialize PlaybackService
+            playback_service = PlaybackService(
                 screen_manager=screen_manager,
                 player=jukebox_mediaplayer,
                 album_db=album_db,
@@ -273,13 +273,13 @@ class TestSystemIntegration:
             
             # Step 7: Update cross-references
             hardware_manager.screen_manager = screen_manager
-            hardware_manager.playback_manager = playback_manager
+            hardware_manager.playback_service = playback_service
             
             # Verify the complete dependency graph is properly wired
             assert hardware_manager.screen_manager == screen_manager
-            assert hardware_manager.playback_manager == playback_manager
-            assert playback_manager.screen_manager == screen_manager
-            assert playback_manager.player == jukebox_mediaplayer
+            assert hardware_manager.playback_service == playback_service
+            assert playback_service.screen_manager == screen_manager
+            assert playback_service.player == jukebox_mediaplayer
             
             # All components should have their dependencies properly injected
             assert all([
@@ -287,9 +287,9 @@ class TestSystemIntegration:
                 hardware_manager.event_bus == mock_event_bus,
                 screen_manager.event_bus == mock_event_bus,
                 jukebox_mediaplayer.event_bus == mock_event_bus,
-                playback_manager.event_bus == mock_event_bus,
-                playback_manager.album_db == album_db,
-                playback_manager.subsonic_service == subsonic_service
+                playback_service.event_bus == mock_event_bus,
+                playback_service.album_db == album_db,
+                playback_service.subsonic_service == subsonic_service
             ])
     
     def test_dependency_injection_prevents_circular_imports(self):
@@ -298,10 +298,10 @@ class TestSystemIntegration:
         # without triggering circular imports
         
         # Test individual module imports
-        from app.services.playback_manager import PlaybackManager
+        from app.services.playback_service import PlaybackService
         from app.hardware.hardware import HardwareManager  
-        from app.ui.manager import ScreenManager
-        from app.services.jukebox_mediaplayer import JukeboxMediaPlayer
+        from app.ui.screen_manager import ScreenManager
+        from app.services.media_player_service import MediaPlayerService
         from app.services.subsonic_service import SubsonicService
         from app.database.album_db import AlbumDatabase
         

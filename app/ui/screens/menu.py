@@ -1,5 +1,5 @@
 import logging
-from app.ui.screens.base import Screen, RectElement, MenuItemElement, MenuHeaderElement, MenuBottomBarElement
+from app.ui.screens.base import Screen, RectElement, MenuItemElement, MenuHeaderElement #, MenuBottomBarElement
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +12,6 @@ class MenuScreen(Screen):
     def __init__(self, theme):
         super().__init__(width=480, height=320)  # Explicit screen dimensions
         self.name = "Menu"
-        self.dirty = True
         self.theme = theme
         
     @staticmethod
@@ -37,10 +36,6 @@ class MenuScreen(Screen):
         }
         Note: No bottom bar - Button 4 handles back navigation
         """
-        if not self.dirty and context is None:
-            logger.debug("MenuScreen is not dirty and no context provided, skipping draw.")
-            return {"dirty": self.dirty}
-
         logger.debug(f"MenuScreen.draw() called with context: {context}")
         
         # Use context or defaults
@@ -81,5 +76,4 @@ class MenuScreen(Screen):
             )
             menu_item.draw(draw_context)
         
-        self.dirty = False
-        return {"dirty": True}  # Always return dirty=True to force refresh
+        return {"dirty": True}

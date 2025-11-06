@@ -180,9 +180,9 @@ class TestJukeboxMediaPlayer:
     
     def test_jukebox_mediaplayer_initialization(self, mock_event_bus, mock_chromecast_service):
         """Test JukeboxMediaPlayer initializes with dependencies"""
-        from app.services.jukebox_mediaplayer import JukeboxMediaPlayer
+        from app.services.media_player_service import MediaPlayerService
         
-        player = JukeboxMediaPlayer(
+        player = MediaPlayerService(
             playlist=[],
             event_bus=mock_event_bus,
             chromecast_service=mock_chromecast_service
@@ -194,9 +194,9 @@ class TestJukeboxMediaPlayer:
     
     def test_volume_controls(self, mock_event_bus, mock_chromecast_service):
         """Test volume up/down controls"""
-        from app.services.jukebox_mediaplayer import JukeboxMediaPlayer
+        from app.services.media_player_service import MediaPlayerService
         
-        player = JukeboxMediaPlayer(
+        player = MediaPlayerService(
             playlist=[],
             event_bus=mock_event_bus,
             chromecast_service=mock_chromecast_service
@@ -214,9 +214,9 @@ class TestJukeboxMediaPlayer:
     
     def test_set_volume(self, mock_event_bus, mock_chromecast_service):
         """Test setting specific volume"""
-        from app.services.jukebox_mediaplayer import JukeboxMediaPlayer
+        from app.services.media_player_service import MediaPlayerService
         
-        player = JukeboxMediaPlayer(
+        player = MediaPlayerService(
             playlist=[],
             event_bus=mock_event_bus,
             chromecast_service=mock_chromecast_service
@@ -231,14 +231,14 @@ class TestJukeboxMediaPlayer:
     
     def test_playlist_loading(self, mock_event_bus, mock_chromecast_service):
         """Test loading playlist"""
-        from app.services.jukebox_mediaplayer import JukeboxMediaPlayer
+        from app.services.media_player_service import MediaPlayerService
         
         test_tracks = [
             {"title": "Track 1", "artist": "Artist 1"},
             {"title": "Track 2", "artist": "Artist 2"}
         ]
         
-        player = JukeboxMediaPlayer(
+        player = MediaPlayerService(
             playlist=test_tracks,
             event_bus=mock_event_bus,
             chromecast_service=mock_chromecast_service
@@ -261,11 +261,11 @@ class TestPlaybackManager:
             'event_bus': Mock()
         }
     
-    def test_playback_manager_initialization(self, mock_dependencies):
+    def test_playback_service_initialization(self, mock_dependencies):
         """Test PlaybackManager initializes with all dependencies"""
-        from app.services.playback_manager import PlaybackManager
+        from app.services.playback_service import PlaybackService
         
-        pm = PlaybackManager(**mock_dependencies)
+        pm = PlaybackService(**mock_dependencies)
         
         assert pm.screen_manager == mock_dependencies['screen_manager']
         assert pm.player == mock_dependencies['player']
@@ -275,7 +275,7 @@ class TestPlaybackManager:
     
     def test_load_from_album_id_existing_album(self, mock_dependencies):
         """Test loading existing album by album_id"""
-        from app.services.playback_manager import PlaybackManager
+        from app.services.playback_service import PlaybackService
 
         # Mock database response
         mock_album_data = {
@@ -288,7 +288,7 @@ class TestPlaybackManager:
         }
         mock_dependencies['album_db'].get_album_data_by_album_id.return_value = mock_album_data
 
-        pm = PlaybackManager(**mock_dependencies)
+        pm = PlaybackService(**mock_dependencies)
         result = pm.load_from_album_id("test_playlist_123")
 
         assert result is True
@@ -297,14 +297,13 @@ class TestPlaybackManager:
 
     def test_load_from_album_id_nonexistent_album(self, mock_dependencies):
         """Test loading non-existent album"""
-        from app.services.playback_manager import PlaybackManager
-
+        from app.services.playback_service import PlaybackService
         # Mock database returning None
         mock_dependencies['album_db'].get_album_data_by_album_id.return_value = None
         # Mock subsonic service returning None
         mock_dependencies['subsonic_service'].add_or_update_album_entry_from_album_id.return_value = None
 
-        pm = PlaybackManager(**mock_dependencies)
+        pm = PlaybackService(**mock_dependencies)
         result = pm.load_from_album_id("nonexistent_playlist")
 
         assert result is False

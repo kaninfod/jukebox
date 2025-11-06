@@ -1,23 +1,30 @@
+"""
 
-from importlib.metadata import metadata
+Backward compatibility module for the renamed MediaPlayerService.from importlib.metadata import metadata
+
 import time
 
-# Prometheus metric for play counts
+This module provides imports for code that uses the old jukebox_mediaplayer module name.from app.metrics.collector import play_counter
 
-# Import play_counter from metrics collector
-from app.metrics.collector import play_counter
+All functionality has been moved to media_player_service.py.import logging
 
-import logging
-# from enum import Enum
-from typing import List, Dict, Optional
-from app.services.chromecast_service import ChromecastService
-# from enum import Enum
-from app.core import EventType, Event
-from app.core import PlayerStatus
+"""from typing import List, Dict, Optional
 
-logger = logging.getLogger(__name__)
+from app.services.chromecast_service import get_chromecast_service
+
+from app.services.media_player_service import MediaPlayerServicefrom app.core import EventType, Event
+
+from app.core import PlayerStatusfrom app.core import PlayerStatus
+
+
+
+# Alias for backward compatibilitylogger = logging.getLogger(__name__)
+
+JukeboxMediaPlayer = MediaPlayerService
 
 class JukeboxMediaPlayer:
+
+__all__ = ['MediaPlayerService', 'JukeboxMediaPlayer', 'PlayerStatus']
 
     def __init__(self, playlist: List[Dict], event_bus, chromecast_service=None):
         """
@@ -26,22 +33,22 @@ class JukeboxMediaPlayer:
         Args:
             playlist: List of tracks to play
             event_bus: EventBus instance for event communication
-            chromecast_service: PyChromecastService instance for playback control
+            chromecast_service: PyChromecastService instance for playback control (deprecated, use singleton)
         """
         self.playlist = playlist
         self.current_index = 0
         self.status = PlayerStatus.STOP
         
-        # Inject dependencies - no more direct imports/creation
+        # Inject dependencies - use singleton get_chromecast_service() for shared state
         self.event_bus = event_bus
         if chromecast_service:
             self.cc_service = chromecast_service
         else:
-            # Fallback for backward compatibility - this will be removed later
+            # Use the singleton instance so all parts of the app share the same connection state
             from app.config import config
-            self.cc_service = ChromecastService(config.DEFAULT_CHROMECAST_DEVICE)
+            self.cc_service = get_chromecast_service(config.DEFAULT_CHROMECAST_DEVICE)
             
-        self.current_volume = 0  # Ensure attribute exists before any event/context
+        self.current_volume = 25
         self.track_timer = TrackTimer()
         self.sync_volume_from_chromecast()
         logger.info(f"JukeboxMediaPlayer initialized with dependency injection. Chromecast device={self.cc_service.device_name}")
@@ -95,6 +102,11 @@ class JukeboxMediaPlayer:
         return track.get('thumb') if track else None
 
     @property
+    def cc_cover_url(self) -> Optional[str]:
+        track = self.current_track
+        return track.get('cc_cover_url') if track else None
+
+    @property
     def album(self) -> Optional[str]:
         track = self.current_track
         return track.get('album') if track else None
@@ -108,11 +120,8 @@ class JukeboxMediaPlayer:
         """Sync volume from Chromecast (0.0-1.0) to 0-100 scale."""
         cc_volume = self.cc_service.get_volume()
         logger.debug(f"[sync_volume_from_chromecast] cc_volume from Chromecast: {cc_volume}")
-        try:
-            value = int(cc_volume * 100) if cc_volume is not None else 50
-        except Exception as e:
-            logger.error(f"[sync_volume_from_chromecast] Failed to set current_volume from cc_volume={cc_volume}: {e}")
-            value = 50  # Default fallback volume
+        
+        value = int(cc_volume * 100) if cc_volume is not None else self.current_volume
         self.current_volume = value
         # Use injected event_bus instead of importing
         self.event_bus.emit(Event(
@@ -142,7 +151,6 @@ class JukeboxMediaPlayer:
             self.status = PlayerStatus.PLAY
             self.cc_service.resume()
 
-        # Use injected event_bus instead of importing
         self.event_bus.emit(Event(
             type=EventType.TRACK_CHANGED,
             payload=self.get_context()
@@ -158,8 +166,7 @@ class JukeboxMediaPlayer:
         
         self.status = PlayerStatus.STOP
         self.track_timer.reset()
-        
-        # Use injected event_bus instead of importing
+                
         self.event_bus.emit(Event(
             type=EventType.TRACK_CHANGED,
             payload=self.get_context()
@@ -176,32 +183,29 @@ class JukeboxMediaPlayer:
         """
         # Normalize input volume from either direct call or event payload
         requested = None
-        if hasattr(volume, "payload") and isinstance(getattr(volume, "payload", None), dict):
-            # Called via EventBus: 'volume' is actually the Event instance
-            requested = volume.payload.get("volume")
-        elif volume is not None:
-            requested = volume
-        elif event is not None and hasattr(event, "payload"):
+        if event is not None and hasattr(event, "payload"):
             requested = event.payload.get("volume")
+        elif volume is not None and volume >= 0:
+            requested = volume
 
-        logger.debug(f"[set_volume] Requested volume: {requested}")
         try:
             self.current_volume = max(0, min(100, int(requested)))
         except Exception as e:
             logger.error(f"[set_volume] Failed to set current_volume from volume={requested}: {e}")
             self.current_volume = 0
-        logger.debug(f"[set_volume] current_volume set to: {self.current_volume}")
+        
         # Convert to Chromecast's 0.0-1.0 scale
         normalized_volume = self.current_volume / 100.0 if self.current_volume is not None else None
 
         if normalized_volume is not None:
             self.cc_service.set_volume(normalized_volume)
 
-        # Use injected event_bus instead of importing
+        logger.debug(f"[set_volume] current_volume set to: {self.current_volume}")
         self.event_bus.emit(Event(
             type=EventType.VOLUME_CHANGED,
             payload=self.get_context()
         ))
+        
         return normalized_volume
 
     def volume_up(self, event=None):
@@ -302,25 +306,11 @@ class JukeboxMediaPlayer:
         self.sync_volume_from_chromecast()
         if track['stream_url']:
             logger.info(f"Casting stream URL for track {track.get('title')}, with url {track['stream_url']}")
-            # Build a Chromecast-friendly absolute thumb URL
-            thumb_url = track.get('thumb')
-            try:
-                from app.config import config
-                # Fallback to cached local cover if explicit thumb missing
-                if not thumb_url:
-                    cover_file = track.get('album_cover_filename')
-                    if cover_file:
-                        thumb_url = f"/album_covers/{cover_file}"
-                # Prefix with PUBLIC_BASE_URL if still relative
-                if thumb_url and not (thumb_url.startswith('http://') or thumb_url.startswith('https://')) and config.PUBLIC_BASE_URL:
-                    thumb_url = f"{config.PUBLIC_BASE_URL.rstrip('/')}{thumb_url}"
-            except Exception:
-                pass
-            logger.info(f"Thumb URL for track {track.get('title')}: {thumb_url}")
+
             self.cc_service.play_media(track['stream_url'], 
                 media_info={
                     "title": track.get("title"),
-                    "thumb": thumb_url,
+                    "thumb": track.get('cc_cover_url'),
                     "media_info": {
                         "artist": track.get("artist"),
                         "album": track.get("album"),
@@ -337,6 +327,12 @@ class JukeboxMediaPlayer:
             self.track_timer.start()
             logger.info(f"Casting track {self.current_index+1}/{len(self.playlist)}: {track.get('title')}")
             self.status = PlayerStatus.PLAY
+            
+            # Scrobble to Subsonic/Last.fm now that track is playing
+            track_id = track.get('track_id')
+            if track_id:
+                self._scrobble_track_now_playing(track_id, track.get('title'))
+            
             # Use injected event_bus instead of importing
             self.event_bus.emit(Event(
                 type=EventType.TRACK_CHANGED,
@@ -355,6 +351,37 @@ class JukeboxMediaPlayer:
         else:
             app_state.set_app_state("STANDBY")
     
+    def _scrobble_track_now_playing(self, track_id: str, track_title: str = "Unknown") -> None:
+        """
+        Notify Subsonic that a track is now playing (scrobble to Last.fm if configured).
+        
+        This is called when playback starts on the Chromecast and sends a scrobble
+        notification to Subsonic, which forwards it to Last.fm if configured.
+        
+        Args:
+            track_id: The Subsonic track ID to scrobble
+            track_title: The track title for logging purposes
+        """
+        try:
+            from app.core.service_container import get_service
+            subsonic_service = get_service("subsonic_service")
+            
+            if not subsonic_service:
+                logger.warning(f"_scrobble_track_now_playing: SubsonicService not available, skipping scrobble for '{track_title}'")
+                return
+            
+            # Scrobble the track (non-blocking, don't wait for response)
+            success = subsonic_service.scrobble_now_playing(track_id)
+            if success:
+                logger.info(f"_scrobble_track_now_playing: Scrobbled '{track_title}' to Subsonic/Last.fm")
+            else:
+                logger.warning(f"_scrobble_track_now_playing: Failed to scrobble '{track_title}' (this is non-critical)")
+                
+        except Exception as e:
+            logger.error(f"_scrobble_track_now_playing: Error scrobbling track '{track_title}': {e}")
+            # Non-critical error - don't let scrobbling failures affect playback
+    
+
     
     def get_context(self):
         return {
@@ -362,7 +389,8 @@ class JukeboxMediaPlayer:
             'volume': self.current_volume,
             'current_index': self.current_index,
             'current_track': self.current_track,
-            'album_cover_filename': self.album_cover
+            'album_cover_filename': self.album_cover,
+            'cc_device': self.cc_service.device_name
         }
 
     def get_status(self) -> Dict:

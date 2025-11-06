@@ -3,6 +3,11 @@ from app.core.event_bus import Event
 
 class EventType(Enum):
     SYSTEM_REBOOT_REQUESTED = "system_reboot_requested"
+    SYSTEM_SHUTDOWN_REQUESTED = "system_shutdown_requested"
+    SYSTEM_RESTART_REQUESTED = "system_restart_requested"
+    SYSTEM_REBOOT_CANCELLED = "system_reboot_cancelled"
+    SYSTEM_SHUTDOWN_CANCELLED = "system_shutdown_cancelled"
+    SYSTEM_RESTART_CANCELLED = "system_restart_cancelled"
     TRACK_CHANGED = "track_changed"
     VOLUME_CHANGED = "volume_changed"
     STATUS_CHANGED = "status_changed"

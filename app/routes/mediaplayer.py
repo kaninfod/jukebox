@@ -1,4 +1,4 @@
-from app.services.playback_manager import PlaybackManager
+
 from fastapi import APIRouter, Body, Query, WebSocket, WebSocketDisconnect
 import asyncio
 from app.config import config
@@ -6,9 +6,9 @@ from app.config import config
 
 router = APIRouter()
 
-def get_screen_manager():
-    from app.core.service_container import get_service
-    return get_service("screen_manager")
+# def get_screen_manager():
+#     from app.core.service_container import get_service
+#     return get_service("screen_manager")
 
 # Helper: build absolute URL for thumbs using PUBLIC_BASE_URL when a relative path is provided
 def _abs_url(url: str):
@@ -134,10 +134,7 @@ def volume_set(volume: int = Query(..., ge=0, le=100)):
         return {"status": "success", "volume": volume}
     else:
         return {"status": "error", "message": "Failed to set volume"}
-
-
-# Endpoint to trigger load_rfid in PlaybackManager
-
+    
 
 @router.post("/api/mediaplayer/play_album_from_rfid/{rfid}")
 def play_album_from_rfid(rfid: str):
@@ -161,8 +158,8 @@ def play_album_from_albumid(albumid: str):
     """Play album from album_id using PlaybackManager."""
     try:
         from app.core.service_container import get_service
-        playback_manager = get_service("playback_manager")
-        result = playback_manager.load_from_album_id(albumid)
+        playback_service = get_service("playback_service")
+        result = playback_service.load_from_album_id(albumid)
         if result:
             return {
                 "status": "success",
@@ -180,42 +177,15 @@ def play_album_from_albumid(albumid: str):
             "message": f"Exception while loading album_id {albumid}: {str(e)}"
         }
 
-
-
 # Endpoint to get all info on the current track from JukeboxMediaPlayer
 @router.get("/api/mediaplayer/current_track")
 def get_current_track_info():
     """Get all info on the current track from JukeboxMediaPlayer."""
     try:
-        from app.core.service_container import get_service
-        playback_manager = get_service("playback_manager")
-        player = playback_manager.player if playback_manager else None
-        if player and player.current_track:
-            # Build absolute thumb for integrations that need fully-qualified URL
-            thumb_rel = player.thumb
-            thumb_abs = _abs_url(thumb_rel)
-            return {
-                "current_track": {
-                    "artist": player.artist,
-                    "title": player.title,
-                    "duration": player.duration,
-                    "album": player.album,
-                    "year": player.year,
-                    "track_id": player.track_id,
-                    "track_number": player.track_number,
-                    "thumb": thumb_rel,
-                    "thumb_abs": thumb_abs
-                },
-                "status": player.status.value,
-                "playlist": player.playlist,
-                "volume": player.volume
-            }
-        else:
-            return {"status": "error", "message": "No track loaded"}
+        return _get_data_for_current_track()
+        
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
-
 
 # Dedicated WebSocket route for current track updates (event-driven)
 @router.websocket("/ws/mediaplayer/current_track")
@@ -232,30 +202,8 @@ async def websocket_current_track(websocket: WebSocket):
     def handler(event):
         # Called in event bus thread (may be non-async)
         try:
-            playback_manager = get_service("playback_manager")
-            player = playback_manager.player if playback_manager else None
-            if player and player.current_track:
-                thumb_rel = player.thumb
-                thumb_abs = _abs_url(thumb_rel)
-                data = {
-                    "current_track": {
-                        "artist": player.artist,
-                        "title": player.title,
-                        "duration": player.duration,
-                        "album": player.album,
-                        "year": player.year,
-                        "track_id": player.track_id,
-                        "track_number": player.track_number,
-                        "thumb": thumb_rel,
-                        "thumb_abs": thumb_abs
-                    },
-                    "status": player.status.value,
-                    "playlist": player.playlist,
-                    "volume": player.volume
-                }
-            else:
-                data = {"status": "error", "message": "No track loaded"}
-            # Use thread-safe coroutine submission
+            data = _get_data_for_current_track()
+            
             if handler_active:
                 asyncio.run_coroutine_threadsafe(q.put(data), loop)
         except Exception as e:
@@ -292,5 +240,28 @@ async def websocket_current_track(websocket: WebSocket):
             pass
 
 
-
+def _get_data_for_current_track():
+    from app.core.service_container import get_service
+    playback_service = get_service("playback_service")
+    player = playback_service.player 
+    if player and player.current_track:
+        return {
+            "current_track": {
+                "artist": player.artist,
+                "title": player.title,
+                "duration": player.duration,
+                "album": player.album,
+                "year": player.year,
+                "track_id": player.track_id,
+                "track_number": player.track_number,
+                "thumb": player.thumb,
+                "thumb_abs": player.cc_cover_url
+            },
+            "status": player.status.value,
+            "playlist": player.playlist,
+            "volume": player.volume, 
+            "chromecast_device": playback_service.player.cc_service.device_name
+        }
+    else:
+        return {"status": "error", "message": "No track loaded"}
 

@@ -42,9 +42,9 @@ def full_system_setup():
     from app.services.subsonic_service import SubsonicService
     from app.services.chromecast_service import ChromecastService
     from app.hardware.hardware import HardwareManager
-    from app.ui.manager import ScreenManager
-    from app.services.jukebox_mediaplayer import JukeboxMediaPlayer
-    from app.services.playback_manager import PlaybackManager
+    from app.ui.screen_manager import ScreenManager
+    from app.services.media_player_service import MediaPlayerService
+    from app.services.playback_service import PlaybackService
     from app.core.event_bus import event_bus
     
     # Mock config
@@ -107,22 +107,22 @@ def full_system_setup():
             event_bus=event_bus
         )
         
-        jukebox_mediaplayer = JukeboxMediaPlayer(
+        media_player_service = MediaPlayerService(
             playlist=[],
             event_bus=event_bus,
             chromecast_service=chromecast_service
         )
         
-        playback_manager = PlaybackManager(
+        playback_service = PlaybackService(
             screen_manager=screen_manager,
-            player=jukebox_mediaplayer,
+            player=media_player_service,
             album_db=album_db,
             subsonic_service=subsonic_service,
             event_bus=event_bus
         )
         
         hardware_manager.screen_manager = screen_manager
-        hardware_manager.playback_manager = playback_manager
+        hardware_manager.playback_service = playback_service
         
         return {
             'config': mock_config,
@@ -132,8 +132,8 @@ def full_system_setup():
             'chromecast_service': chromecast_service,
             'hardware_manager': hardware_manager,
             'screen_manager': screen_manager,
-            'jukebox_mediaplayer': jukebox_mediaplayer,
-            'playback_manager': playback_manager,
+            'media_player_service': media_player_service,
+            'playback_service': playback_service,
             'display': display
         }
 
@@ -144,7 +144,7 @@ class TestRFIDWorkflow:
     def test_new_rfid_card_detection(self, full_system_setup):
         """Test workflow when a new RFID card is detected"""
         system = full_system_setup
-        playback_manager = system['playback_manager']
+        playback_service = system['playback_service']
         album_db = system['album_db']
         event_bus = system['event_bus']
         
@@ -158,7 +158,7 @@ class TestRFIDWorkflow:
         )
         
         # Process the RFID event
-        result = playback_manager.load_rfid(rfid_event)
+        result = playback_service.load_rfid(rfid_event)
         
         # Should create new album entry and return True
         assert result is True
@@ -171,7 +171,7 @@ class TestRFIDWorkflow:
     def test_existing_rfid_card_no_playlist(self, full_system_setup):
         """Test workflow when existing RFID card has no playlist assigned"""
         system = full_system_setup
-        playback_manager = system['playback_manager']
+        playback_service = system['playback_service']
         album_db = system['album_db']
         
         from app.core import Event, EventType
@@ -187,7 +187,7 @@ class TestRFIDWorkflow:
         )
         
         # Process the RFID event
-        result = playback_manager.load_rfid(rfid_event)
+        result = playback_service.load_rfid(rfid_event)
         
         # Should return False because no playlist is assigned
         assert result is False
@@ -195,9 +195,9 @@ class TestRFIDWorkflow:
     def test_existing_rfid_card_with_playlist(self, full_system_setup):
         """Test workflow when existing RFID card has playlist assigned"""
         system = full_system_setup
-        playback_manager = system['playback_manager']
+        playback_service = system['playback_service']
         album_db = system['album_db']
-        player = system['jukebox_mediaplayer']
+        player = system['media_player_service']
         
         from app.core import Event, EventType
         
@@ -223,7 +223,7 @@ class TestRFIDWorkflow:
         )
         
         # Process the RFID event
-        result = playback_manager.load_rfid(rfid_event)
+        result = playback_service.load_rfid(rfid_event)
         
         # Should successfully load and start playback
         assert result is True
@@ -280,10 +280,10 @@ class TestButtonInteractionWorkflow:
     def test_playback_control_workflow(self, full_system_setup):
         """Test complete playback control workflow"""
         system = full_system_setup
-        player = system['jukebox_mediaplayer']
-        playback_manager = system['playback_manager']
+        player = system['media_player_service']
+        playback_service = system['playback_service']
         
-        from app.services.jukebox_mediaplayer import PlayerStatus
+        from app.services.media_player_service import PlayerStatus
         
         # Load some test tracks
         test_tracks = [
@@ -317,8 +317,8 @@ class TestVolumeControlWorkflow:
         """Test volume control through rotary encoder"""
         system = full_system_setup
         hardware_manager = system['hardware_manager']
-        player = system['jukebox_mediaplayer']
-        playback_manager = system['playback_manager']
+        player = system['media_player_service']
+        playback_service = system['playback_service']
         
         from app.core import Event, EventType
         
@@ -329,7 +329,7 @@ class TestVolumeControlWorkflow:
             type=EventType.ROTARY_ENCODER,
             payload={"direction": "CW"}
         )
-        playback_manager._handle_rotary_encoder_event(cw_event)
+        playback_service._handle_rotary_encoder_event(cw_event)
         
         # Volume should have increased
         assert player.current_volume > initial_volume
@@ -339,7 +339,7 @@ class TestVolumeControlWorkflow:
             type=EventType.ROTARY_ENCODER,
             payload={"direction": "CCW"}
         )
-        playback_manager._handle_rotary_encoder_event(ccw_event)
+        playback_service._handle_rotary_encoder_event(ccw_event)
         
         # Volume should be back to initial or lower
         assert player.current_volume <= initial_volume
@@ -366,7 +366,7 @@ class TestMenuNavigationWorkflow:
     def test_menu_album_selection(self, full_system_setup):
         """Test selecting album from menu"""
         system = full_system_setup
-        playback_manager = system['playback_manager']
+        playback_service = system['playback_service']
         event_bus = system['event_bus']
         
         from app.core import Event, EventType
@@ -390,7 +390,7 @@ class TestMenuNavigationWorkflow:
         }
         
         # Process menu selection
-        playback_manager._handle_play_album_event(menu_event)
+        playback_service._handle_play_album_event(menu_event)
         
         # Verify album was loaded
         assert len(system['jukebox_mediaplayer'].playlist) == 1
@@ -403,7 +403,7 @@ class TestErrorHandlingWorkflows:
     def test_rfid_with_database_error(self, full_system_setup):
         """Test RFID workflow when database has errors"""
         system = full_system_setup
-        playback_manager = system['playback_manager']
+        playback_service = system['playback_service']
         
         from app.core import Event, EventType
         
@@ -417,7 +417,7 @@ class TestErrorHandlingWorkflows:
         
         # Should handle error gracefully
         try:
-            result = playback_manager.load_rfid(rfid_event)
+            result = playback_service.load_rfid(rfid_event)
             # Should not crash, may return False
             assert result in [True, False]
         except Exception:

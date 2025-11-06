@@ -1,11 +1,11 @@
 import pytest
 import os
-from app.services.playback_manager import PlaybackManager
+from app.services.playback_service import PlaybackService
 from app.services.subsonic_service import SubsonicService
 from unittest.mock import MagicMock
 
 @pytest.mark.integration
-def test_playback_manager_fetches_album_from_subsonic(monkeypatch):
+def test_playback_service_fetches_album_from_subsonic(monkeypatch):
     """
     Integration test: Given a real Subsonic album ID (al-5),
     PlaybackManager should fetch album and track data from SubsonicService.

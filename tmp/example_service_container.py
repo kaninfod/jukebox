@@ -73,7 +73,7 @@ def create_jukebox_mediaplayer(container):
     return JukeboxMediaPlayer([], event_bus)
 
 def create_playback_manager(container):
-    from app.services.playback_manager import PlaybackManager
+    from app.services.playback_manager_del import PlaybackManager
     return PlaybackManager(
         screen_manager=container.get('screen_manager'),
         player=container.get('jukebox_mediaplayer'),

@@ -1,8 +1,11 @@
 import logging
-from os import name
-from app.ui.theme import UITheme
+#from os import name
+#from app.ui.theme import UITheme
 from app.ui.screens.base import Screen
-from PIL import Image
+#from PIL import Image
+from app.ui.screens.base import Screen, RectElement, TextElement, ImageElement
+#import os
+#from app.config import config
 
 logger = logging.getLogger(__name__)
 class IdleScreen(Screen):
@@ -28,21 +31,46 @@ class IdleScreen(Screen):
         logger.info(f"EventBus: Emitted 'show_idle' event from IdleScreen.show()")
 
     def draw(self, draw_context, fonts, context=None, image=None):
-        self._draw_image(draw_context, 0, 0, 80, fonts, image=image)
+        box = (0, 0, self.width, self.height)
+        background_element = RectElement(*box, "white")
+        background_element.draw(draw_context)
+
+        icon_name = "klangmeister"
+        #path = config.get_image_path(icon_name)
+        #logger.debug(f"IdleScreen drawing image from path: {path}")
+        #img = self._load_image(path)
+        
+        # box = (0, 0, self.width, self.height)
+        # image_element = ImageElement(*box, iconname=icon_name)
+        # image_element.draw(draw_context, image)
+
+        box = (170, 180, 200, 50)
+        screen_title_element = TextElement(*box, "Siemens", fonts["title"])
+        screen_title_element.draw(draw_context)
         logger.info("IdleScreen drawn")
+        
+        box = (170, 200, 200, 50)
+        screen_title_element = TextElement(*box, "Klangmeister", fonts["title"])
+        screen_title_element.draw(draw_context)
+        logger.info("IdleScreen drawn")
+        
+        box = (170, 220, 200, 50)
+        screen_title_element = TextElement(*box, "RG 406", fonts["title"])
+        screen_title_element.draw(draw_context)
+        logger.info("IdleScreen drawn")                          
 
-    def _draw_image(self, draw, x, y, size, fonts, image=None):
-            from app.config import config
-            icon_name = "klangmeister"
-            icon_path = config.get_icon_path(icon_name)
-            logger.debug(f"Using image '{icon_name}' for bootscreen")
-            icon_img = None
-            if icon_path:
-                #from app.ui.manager import ScreenManager
-                icon_img = Image.open(icon_path).convert("RGBA")
-                #icon_img = ScreenManager.get_icon_png(icon_path)
+    # def _load_image(self, path):
+    #     """Load album image from local cache if available."""
+    #     if not path:
+    #         return None
 
-                if icon_img:
-                    image.paste(icon_img, (x, y), icon_img)                            
-
-            
+    #     logger.debug(f"Loading album image from: {path}")
+    #     if os.path.exists(path):
+    #         try:
+    #             _image = Image.open(path)
+    #             return _image
+    #         except Exception as e:
+    #             logger.error(f"Failed to load cached album image: {e}")
+    #             return None
+    #     else:
+    #         return None            

@@ -28,7 +28,7 @@ class HardwareManager:
         self.config = config
         self.event_bus = event_bus
         self.screen_manager = screen_manager
-        self.playback_manager = None
+        self.playback_service = None
         
         # Hardware device instances
         self.display = None
@@ -112,8 +112,8 @@ class HardwareManager:
 
         
         from app.core.service_container import get_service
-        playback_manager = get_service("playback_manager")
-        encoding_mode = playback_manager.is_encoding_mode_active()
+        playback_service = get_service("playback_service")
+        encoding_mode = playback_service.is_encoding_mode_active()
         logger.debug(f"Encoding_mode={encoding_mode}")
         if encoding_mode:    
             try:
@@ -151,7 +151,7 @@ class HardwareManager:
             try:
                 logger.info("About to instantiate and call PN532Reader.start_reading...")
                 reader = self.rfid_reader_class()
-                # Use lambda to pass encoding_mode and playback_manager
+                # Use lambda to pass encoding_mode and playback_service
                 reader.start_reading(result_callback= self._rfid_read_callback)
                 logger.info("PN532Reader.start_reading returned (one-shot)")
             except Exception as e:

@@ -2,30 +2,11 @@ import requests
 from typing import List, Dict, Any, Optional
 import logging
 from functools import lru_cache
+import time
 
 logger = logging.getLogger(__name__)
 
-class SubsonicService:
-
-    # def get_all_artists(self) -> list:
-    #     """
-    #     Return all artists for API endpoint.
-    #     """
-    #     return self.list_artists()
-
-    # def get_albums_by_artist(self, artist_id: str) -> list:
-    #     """
-    #     Return all albums for a given artist for API endpoint.
-    #     """
-    #     return self.list_albums_for_artist(artist_id)
-
-    # def get_songs_by_album(self, album_id: str) -> list:
-    #     """
-    #     Return all songs for a given album for API endpoint.
-    #     """
-    #     return self.get_album_tracks(album_id)
-
-    
+class SubsonicService:    
     def __init__(self, config=None):
         """
         Initialize SubsonicService with dependency injection.
@@ -505,3 +486,47 @@ class SubsonicService:
         except Exception as e:
             logger.error(f"SubsonicService: Failed to add/update album entry for RFID {rfid}: {e}")
             return None
+
+    def scrobble_now_playing(self, track_id: str) -> bool:
+        """
+        Notify Subsonic that a track is now playing (scrobble to Last.fm if configured).
+        
+        This sends a "now playing" notification to Subsonic, which will forward it to
+        Last.fm if scrobbling is configured in Subsonic settings.
+        
+        API Reference: https://www.subsonic.org/pages/api.jsp#scrobble
+        Endpoint: rest/scrobble (POST: id, submission=false for "now playing", time=current timestamp)
+        
+        Args:
+            track_id: The Subsonic track ID to scrobble
+            
+        Returns:
+            True if scrobble was successful, False otherwise
+        """
+        try:
+            if not track_id:
+                logger.warning("scrobble_now_playing: No track_id provided")
+                return False
+            
+            # Get current time in milliseconds since epoch
+            current_time_ms = int(time.time() * 1000)
+            
+            resp = self._api_request("scrobble", {
+                "id": track_id,
+                "submission": "true",
+                "time": str(current_time_ms)
+            })
+            data = resp.json()
+            
+            # Check if the response indicates success
+            if data.get("subsonic-response", {}).get("status") == "ok":
+                logger.info(f"scrobble_now_playing: Successfully sent 'now playing' notification for track {track_id} to Last.fm at {current_time_ms}")
+                return True
+            else:
+                error_msg = data.get("subsonic-response", {}).get("error", "Unknown error")
+                logger.warning(f"scrobble_now_playing: Failed to send 'now playing' notification for track {track_id}: {error_msg}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"scrobble_now_playing: Failed to scrobble track {track_id}: {e}")
+            return False

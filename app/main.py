@@ -28,9 +28,12 @@ from app.routes.system import router as system_router
 from app.routes.subsonic import router as subsonic_router
 from app.routes.chromecast import router as chromecast_router
 from app.routes.nfc_encoding import router as nfc_encoding_router
+
+# Import services to ensure event subscriptions are active
+from app.services import system_service  # Ensures SystemService event handlers are registered
 from app.web.routes import router as web_router
 
-#from app.services.playback_manager import PlaybackManager
+#from app.services.playback_service import PlaybackManager
 
 #from app.ui import ScreenManager
 #from app.hardware import HardwareManager
@@ -80,8 +83,12 @@ album_cover_dir = config.STATIC_FILE_PATH
 if not os.path.isabs(album_cover_dir):
     album_cover_dir = os.path.join(os.path.dirname(__file__), "..", album_cover_dir)
 app.mount("/album_covers", StaticFiles(directory=album_cover_dir), name="album_covers")
-app.mount("/static", StaticFiles(directory=album_cover_dir), name="static")
 app.mount("/assets", StaticFiles(directory=album_cover_dir), name="assets")
+
+# Mount web static files (JS, CSS) - serve from app/web/static with proper MIME types
+web_static_dir = os.path.join(os.path.dirname(__file__), "web", "static")
+if os.path.isdir(web_static_dir):
+    app.mount("/static", StaticFiles(directory=web_static_dir), name="web_static")
 
 
 # Include routers
@@ -114,13 +121,18 @@ def startup_event():
     # Step 1: Setup service container
     global_container = setup_service_container()
     # Step 2: Resolve all main services
-    playback_manager = global_container.get('playback_manager')
+    playback_service = global_container.get('playback_service')
     screen_manager = global_container.get('screen_manager')
     hardware_manager = global_container.get('hardware_manager')
+    subsonic_service = global_container.get('subsonic_service')
     # Step 3: Update hardware manager with references (cross-dependencies)
     hardware_manager.screen_manager = screen_manager
-    hardware_manager.playback_manager = playback_manager
-    # Step 4: Start the system
+    hardware_manager.playback_service = playback_service
+    # Step 4: Initialize DynamicLoader for menu system
+    from app.ui.menu.dynamic_loader import initialize_dynamic_loader
+    initialize_dynamic_loader(subsonic_service)
+    logging.info("✅ DynamicLoader initialized for menu system")
+    # Step 5: Start the system
     from app.ui.screens import IdleScreen
     IdleScreen.show()
 

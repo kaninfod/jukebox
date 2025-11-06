@@ -65,16 +65,16 @@ def create_screen_manager(container):
     display = hardware_manager.initialize_hardware()
     return ScreenManager(display, event_bus)
 
-def create_jukebox_mediaplayer(container):
-    from app.services.jukebox_mediaplayer import JukeboxMediaPlayer
+def create_media_player_service(container):
+    from app.services.media_player_service import MediaPlayerService
     event_bus = container.get('event_bus')
-    return JukeboxMediaPlayer([], event_bus)
+    return MediaPlayerService([], event_bus)
 
-def create_playback_manager(container):
-    from app.services.playback_manager import PlaybackManager
-    return PlaybackManager(
+def create_playback_service(container):
+    from app.services.playback_service import PlaybackService
+    return PlaybackService(
         screen_manager=container.get('screen_manager'),
-        player=container.get('jukebox_mediaplayer'),
+        player=container.get('media_player_service'),
         album_db=container.get('album_database'),
         subsonic_service=container.get('subsonic_service'),
         event_bus=container.get('event_bus'),
@@ -95,8 +95,11 @@ def setup_service_container():
     # Register hardware/UI services as singletons
     container.register_singleton('hardware_manager', create_hardware_manager)
     container.register_singleton('screen_manager', create_screen_manager)
-    container.register_singleton('jukebox_mediaplayer', create_jukebox_mediaplayer)
-    container.register_singleton('playback_manager', create_playback_manager)
+    container.register_singleton('media_player_service', create_media_player_service)
+    container.register_singleton('playback_service', create_playback_service)
+    # Legacy alias for backward compatibility during refactoring
+    #container.register_singleton('jukebox_mediaplayer', create_media_player_service)
+    #container.register_singleton('playback_service', create_playback_service)
     return container
 
 # --- Global access helper ---

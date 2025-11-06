@@ -22,20 +22,24 @@ class MenuController:
     def __init__(self):
         self.menu_data = MenuDataService()
         self.is_active = False
-        self.selected_index = 0
-        
-        # Pagination properties
-        self.page_size = 8  # Increased from 7 to 8 due to removing bottom bar (40px more space)
-        self.current_page = 0
-        self.all_menu_items = []  # Cache of all items for current menu
+        self.selected_index = 0  # Which item is highlighted in current view
+        self.page_size = 8  # Display shows 8 items at a time
         self._player_status = False
-        
-        # Remove bottom bar properties - using Button 4 for back navigation
-        # self.in_bottom_bar = False  # REMOVED
-        # self.bottom_bar_selection = "previous"  # REMOVED
         
         self.auto_exit_timer = None
         self.auto_exit_timeout = config.MENU_AUTO_EXIT_TIMEOUT
+        
+        # Action type handlers (Strategy Pattern)
+        from .menu_event_processor import ActionType
+        self.action_handlers = {
+            ActionType.NAVIGATE: self._action_navigate,
+            ActionType.LOAD_DYNAMIC: self._action_load_dynamic,
+            ActionType.SELECT_ALBUM: self._action_select_album,
+            ActionType.SELECT_DEVICE: self._action_select_device,
+            ActionType.RESTART_APP: self._action_restart_app,
+            ActionType.REBOOT_SYSTEM: self._action_reboot_system,
+            ActionType.SHUTDOWN_SYSTEM: self._action_shutdown_system,
+        }
         
         # Subscribe to relevant events
         self._subscribe_to_events()
@@ -61,10 +65,6 @@ class MenuController:
         self.is_active = True
         self.selected_index = 0
         
-        # Initialize pagination
-        self.current_page = 0
-        self._load_current_menu_items()
-        
         # Start auto-exit timer
         self._start_auto_exit_timer()
         
@@ -82,13 +82,12 @@ class MenuController:
         # Cancel auto-exit timer
         self._cancel_auto_exit_timer()
         
-        # Reset menu to root and pagination
+        # Reset menu to root and selection
         self.menu_data.reset_to_root()
-        self.current_page = 0
-        self.all_menu_items = []
+        self.selected_index = 0
         
         # Determine which screen to return to based on playback state
-        if self._player_status():
+        if self._player_status:
             event_bus.emit(Event(
                 type=EventType.SHOW_HOME,
                 payload={}
@@ -102,252 +101,305 @@ class MenuController:
             logger.info("Returned to IDLE screen (no music playing)")
     
     def navigate_up(self):
-        """Handle up navigation (counter-clockwise) with pagination support"""
+        """Handle up navigation (counter-clockwise)"""
         if not self.is_active:
             return
             
         self._reset_auto_exit_timer()
         
-        # Try to move up in current page
+        current_items = self.menu_data.get_current_menu_items()
+        total = len(current_items)
+        
+        if total == 0:
+            return
+        
+        # Wrap around if at top
         if self.selected_index > 0:
             self.selected_index -= 1
         else:
-            # At first item of current page, try to go to previous page
-            if self.current_page > 0:
-                # There's a previous page available
-                self.current_page -= 1
-                current_page_items = self.get_current_page_items()
-                self.selected_index = len(current_page_items) - 1  # Go to last item of previous page
-                logger.info(f"Went back to page {self.current_page + 1}")
-            else:
-                # Already at top of first page, wrap to bottom of last page
-                self.current_page = (len(self.all_menu_items) - 1) // self.page_size
-                current_page_items = self.get_current_page_items()
-                self.selected_index = len(current_page_items) - 1
-                logger.info("Wrapped to last page")
+            self.selected_index = total - 1
         
         self._emit_menu_screen_update()
     
     def navigate_down(self):
-        """Handle down navigation (clockwise) with pagination support"""
+        """Handle down navigation (clockwise)"""
         if not self.is_active:
             return
             
         self._reset_auto_exit_timer()
         
-        current_page_items = self.get_current_page_items()
+        current_items = self.menu_data.get_current_menu_items()
+        total = len(current_items)
         
-        # Try to move down in current page
-        if self.selected_index < len(current_page_items) - 1:
+        if total == 0:
+            return
+        
+        # Wrap around if at bottom
+        if self.selected_index < total - 1:
             self.selected_index += 1
         else:
-            # At last item of current page, try to advance to next page
-            total_items = len(self.all_menu_items)
-            next_page_start = (self.current_page + 1) * self.page_size
-            
-            if next_page_start < total_items:
-                # There's a next page available
-                self.current_page += 1
-                self.selected_index = 0  # Go to first item of next page
-                logger.info(f"Advanced to page {self.current_page + 1}")
-            else:
-                # Already at bottom of last page, wrap to top of first page
-                self.current_page = 0
-                self.selected_index = 0
-                logger.info("Wrapped to first page")
+            self.selected_index = 0
         
         self._emit_menu_screen_update()
     
     def activate_selected(self):
-        """Handle selection activation (button press) - simplified without bottom bar"""
+        """Handle selection activation (button press)"""
         if not self.is_active:
             return
             
         self._reset_auto_exit_timer()
         
-        # Get the selected item from current page
-        current_page_items = self.get_current_page_items()
-        if self.selected_index < len(current_page_items):
-            menu_item = current_page_items[self.selected_index]
-            if menu_item:
-                self._activate_menu_item(menu_item)
+        current_items = self.menu_data.get_current_menu_items()
+        if self.selected_index < len(current_items):
+            menu_node = current_items[self.selected_index]
+            if menu_node:
+                self._activate_menu_item(menu_node)
+                self.selected_index = 0  # Reset selection for new menu level
     
-    def _activate_menu_item(self, item):
-        """Process menu item activation"""
-        payload = item.get("payload", {})
-        action = payload.get("action")
+    def _activate_menu_item(self, node):
+        """Process menu item activation using Strategy Pattern dispatch
         
-        logger.info(f"Activating menu item: {item['name']} (action: {action})")
+        Args:
+            node: MenuNode object that was selected
+        """
+        from .menu_event_processor import MenuEventProcessor, ActionType
+        processor = MenuEventProcessor()
+        event = processor.process_node_selection(node)
         
-        if action == "load_submenu":
-            # Navigate to submenu
-            submenu_name = payload.get("submenu")
-            if submenu_name and self.menu_data.navigate_to_menu(submenu_name):
-                self.selected_index = 0
-                # Load new menu items with pagination reset
-                self._load_current_menu_items()
-                self._emit_menu_screen_update()
-            else:
-                logger.warning(f"Failed to navigate to submenu: {submenu_name}")
-        elif action == "load_dynamic_menu":
-            # Load dynamic menu
-            menu_type = payload.get("menu_type")
-            menu_params = {k: v for k, v in payload.items() if k not in ["action", "menu_type"]}
-            
-            if menu_type and self.menu_data.load_dynamic_menu(menu_type, **menu_params):
-                self.selected_index = 0
-                # Load new dynamic menu items with pagination reset
-                self._load_current_menu_items()
-                self._emit_menu_screen_update()
-            else:
-                logger.warning(f"Failed to load dynamic menu: {menu_type}")
-        elif action == "browse_artists_in_range":
-            # Browse artists in alphabetical range
+        if not event:
+            logger.warning(f"No event generated for node: {node.id}")
+            return
+        
+        action_type = event.action_type
+        payload = event.parameters
+        
+        logger.info(f"Activating menu item: {node.name} (action: {action_type.value})")
+        
+        # Dispatch to handler via strategy dict
+        handler = self.action_handlers.get(action_type)
+        if handler:
+            handler(node, payload)
+        else:
+            logger.warning(f"Unknown action type: {action_type}")
+    
+    def _action_navigate(self, node, payload):
+        """Handle NAVIGATE action - navigate to submenu"""
+        if self.menu_data.navigate_to_node(node):
+            self.selected_index = 0
+            self._emit_menu_screen_update()
+        else:
+            logger.warning(f"Failed to navigate to: {node.id}")
+    
+    def _action_load_dynamic(self, node, payload):
+        """Handle LOAD_DYNAMIC action - load dynamic content (artists/albums)"""
+        dynamic_type = payload.get("dynamic_type")
+        
+        if dynamic_type == "artists_in_range":
             start_letter = payload.get("start_letter")
             end_letter = payload.get("end_letter")
-            
             if start_letter and end_letter:
-                if self.menu_data.load_dynamic_menu("artists_in_range", 
-                                                   start_letter=start_letter, 
-                                                   end_letter=end_letter):
-                    self.selected_index = 0
-                    # Load new dynamic menu items with pagination reset
-                    self._load_current_menu_items()
-                    self._emit_menu_screen_update()
-                else:
-                    logger.warning(f"Failed to load artists in range {start_letter}-{end_letter}")
-        elif action == "browse_artist_albums":
-            # Browse albums for specific artist
+                self._load_dynamic_artists(node, start_letter, end_letter)
+            else:
+                logger.warning("Missing start_letter or end_letter for artists_in_range")
+        
+        elif dynamic_type == "artist_albums":
             artist_id = payload.get("artist_id")
-            
+            artist_name = payload.get("artist_name", "Unknown Artist")
             if artist_id:
-                if self.menu_data.load_dynamic_menu("artist_albums", artist_id=artist_id):
-                    self.selected_index = 0
-                    # Load new dynamic menu items with pagination reset
-                    self._load_current_menu_items()
-                    self._emit_menu_screen_update()
-                else:
-                    logger.warning(f"Failed to load albums for artist {artist_id}")
-        elif action == "play_album":
-            # Play album - emit PLAY_ALBUM event for playback manager
-            album_id = payload.get("album_id")
-            album_name = payload.get("album_name")
-            
-            if album_id:
-                logger.info(f"Playing album: {album_name} (ID: {album_id})")
-
-                # Emit PLAY_ALBUM event to be handled by playback manager
-                from app.core import event_bus, EventType, Event
-                event_bus.emit(Event(
-                    type=EventType.PLAY_ALBUM,
-                    payload={
-                        "album_id": album_id,
-                        "album_name": album_name
-                    }
-                ))
-
-                # Exit menu after triggering playback
-                self.exit_menu_mode()
+                self._load_dynamic_albums(node, artist_id, artist_name)
             else:
-                logger.warning("No album_id provided for play_album action")
-        elif action == "select_chromecast_device":
-            # Handle Chromecast device selection
-            device_name = payload.get("device_name")
-            
-            if device_name:
-                logger.info(f"Selecting Chromecast device: {device_name}")
-                
-                # Emit CHROMECAST_DEVICE_CHANGED event
-                from app.core import event_bus, EventType, Event
-                event_bus.emit(Event(
-                    type=EventType.CHROMECAST_DEVICE_CHANGED,
-                    payload={
-                        "device_name": device_name
-                    }
-                ))
-                
-                # Show confirmation message and exit menu
-                event_bus.emit(Event(
-                    type=EventType.SHOW_MESSAGE,
-                    payload={
-                        "message": f"Switching to {device_name}...",
-                        "duration": 2,
-                        "type": "info"
-                    }
-                ))
-                self.exit_menu_mode()
-            else:
-                logger.warning("No device_name provided for select_chromecast_device action")
-        elif action == "chromecast_status":
-            # Show current Chromecast status
-            from app.core import event_bus, EventType, Event
+                logger.warning("Missing artist_id for artist_albums")
+        else:
+            logger.warning(f"Unknown dynamic_type: {dynamic_type}")
+    
+    def _action_select_album(self, node, payload):
+        """Handle SELECT_ALBUM action - play selected album"""
+        album_id = payload.get("album_id")
+        if album_id:
+            logger.info(f"Playing album: {node.name} (ID: {album_id})")
             event_bus.emit(Event(
-                type=EventType.SHOW_MESSAGE,
-                payload={
-                    "message": "📊 Getting Chromecast status...",
-                    "duration": 2,
-                    "type": "info"
-                }
+                type=EventType.PLAY_ALBUM,
+                payload={"album_id": album_id, "album_name": node.name}
             ))
-            # TODO: Add detailed status handler
-            self.exit_menu_mode()
-        elif action == "chromecast_volume_control":
-            # Show volume control info
-            from app.core import event_bus, EventType, Event
-            event_bus.emit(Event(
-                type=EventType.SHOW_MESSAGE,
-                payload={
-                    "message": "🔊 Use rotary encoder for volume",
-                    "duration": 3,
-                    "type": "info"
-                }
-            ))
-            self.exit_menu_mode()
-        elif action == "separator":
-            # Separators are not selectable - ignore
-            pass
-        elif action == "go_back":
-            self._go_back()
-        elif action == "exit_menu":
             self.exit_menu_mode()
         else:
-            # Unknown action - log warning
-            logger.warning(f"Unknown menu action: {action} for item: {item['name']}")
+            logger.warning("No album_id provided for select_album action")
+    
+    def _action_select_device(self, node, payload):
+        """Handle SELECT_DEVICE action - switch Chromecast device"""
+        device_name = payload.get("device_name")
+        if device_name:
+            logger.info(f"Selecting device: {device_name}")
+            event_bus.emit(Event(
+                type=EventType.CHROMECAST_DEVICE_CHANGED,
+                payload={"device_name": device_name}
+            ))
+            event_bus.emit(Event(
+                type=EventType.SHOW_MESSAGE,
+                payload={"message": f"Switching to {device_name}...", "duration": 2, "type": "info"}
+            ))
+            self.exit_menu_mode()
+        else:
+            logger.warning("No device_name for select_device action")
+    
+    def _action_restart_app(self, node, payload):
+        """Handle RESTART_APP action - restart the application"""
+        logger.info("Restarting application as per menu selection")
+        event_bus.emit(Event(
+            type=EventType.SYSTEM_RESTART_REQUESTED,
+            payload={}
+        ))
+        self.exit_menu_mode()
+
+    def _action_reboot_system(self, node, payload):
+        """Handle REBOOT_SYSTEM action - reboot the entire system"""
+        logger.info("Rebooting system as per menu selection")
+        event_bus.emit(Event(
+            type=EventType.SYSTEM_REBOOT_REQUESTED,
+            payload={}
+        ))
+        self.exit_menu_mode()
+
+    def _action_shutdown_system(self, node, payload):
+        """Handle SHUTDOWN_SYSTEM action - shutdown the entire system"""
+        logger.info("Shutting down system as per menu selection")
+        event_bus.emit(Event(
+            type=EventType.SYSTEM_SHUTDOWN_REQUESTED,
+            payload={}
+        ))
+        self.exit_menu_mode()
+
+    def _load_dynamic_artists(self, parent_node, start_letter: str, end_letter: str):
+        """Load artists in alphabetical range and inject into tree."""
+        try:
+            from .dynamic_loader import get_dynamic_loader
+            
+            loader = get_dynamic_loader()
+            if not loader:
+                logger.warning("DynamicLoader not initialized")
+                return
+            
+            logger.info(f"Loading artists for range {start_letter}-{end_letter}")
+            artist_nodes = loader.load_artists_in_range(start_letter, end_letter)
+            
+            if not artist_nodes:
+                logger.warning(f"No artists found for range {start_letter}-{end_letter}")
+                from app.core import event_bus, EventType, Event
+                event_bus.emit(Event(
+                    type=EventType.SHOW_MESSAGE,
+                    payload={"message": f"No artists found for {start_letter}-{end_letter}", "duration": 2, "type": "warning"}
+                ))
+                return
+            
+            # Inject artist nodes into the parent node
+            for artist_node in artist_nodes:
+                parent_node.add_child(artist_node)
+                artist_node.parent = parent_node
+            
+            logger.info(f"Injected {len(artist_nodes)} artists as children of {parent_node.id}")
+            
+            # Navigate to this node to show artists
+            if self.menu_data.navigate_to_node(parent_node):
+                self.selected_index = 0
+                self._emit_menu_screen_update()
+                logger.info(f"Navigated to artist range {start_letter}-{end_letter}")
+            else:
+                logger.warning(f"Failed to navigate to artist range")
+            
+        except Exception as e:
+            logger.error(f"Error loading artists: {e}")
+            from app.core import event_bus, EventType, Event
+            event_bus.emit(Event(
+                type=EventType.SHOW_MESSAGE,
+                payload={"message": "Error loading artists", "duration": 2, "type": "error"}
+            ))
+    
+    def _load_dynamic_albums(self, artist_node, artist_id: str, artist_name: str):
+        """Load albums for an artist and inject into tree."""
+        try:
+            from .dynamic_loader import get_dynamic_loader
+            
+            loader = get_dynamic_loader()
+            if not loader:
+                logger.warning("DynamicLoader not initialized")
+                return
+            
+            logger.info(f"Loading albums for artist {artist_name} ({artist_id})")
+            album_nodes = loader.load_artist_albums(artist_id, artist_name)
+            
+            if not album_nodes:
+                logger.warning(f"No albums found for artist {artist_name}")
+                from app.core import event_bus, EventType, Event
+                event_bus.emit(Event(
+                    type=EventType.SHOW_MESSAGE,
+                    payload={"message": f"No albums found for {artist_name}", "duration": 2, "type": "warning"}
+                ))
+                return
+            
+            # Inject album nodes into the artist node
+            for album_node in album_nodes:
+                artist_node.add_child(album_node)
+                album_node.parent = artist_node
+            
+            logger.info(f"Injected {len(album_nodes)} albums as children of {artist_node.id}")
+            
+            # Navigate to this node to show albums
+            if self.menu_data.navigate_to_node(artist_node):
+                self.selected_index = 0
+                self._emit_menu_screen_update()
+                logger.info(f"Navigated to artist {artist_name}")
+            else:
+                logger.warning(f"Failed to navigate to artist {artist_name}")
+            
+        except Exception as e:
+            logger.error(f"Error loading albums: {e}")
+            from app.core import event_bus, EventType, Event
+            event_bus.emit(Event(
+                type=EventType.SHOW_MESSAGE,
+                payload={"message": "Error loading albums", "duration": 2, "type": "error"}
+            ))
     
     def _go_back(self):
-        """Navigate to previous menu level and reset pagination"""
-        self._reset_auto_exit_timer()  # Reset timer on back navigation
+        """Navigate to previous menu level"""
+        self._reset_auto_exit_timer()
         
         if self.menu_data.go_back():
             self.selected_index = 0
-            # Reset pagination for new menu level
-            self._load_current_menu_items()
             self._emit_menu_screen_update()
             logger.info("Navigated to previous menu level")
         else:
-            # Already at root level - exit menu immediately
+            # Already at root level - exit menu
             logger.info("Back press at root level - exiting menu")
             self.exit_menu_mode()
     
     def _emit_menu_screen_update(self):
-        """Emit event to update menu screen with current paginated state"""
-        current_page_items = self.get_current_page_items()
-        breadcrumb = self._get_breadcrumb()
+        """Emit event to update menu screen with current state"""
+        current_items = self.menu_data.get_current_menu_items()
+        total_items = len(current_items)
         
-        # Add pagination info to breadcrumb
-        total_items = len(self.all_menu_items)
+        # Calculate current page (for pagination display purposes only)
+        current_page = self.selected_index // self.page_size
+        total_pages = (total_items - 1) // self.page_size + 1 if total_items > 0 else 1
+        
+        # Get items for current page
+        page_start = current_page * self.page_size
+        page_end = page_start + self.page_size
+        page_items = current_items[page_start:page_end]
+        
+        # Adjust selected_index to be relative to current page
+        selected_in_page = self.selected_index % self.page_size
+        
+        breadcrumb = self._get_breadcrumb()
         if total_items > self.page_size:
-            total_pages = (total_items - 1) // self.page_size + 1
-            breadcrumb += f" ({self.current_page + 1}/{total_pages})"
+            breadcrumb += f" ({current_page + 1}/{total_pages})"
         
         context = {
-            "menu_items": current_page_items,
-            "selected_index": self.selected_index,
+            "menu_items": [item.to_dict() for item in page_items],
+            "selected_index": selected_in_page,
             "breadcrumb": breadcrumb,
-            # Remove bottom bar properties since we're not using them
             "total_items": total_items,
-            "current_page": self.current_page + 1,
-            "total_pages": (total_items - 1) // self.page_size + 1 if total_items > 0 else 1
+            "current_page": current_page + 1,
+            "total_pages": total_pages
         }
         
         event_bus.emit(Event(
@@ -361,7 +413,7 @@ class MenuController:
         if len(breadcrumb_path) <= 1:
             return "MENU"
         else:
-            return f"MENU: {' > '.join(breadcrumb_path[1:])}"  # Use ASCII > instead of Unicode →
+            return f"MENU: {' > '.join(breadcrumb_path[1:])}"
     
     def _start_auto_exit_timer(self):
         """Start the auto-exit timer"""
@@ -425,35 +477,3 @@ class MenuController:
                 import logging
                 logging.getLogger(__name__).info("Button 4 pressed outside menu: STOP event emitted")
     
-    # === PAGINATION METHODS ===
-    
-    def _load_current_menu_items(self):
-        """Load all menu items for current menu level and reset pagination"""
-        self.all_menu_items = self.menu_data.get_current_menu_items()
-        self.current_page = 0
-        logger.info(f"Loaded {len(self.all_menu_items)} total items for current menu")
-    
-    def get_current_page_items(self):
-        """Get the items for the current page"""
-        start_idx = self.current_page * self.page_size
-        end_idx = start_idx + self.page_size
-        return self.all_menu_items[start_idx:end_idx]
-    
-    # def _is_music_playing(self):
-    #     """Check if music is currently playing by querying player status via EventBus"""
-    #     try:
-    #         # We need a way to get player status - for now use a simple approach
-    #         # This could be improved by having the player emit status events
-    #         # or by injecting the player reference
-            
-    #         # For now, emit a status request and assume we get a response
-    #         # A more robust implementation would use a status cache or direct reference
-    #         from app.main import app_state
-    #         if hasattr(app_state, 'player') and app_state.player:
-    #             from app.services.jukebox_mediaplayer import PlayerStatus
-    #             return app_state.player.status in [PlayerStatus.PLAY, PlayerStatus.PAUSE]
-    #         return False
-    #     except Exception as e:
-    #         logger.warning(f"Could not determine player status: {e}")
-    #         # Default to HOME if we can't determine status
-    #         return True

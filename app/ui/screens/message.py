@@ -50,11 +50,9 @@ class MessageScreen(Screen):
         screen_title_element.draw(draw_context)
 
         icon_name = self.context.get("icon_name", None)
-        path = config.get_image_path(icon_name)
-        img = self._load_album_image(path)
         box = (150, 80, 120, 120)
-        album_cover_element = ImageElement(*box, img)
-        album_cover_element.draw(draw_context, image)
+        icon_element = ImageElement(*box, iconname=icon_name) #ImageElement(*box, img)
+        icon_element.draw(draw_context, image)
 
         box = (20, 250, 350, 50)
         message = self.context.get("message", "")
@@ -63,104 +61,3 @@ class MessageScreen(Screen):
 
         return
 
-
-        bg_color = theme.colors["background"]
-        color = theme.colors["text"]
-        icon_name = self.context.get("icon_name", None)
-
-        if context and "theme" in context:
-            theme_override = context["theme"]
-            theme_dict = self.theme.get_theme(theme_override)
-            if theme_dict:
-                bg_color = theme_dict.get("background", bg_color)
-                color = theme_dict.get("color", color)
-                icon_name = theme_dict.get("icon", icon_name)
-
-        logger.info(f"bg_color: {bg_color}, color: {color}, icon_name: {icon_name}")
-
-        logger.info(f"MessageScreen context: {self.context} and {self.screen_theme}")
-        # Draw background, allow override from context
-        # bg_color = self.screen_theme.get("background", theme.colors["background"])
-        draw_context.rectangle([0, 0, self.width, self.height], fill=bg_color)
-        # Title
-        title = self.context.get("title", "Message")
-        title_font = theme.fonts["title"]
-        title_bbox = draw_context.textbbox((0, 0), title, font=title_font)
-        title_width = title_bbox[2] - title_bbox[0]
-        title_x = (self.width - title_width) // 2
-        draw_context.text((title_x, theme.layout["title_y"]), title, fill=theme.colors["text"], font=title_font)
-        # Icon
-    
-
-        # Icon selection: context > theme > fallback
-        # icon_name = self.context.get("icon_name", None)
-        # logger.info(f"MessageScreen icon_name: {icon_name}")
-        # if not icon_name and self.screen_theme:
-        #     icon_name = self.screen_theme.get("icon", None)
-
-        # logger.info(f"MessageScreen icon_name AFTER: {icon_name}")
-        icon_size = 80
-        icon_x = (self.width - icon_size) // 2
-        icon_y = 80
-        self._draw_icon(draw_context, icon_x, icon_y, icon_size, image=image, icon_name=icon_name)
-        # Message
-        message = self.context.get("message", "")
-        if isinstance(message, str):
-            message_lines = message.split('\n')
-        else:
-            message_lines = list(message)
-        info_font = theme.fonts["info"]
-        # color = self.context.get("color", theme.colors["text"])
-        message_y = icon_y + icon_size + 30
-        line_height = theme.layout["line_height"]
-        for i, line in enumerate(message_lines):
-            line_bbox = draw_context.textbbox((0, 0), line, font=info_font)
-            line_width = line_bbox[2] - line_bbox[0]
-            line_x = (self.width - line_width) // 2
-            draw_context.text((line_x, message_y + i * line_height), line, fill=color, font=info_font)
-        
-        logger.debug(f"MessageScreen drawn with title '{title}' and message lines: {message_lines}")
-
-
-    def _load_album_image(self, path):
-        """Load album image from local cache if available."""
-        if not path:
-            return None
-
-        logger.debug(f"Loading album image from: {path}")
-        if os.path.exists(path):
-            try:
-                _image = Image.open(path)
-                return _image
-            except Exception as e:
-                logger.error(f"Failed to load cached album image: {e}")
-                return None
-        else:
-            return None
-
-    def _draw_icon(self, draw, x, y, size, image=None, icon_name=None):
-        from app.config import config
-        import os
-        icon_img = None
-        icon_path = None
-        logger.info(f"Drawing icon '{icon_name}'") 
-        if icon_name:
-            # If icon_name is not a path, resolve to STATIC_FILE_PATH/icon_name.png
-            if not icon_name.endswith('.png'):
-                icon_path = os.path.join(config.STATIC_FILE_PATH, icon_name + ".png")
-            else:
-                icon_path = icon_name
-            try:
-                icon_img = Image.open(icon_path).convert("RGBA")
-            except Exception as e:
-                logger.error(f"Failed to load icon PNG '{icon_path}': {e}")
-        if icon_img:
-            icon_img = icon_img.resize((size, size), resample=Image.LANCZOS)
-            if image is not None:
-                image.paste(icon_img, (x, y), icon_img)
-            else:
-                draw.im.paste(icon_img, (x, y), icon_img)
-                logger.warning(f"Custom draw wrapper used for icon '{icon_name}'")
-        else:
-            draw.ellipse([x, y, x + size, y + size], fill="gray", outline="black", width=2)
-            draw.text((x + size // 2 - 8, y + size // 2 - 8), "?", fill="white")

@@ -1,88 +1,165 @@
 {
   "root": {
+    "name": "Root",
     "items": [
       {
         "id": "music",
-        "name": "Music",
-        "payload": {"action": "load_submenu", "submenu": "music_menu"}
+        "name": "🎵 Music",
+        "payload": {"action": "navigate", "target": "music_menu"}
       },
       {
         "id": "chromecasts",
-        "name": "Chromecasts",
-        "payload": {"action": "load_submenu", "submenu": "chromecasts_menu"}
+        "name": "🔊 Chromecasts",
+        "payload": {"action": "navigate", "target": "chromecasts_menu"}
+      },
+      {
+        "id": "system",
+        "name": "⚙️ System",
+        "payload": {"action": "navigate", "target": "system_menu"}
       }
     ]
   },
+  
   "music_menu": {
+    "name": "Music",
     "items": [
       {
-        "id": "artists",
-        "name": "Artists",
-        "payload": {"action": "load_dynamic_menu", "menu_type": "artists_alphabetical"}
+        "id": "browse_artists",
+        "name": "Browse Artists",
+        "payload": {"action": "navigate", "target": "artists_menu"}
       },
       {
-        "id": "albums",
-        "name": "Albums",
+        "id": "browse_albums",
+        "name": "Browse Albums",
         "payload": {"action": "browse_albums"}
       }
     ]
   },
-  "chromecasts_menu": {
+  
+  "artists_menu": {
+    "name": "Artists",
     "items": [
       {
-        "id": "chromecast_select_living_room",
-        "name": "🔗 Living Room (Current)",
+        "id": "artists_a_d",
+        "name": "A - D",
         "payload": {
-          "action": "select_chromecast_device",
-          "device_name": "Living Room",
-          "device_id": "living_room",
-          "friendly_name": "Living Room"
+          "action": "load_dynamic",
+          "dynamic_type": "artists_in_range",
+          "start_letter": "A",
+          "end_letter": "D"
         }
       },
       {
-        "id": "chromecast_select_tv_lounge",
+        "id": "artists_e_h",
+        "name": "E - H",
+        "payload": {
+          "action": "load_dynamic",
+          "dynamic_type": "artists_in_range",
+          "start_letter": "E",
+          "end_letter": "H"
+        }
+      },
+      {
+        "id": "artists_i_m",
+        "name": "I - M",
+        "payload": {
+          "action": "load_dynamic",
+          "dynamic_type": "artists_in_range",
+          "start_letter": "I",
+          "end_letter": "M"
+        }
+      },
+      {
+        "id": "artists_n_r",
+        "name": "N - R",
+        "payload": {
+          "action": "load_dynamic",
+          "dynamic_type": "artists_in_range",
+          "start_letter": "N",
+          "end_letter": "R"
+        }
+      },
+      {
+        "id": "artists_s_v",
+        "name": "S - V",
+        "payload": {
+          "action": "load_dynamic",
+          "dynamic_type": "artists_in_range",
+          "start_letter": "S",
+          "end_letter": "V"
+        }
+      },
+      {
+        "id": "artists_w_z",
+        "name": "W - Z",
+        "payload": {
+          "action": "load_dynamic",
+          "dynamic_type": "artists_in_range",
+          "start_letter": "W",
+          "end_letter": "Z"
+        }
+      }
+    ]
+  },
+  
+  "chromecasts_menu": {
+    "name": "Chromecasts",
+    "items": [
+      {
+        "id": "device_living_room",
+        "name": "🔗 Living Room",
+        "payload": {
+          "action": "select_device",
+          "device_id": "living_room",
+          "device_name": "Living Room"
+        }
+      },
+      {
+        "id": "device_tv_lounge",
         "name": "⚪ TV Lounge",
         "payload": {
-          "action": "select_chromecast_device",
-          "device_name": "TV Lounge",
+          "action": "select_device",
           "device_id": "tv_lounge",
-          "friendly_name": "TV Lounge"
+          "device_name": "TV lounge"
         }
       },
       {
-        "id": "chromecast_select_signe",
-        "name": "⚪ Signe",
+        "id": "device_Kitchen",
+        "name": "⚪ Kitchen",
         "payload": {
-          "action": "select_chromecast_device",
-          "device_name": "Signe",
-          "device_id": "signe",
-          "friendly_name": "Signe"
+          "action": "select_device",
+          "device_id": "kitchen",
+          "device_name": "Kitchen"
         }
       },
       {
-        "id": "chromecast_select_bathroom_speaker",
-        "name": "⚪ Bathroom Speaker",
+        "id": "device_bedroom",
+        "name": "⚪ Bedroom Speaker",
         "payload": {
-          "action": "select_chromecast_device",
-          "device_name": "Bathroom Speaker",
-          "device_id": "bathroom_speaker",
-          "friendly_name": "Bathroom Speaker"
+          "action": "select_device",
+          "device_id": "bedroom_speaker",
+          "device_name": "Bedroom"
         }
+      }
+    ]
+  },
+  "system_menu": {
+    "name": "System",
+    "items": [
+      {
+        "id": "restart_app",
+        "name": "🖥️ Restart App",
+        "payload": {"action": "restart_app"}
       },
       {
-        "id": "chromecast_separator",
-        "name": "───────────────",
-        "payload": {"action": "separator"}
+        "id": "reboot_system",
+        "name": "🌐 Reboot System",
+        "payload": {"action": "reboot_system"}
       },
       {
-        "id": "chromecast_status",
-        "name": "📊 Current Status",
-        "payload": {"action": "chromecast_status"}
-      },
-      {
-        "id": "chromecast_volume",
-        "name": "🔊 Volume Control",
-        "payload": {"action": "chromecast_volume_control"}
+        "id": "shutdown_system",
+        "name": "⏻ Shutdown System",
+        "payload": {"action": "shutdown_system"}
       }
     ]
   }

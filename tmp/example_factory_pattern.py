@@ -71,7 +71,7 @@ class ServiceFactory:
     def create_playback_manager(self):
         """Create PlaybackManager with all dependencies injected"""
         if 'playback_manager' not in self._created_services:
-            from app.services.playback_manager import PlaybackManager
+            from app.services.playback_manager_del import PlaybackManager
             self._created_services['playback_manager'] = PlaybackManager(
                 screen_manager=self.create_screen_manager(),
                 player=self.create_jukebox_mediaplayer(),

@@ -86,10 +86,11 @@ class ScreenQueue:
 
 	def _show_fallback_screen(self):
 		# Show home if music is playing, else idle
+		# Note: HomeScreen now fetches fresh data directly from MediaPlayer,
+		# so passing empty context is fine - it will query player.current_track, etc.
 		if self.screen_manager.is_music_playing():
 			logger.info("[ScreenQueue] Fallback: Showing home screen (music playing)")
 			self.screen_manager.show_home_screen({})
-			#self.screen_manager.show_idle_screen({})
 		else:
 			logger.info("[ScreenQueue] Fallback: Showing idle screen (music not playing)")
 			self.screen_manager.show_idle_screen({})

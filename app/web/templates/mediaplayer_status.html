@@ -59,7 +59,8 @@
                 Album: ${data.current_track.album}<br>
                 Year: ${data.current_track.year}<br>
                 Status: ${data.status}<br>
-                Track ${data.current_track.track_number} of ${data.playlist.length} in playlist
+                Track: ${data.current_track.track_number} of ${data.playlist.length} in playlist <br>
+                Playing on: ${data.chromecast_device} | Volume: ${data.volume}
             `;
             let thumbUrl = data.current_track.thumb;
             if (thumbUrl) {
