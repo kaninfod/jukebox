@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en" class="kiosk-mode">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Jukeplayer{% endblock %}</title>
+    {% include '_global_styles.html' %}
+    <link rel="stylesheet" href="/static/css/mdi.css">
+    <link rel="stylesheet" href="/static/css/kiosk.css">
+    {% block head_extra %}{% endblock %}
+</head>
+<body class="kiosk-layout">
+    <!-- Kiosk fixed layout structure (1280×720 landscape) -->
+    
+    <!-- Status Bar at top -->
+    <div style="height: 50px; min-height: 50px; max-height: 50px; flex-shrink: 0;">
+        {% include 'components/kiosk/_status_bar.html' %}
+    </div>
+
+    <!-- Main content area with navigation and dynamic content -->
+    <div class="kiosk-main-content d-flex" style="height: 570px; min-height: 570px; max-height: 570px; flex-shrink: 0; flex-grow: 0; overflow: hidden;">
+        <!-- Left navigation sidebar -->
+        {% include 'components/kiosk/_navigation.html' %}
+        
+        <!-- Dynamic content area -->
+        <div id="kiosk-content-area" class="flex-grow-1">
+            {% block kiosk_content %}{% endblock %}
+        </div>
+    </div>
+
+    <!-- Controls fixed at bottom -->
+    <div style="height: 100px; min-height: 100px; max-height: 100px; flex-shrink: 0;">
+        {% include 'components/kiosk/_controls.html' %}
+    </div>
+
+    <!-- Kiosk-specific JavaScript -->
+    <script src="/static/js/toast.js"></script>
+    <script src="/static/js/kiosk-loader.js"></script>
+    
+    <!-- Load all kiosk component scripts upfront (small files, better for caching) -->
+    <script src="/static/js/kiosk/player-status.js"></script>
+    <script src="/static/js/kiosk/playlist-view.js"></script>
+    <script src="/static/js/kiosk/media-library.js"></script>
+    <script src="/static/js/kiosk/device-selector.js"></script>
+    <script src="/static/js/kiosk/system-menu.js"></script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

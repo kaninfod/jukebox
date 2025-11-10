@@ -23,8 +23,17 @@ templates = Jinja2Templates(directory="app/web/templates")
 
 # /status: Media player status page (was /mediaplayer/status)
 @router.get("/status", response_class=HTMLResponse)
-async def status_page(request: Request):
-    return templates.TemplateResponse("mediaplayer_status.html", {"request": request})
+async def status_page(request: Request, kiosk: bool = False):
+    if kiosk:
+        return templates.TemplateResponse("pages/kiosk/player.html", {
+            "request": request,
+            "kiosk_mode": True
+        })
+    else:
+        return templates.TemplateResponse("pages/desktop/player.html", {
+            "request": request,
+            "kiosk_mode": False
+        })
 
 # /nfc: NFC encoding status page (was /nfc-encoding/status-page)
 @router.get("/nfc", response_class=HTMLResponse)
@@ -194,3 +203,27 @@ async def update_audioPlaylistId(rfid: str = Form(...), audioPlaylistId: str = F
         )
         resp.raise_for_status()
     return RedirectResponse("/albums", status_code=303)
+
+
+# Kiosk API: Dynamic component loading
+@router.get("/api/kiosk/component/{component_name}", response_class=HTMLResponse)
+async def get_kiosk_component(component_name: str, request: Request):
+    """
+    Returns HTML for a specific kiosk component.
+    Used for dynamic content loading in kiosk mode.
+    """
+    component_map = {
+        'player': 'components/kiosk/_player_status.html',
+        'library': 'components/kiosk/_media_library.html',
+        'playlist': 'components/kiosk/_playlist_view.html',
+        'devices': 'components/kiosk/_device_selector.html',
+        'system': 'components/kiosk/_system_menu.html',
+    }
+    
+    template_path = component_map.get(component_name)
+    if not template_path:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Component '{component_name}' not found")
+    
+    return templates.TemplateResponse(template_path, {"request": request})
+

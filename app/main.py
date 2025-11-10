@@ -85,11 +85,6 @@ if not os.path.isabs(album_cover_dir):
 app.mount("/album_covers", StaticFiles(directory=album_cover_dir), name="album_covers")
 app.mount("/assets", StaticFiles(directory=album_cover_dir), name="assets")
 
-# Mount web static files (JS, CSS) - serve from app/web/static with proper MIME types
-web_static_dir = os.path.join(os.path.dirname(__file__), "web", "static")
-if os.path.isdir(web_static_dir):
-    app.mount("/static", StaticFiles(directory=web_static_dir), name="web_static")
-
 
 # Include routers
 app.include_router(album_router)
@@ -99,6 +94,14 @@ app.include_router(subsonic_router)
 app.include_router(chromecast_router)
 app.include_router(nfc_encoding_router)
 app.include_router(web_router)
+
+# Mount web static files (JS, CSS) - serve from app/web/static with proper MIME types
+# MUST be mounted AFTER routers to avoid route conflicts
+web_static_dir = os.path.join(os.path.dirname(__file__), "web", "static")
+if os.path.isdir(web_static_dir):
+    app.mount("/static", StaticFiles(directory=web_static_dir), name="web_static")
+else:
+    logger.warning(f"Web static directory not found: {web_static_dir}")
 
 
 

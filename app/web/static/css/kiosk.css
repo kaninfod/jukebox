@@ -1,0 +1,505 @@
+/**
+ * Kiosk Mode Styles
+ * 
+ * Optimized for 5" DSI touchscreen display (720×1280 portrait)
+ * Applied when body has .kiosk-layout class (via ?kiosk=1 parameter)
+ * 
+ * Fixed Height Layout (720px total):
+ * ┌─────────────────────────┐
+ * │  Status Bar (50px)      │ <- Breadcrumb + Device Selector
+ * ├───┬─────────────────────┤
+ * │   │                     │
+ * │ N │  Main Content       │ <- Album Art + Track Info (570px)
+ * │ a │  (570px)            │
+ * │ v │                     │
+ * │   │                     │
+ * ├───┴─────────────────────┤
+ * │  Controls (100px)       │ <- Media Buttons
+ * └─────────────────────────┘
+ * Total: 50 + 570 + 100 = 720px
+ */
+
+/* ============================================
+   LAYOUT CONTROL - Show/Hide Desktop vs Kiosk
+   ============================================ */
+
+/* Kiosk mode: Fixed 720px height, exact sizing */
+html.kiosk-mode,
+body.kiosk-layout {
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    width: 1280px !important;  /* Landscape width */
+    height: 720px !important;   /* Landscape height - FIXED */
+    display: flex;
+    flex-direction: column;
+}
+
+/* Desktop layout: visible by default */
+.desktop-layout {
+    display: block !important;
+}
+
+/* Kiosk layout: hidden by default */
+.kiosk-only-layout {
+    display: none !important;
+}
+
+/* When kiosk mode is active: hide desktop, show kiosk */
+.kiosk-layout .desktop-layout {
+    display: none !important;
+}
+
+/* This class is deprecated - kiosk layout is now on body */
+.kiosk-layout .kiosk-only-layout {
+    display: none !important;
+}
+
+/* Hide navigation bar to maximize screen space */
+.kiosk-layout .navbar {
+    display: none !important;
+}
+
+/* Remove container padding for full-screen layout */
+.kiosk-layout main.container {
+    display: none !important;
+}
+
+/* Ensure no extra containers interfere */
+.kiosk-layout > * {
+    max-width: 100% !important;
+}
+
+/* ============================================
+   STATUS BAR (Top - 50px)
+   ============================================ */
+
+body.kiosk-layout .kiosk-status-bar,
+.kiosk-layout .kiosk-status-bar {
+    height: 50px !important;
+    max-height: 50px !important;
+    min-height: 50px !important;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center;
+    padding: 0 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    flex-shrink: 0 !important;
+    flex: none !important;
+}
+
+.kiosk-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 18px;
+    font-weight: 600;
+    transition: opacity 0.2s;
+    cursor: pointer;
+}
+
+.kiosk-breadcrumb:hover {
+    opacity: 0.8;
+}
+
+.kiosk-breadcrumb i {
+    font-size: 24px;
+}
+
+.kiosk-device-selector {
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.kiosk-device-selector:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+.kiosk-device-selector i {
+    font-size: 18px;
+}
+
+/* ============================================
+   MAIN CONTENT AREA (Between status bar and controls)
+   570px = 720px - 50px (status) - 100px (controls)
+   ============================================ */
+
+body.kiosk-layout .kiosk-main-content,
+.kiosk-layout .kiosk-main-content {
+    height: 570px !important;
+    max-height: 570px !important;
+    min-height: 570px !important;
+    display: flex !important;
+    overflow: hidden !important;
+    background: #f5f5f7;
+    flex: none !important; /* Override any flex settings */
+}
+
+/* ============================================
+   NAVIGATION SIDEBAR (Left - 60px)
+   ============================================ */
+
+.kiosk-nav-sidebar {
+    width: 60px;
+    background: #2c3e50;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 6px;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+    flex-shrink: 0;
+}
+
+.kiosk-nav-btn {
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: white;
+    padding: 16px;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 48px;
+    height: 48px;
+}
+
+.kiosk-nav-btn:hover,
+.kiosk-nav-btn:active {
+    background: rgba(255,255,255,0.2);
+    transform: scale(1.05);
+}
+
+.kiosk-nav-btn i {
+    font-size: 32px;
+}
+
+/* ============================================
+   PLAYER STATUS (Center - Remaining space)
+   ============================================ */
+
+.kiosk-player-status {
+    position: relative;
+    height: 100%;
+    width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    overflow: hidden;
+}
+
+.kiosk-album-art {
+    width: 280px;
+    height: 280px;
+    margin-bottom: 24px;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    overflow: hidden;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.kiosk-album-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.kiosk-no-cover {
+    font-size: 120px;
+    color: rgba(255,255,255,0.5);
+}
+
+.kiosk-track-details {
+    text-align: left;
+    max-width: 100%;
+}
+
+.kiosk-artist {
+    font-size: 42px;
+    font-weight: 700;
+    color: #2c3e50;
+    margin-bottom: 12px;
+    line-height: 1.2;
+}
+
+.kiosk-title {
+    font-size: 36px;
+    font-weight: 500;
+    color: #34495e;
+    margin-bottom: 20px;
+    line-height: 1.2;
+}
+
+.kiosk-album {
+    font-size: 22px;
+    color: #7f8c8d;
+    margin-bottom: 24px;
+}
+
+.kiosk-status {
+    display: flex;
+    justify-content: flex-start;
+    gap: 24px;
+    font-size: 14px;
+    color: #95a5a6;
+}
+
+.kiosk-status span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.kiosk-no-track {
+    font-size: 18px;
+    color: #95a5a6;
+}
+
+/* ============================================
+   CONTROLS (Bottom - 100px)
+   ============================================ */
+
+body.kiosk-layout .kiosk-controls,
+.kiosk-layout .kiosk-controls {
+    height: 100px !important;
+    max-height: 100px !important;
+    min-height: 100px !important;
+    background: white;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+    display: flex !important;
+    justify-content: space-evenly !important;
+    align-items: center !important;
+    padding: 0 8px !important;
+    gap: 8px;
+    flex-shrink: 0 !important;
+    flex: none !important;
+}
+
+/* Larger touch-friendly media control buttons in kiosk */
+.kiosk-layout .btn-media-control {
+    width: 80px;
+    height: 80px;
+    font-size: 32px;
+    border-radius: 50%;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transition: all 0.2s;
+}
+
+.kiosk-layout .btn-media-control:active {
+    transform: scale(0.95);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+/* ============================================
+   REUSABLE COMPONENT CLASSES
+   ============================================ */
+
+/* Common container for scrollable components */
+.kiosk-component-container {
+    overflow-y: auto;
+    height: 100%;
+    width: 100%;
+    padding: 20px;
+}
+
+/* Grid layout for device selector and system menu */
+.kiosk-grid-3col {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    max-width: 100%;
+}
+
+/* ============================================
+   VOLUME BAR (Player Status Component)
+   ============================================ */
+
+.kiosk-volume-bar {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 40px;
+}
+
+.kiosk-volume-bar-track {
+    position: relative;
+    height: 100%;
+    background: #e9ecef;
+    overflow: hidden;
+}
+
+.kiosk-volume-bar-fill {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    background: linear-gradient(to top, #28a745, #5cb85c);
+    transition: height 0.3s;
+}
+
+.kiosk-volume-bar-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 12px;
+    font-weight: bold;
+    color: #495057;
+    z-index: 1;
+}
+
+.kiosk-volume-bar-text {
+    position: absolute;
+    bottom: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 14px;
+    font-weight: bold;
+    color: white;
+    z-index: 2;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+/* ============================================
+   PLAYLIST VIEW COMPONENT
+   ============================================ */
+
+.kiosk-playlist-item {
+    font-size: 16px;
+    padding: 12px 16px;
+    border-left: 4px solid transparent;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.kiosk-playlist-item:hover {
+    background-color: #f8f9fa;
+}
+
+.kiosk-playlist-item.active {
+    background-color: #007bff;
+    color: white;
+    border-left-color: #ffc107;
+}
+
+.kiosk-playlist-item.active:hover {
+    background-color: #0069d9;
+}
+
+.track-number {
+    min-width: 40px;
+    text-align: center;
+    font-weight: bold;
+    color: #6c757d;
+    font-size: 14px;
+}
+
+.kiosk-playlist-item.active .track-number {
+    color: #ffc107;
+}
+
+.kiosk-playlist-item.active .text-muted {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* ============================================
+   MEDIA LIBRARY COMPONENT
+   ============================================ */
+
+.library-group-btn {
+    font-size: 24px;
+    padding: 30px;
+    margin: 10px;
+    min-width: 150px;
+    border-radius: 12px;
+}
+
+.library-table {
+    font-size: 18px;
+}
+
+.library-table tbody tr {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.library-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.library-table tbody tr:active {
+    background-color: #e9ecef;
+}
+
+.library-back-btn-hidden {
+    display: none;
+}
+
+/* ============================================
+   DEVICE SELECTOR COMPONENT
+   ============================================ */
+
+.device-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    min-height: 180px;
+}
+
+.device-card h5 {
+    color: #212529 !important;
+    font-weight: 600;
+}
+
+.device-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.device-card:active {
+    transform: translateY(-2px);
+}
+
+.device-card.active {
+    border: 3px solid #28a745;
+    box-shadow: 0 0 15px rgba(40, 167, 69, 0.3);
+}
+
+.device-card.active .device-icon {
+    color: #28a745 !important;
+}
+
+/* ============================================
+   SYSTEM MENU COMPONENT
+   ============================================ */
+
+.system-action-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    min-height: 180px;
+}
+
+.system-action-card:hover:not([style*="opacity: 0.5"]) {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.system-action-card:active:not([style*="opacity: 0.5"]) {
+    transform: translateY(-2px);
+}

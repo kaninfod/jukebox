@@ -1,0 +1,72 @@
+/**
+ * Kiosk Player Status Component
+ * Displays current track information, album art, and volume
+ */
+
+(function() {
+    // Expose initPlayerStatus globally so kiosk loader can call it
+    window.initPlayerStatus = async function() {
+        // Fetch initial state from API
+        try {
+            const response = await fetch('/api/mediaplayer/current_track');
+            if (response.ok) {
+                const data = await response.json();
+                updateKioskTrackInfo(data);
+            }
+        } catch (error) {
+            console.error('Error fetching initial player status:', error);
+        }
+    };
+    
+    function updateKioskTrackInfo(data) {
+        const kioskInfoDiv = document.getElementById('kiosk-track-info');
+        const kioskThumbDiv = document.getElementById('kiosk-track-thumb');
+        const deviceDiv = document.getElementById('current-device');
+        const volumeFill = document.getElementById('kiosk-volume-fill');
+        const volumeText = document.getElementById('kiosk-volume-text');
+        
+        // Exit early if player status component is not currently loaded
+        if (!kioskInfoDiv || !kioskThumbDiv) {
+            return;
+        }
+        
+        // Update Chromecast device name
+        if (data.chromecast_device && deviceDiv) {
+            deviceDiv.textContent = data.chromecast_device;
+        }
+        
+        // Update volume bar
+        if (data.volume !== undefined && volumeFill && volumeText) {
+            const volume = parseInt(data.volume) || 0;
+            volumeFill.style.height = volume + '%';
+            volumeText.textContent = volume + '%';
+        }
+        
+        if (data.current_track) {
+            kioskInfoDiv.innerHTML = `
+                <div class="kiosk-status">
+                    <span><i class="mdi mdi-music-note"></i> Track ${data.current_track.track_number} of ${data.playlist.length}</span>
+                </div>
+                <div class="kiosk-artist">${data.current_track.artist}</div>
+                <div class="kiosk-title">${data.current_track.title}</div>
+                <div class="kiosk-album">${data.current_track.album} (${data.current_track.year})</div>
+            `;
+            let thumbUrl = data.current_track.thumb;
+            if (thumbUrl) {
+                kioskThumbDiv.innerHTML = `<img src="${thumbUrl}" alt="Album Cover" />`;
+            } else {
+                kioskThumbDiv.innerHTML = '<div class="kiosk-no-cover"><i class="mdi mdi-music"></i></div>';
+            }
+        } else {
+            kioskInfoDiv.innerHTML = '<div class="kiosk-no-track">' + (data.message || 'No track loaded') + '</div>';
+            kioskThumbDiv.innerHTML = '<div class="kiosk-no-cover"><i class="mdi mdi-music"></i></div>';
+        }
+    }
+    
+    // Auto-initialize when component loads
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', window.initPlayerStatus);
+    } else {
+        window.initPlayerStatus();
+    }
+})();

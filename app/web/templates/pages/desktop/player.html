@@ -1,11 +1,20 @@
-{% extends "_base.html" %}
+{% extends "layouts/desktop_base.html" %}
 
 {% block title %}Jukeplayer — Player{% endblock %}
 
 {% block head_extra %}
 <style>
-    /* Minimal page-specific tweaks only */
+    /* Desktop player styles */
     .playlist-title { margin-bottom: .5rem; }
+    .btn-media-control {
+        width: 60px;
+        height: 60px;
+        font-size: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+    }
 </style>
 {% endblock %}
 
@@ -32,12 +41,24 @@
     </div>
 
     <div class="controls d-flex justify-content-center gap-3 my-4">
-        <button class="btn btn-primary" onclick="control('previous_track')">Prev</button>
-        <button class="btn btn-primary" onclick="control('play_pause')">Play/Pause</button>
-        <button class="btn btn-primary" onclick="control('next_track')">Next</button>
-        <button class="btn btn-primary" onclick="control('stop')">Stop</button>
-        <button class="btn btn-primary" onclick="control('volume_down')">Vol -</button>
-        <button class="btn btn-primary" onclick="control('volume_up')">Vol +</button>
+        <button class="btn btn-primary btn-media-control" onclick="control('previous_track')" title="Previous Track">
+            <i class="mdi mdi-skip-previous"></i>
+        </button>
+        <button class="btn btn-primary btn-media-control" onclick="control('play_pause')" title="Play/Pause">
+            <i class="mdi mdi-play-circle-outline"></i>
+        </button>
+        <button class="btn btn-primary btn-media-control" onclick="control('next_track')" title="Next Track">
+            <i class="mdi mdi-skip-next"></i>
+        </button>
+        <button class="btn btn-primary btn-media-control" onclick="control('stop')" title="Stop">
+            <i class="mdi mdi-pause-circle-outline"></i>
+        </button>
+        <button class="btn btn-primary btn-media-control" onclick="control('volume_down')" title="Volume Down">
+            <i class="mdi mdi-volume-medium"></i>
+        </button>
+        <button class="btn btn-primary btn-media-control" onclick="control('volume_up')" title="Volume Up">
+            <i class="mdi mdi-volume-high"></i>
+        </button>
     </div>
 {% endblock %}
 
@@ -50,8 +71,13 @@
         if (data.status === 'ping') {
             return;
         }
+        updateTrackInfo(data);
+    };
+
+    function updateTrackInfo(data) {
         const infoDiv = document.getElementById('track-info');
         const thumbDiv = document.getElementById('track-thumb');
+        
         if (data.current_track) {
             infoDiv.innerHTML = `
                 <strong>${data.current_track.artist}</strong><br>
@@ -92,7 +118,7 @@
         } else {
             playlistDiv.innerHTML = '<div class="list-group-item text-center text-muted">No playlist loaded</div>';
         }
-    };
+    }
 
     function formatDuration(seconds) {
         if (!seconds || isNaN(seconds)) return '';

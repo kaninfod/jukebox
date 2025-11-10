@@ -7,9 +7,7 @@
         </button>
         <div class="collapse navbar-collapse" id="mainNav">
             <ul class="navbar-nav ms-auto align-items-center">
-                <li class="nav-item">
-                    <a class="nav-link {% if active_page == 'library' %}active{% endif %}" href="/library/artists">Music Library</a>
-                </li>
+
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="deviceDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         <span id="deviceLabel">Devices</span>
@@ -17,7 +15,11 @@
                     <ul class="dropdown-menu dropdown-menu-end" id="deviceList" aria-labelledby="deviceDropdown">
                         <li><span class="dropdown-item-text text-muted small">Loading devices...</span></li>
                     </ul>
-                </li>                
+                </li>  
+                <li class="nav-item">
+                    <a class="nav-link {% if active_page == 'library' %}active{% endif %}" href="/library/artists">Music Library</a>
+                </li>
+              
                 <li class="nav-item">
                     <a class="nav-link {% if active_page == 'albums' %}active{% endif %}" href="/albums">Albums</a>
                 </li>

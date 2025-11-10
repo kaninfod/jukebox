@@ -21,13 +21,13 @@
     </style>
 </head>
 <body>
-    {% from '_navbar.html' import navbar %}
+    {% from 'components/desktop/_navbar.html' import navbar %}
     {{ navbar('encoding') }}
     <div class="status-container">
         <div class="status-title">NFC Encoding Session Status</div>
-    <div id="encodingStatus" class="status-inactive">Loading...</div>
-    <div id="successMessage" class="status-message success" style="display:none;">✅ Card encoded successfully!</div>
-    <button id="stopBtn" class="btn" style="display:none;">Stop Encoding Session</button>
+        <div id="encodingStatus" class="status-inactive">Loading...</div>
+        <div id="successMessage" class="status-message success" style="display:none;">✅ Card encoded successfully!</div>
+        <button id="stopBtn" class="btn" style="display:none;">Stop Encoding Session</button>
     </div>
     <script>
         let polling = true;

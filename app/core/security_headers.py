@@ -83,7 +83,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "default-src 'self' data:; "
             f"img-src {' '.join(img_sources)}; "
             f"style-src {' '.join(style_sources)}; "
-            f"script-src {' '.join(script_sources)}"
+            f"script-src {' '.join(script_sources)}; "
+            "font-src 'self' data:"
         )
 
         response.headers.setdefault("content-security-policy", csp)

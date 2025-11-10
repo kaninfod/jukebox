@@ -1,0 +1,23 @@
+<!-- Kiosk Player Status Component -->
+<!-- Album art + track info in 2-column layout with volume bar -->
+<div class="kiosk-player-status d-flex flex-row align-items-center justify-content-center gap-4 p-4">
+    <div id="kiosk-track-thumb" class="kiosk-album-art flex-shrink-0">
+        <div class="kiosk-no-cover">
+            <i class="mdi mdi-music"></i>
+        </div>
+    </div>
+    <div id="kiosk-track-info" class="kiosk-track-details flex-grow-1">
+        <div class="kiosk-no-track">Loading...</div>
+    </div>
+    
+    <!-- Volume bar on the right -->
+    <div class="kiosk-volume-bar">
+        <div class="kiosk-volume-bar-track">
+            <div id="kiosk-volume-fill" class="kiosk-volume-bar-fill" style="height: 0%;"></div>
+            <div class="kiosk-volume-bar-icon">
+                <i class="mdi mdi-volume-high" style="font-size: 20px;"></i>
+            </div>
+            <div id="kiosk-volume-text" class="kiosk-volume-bar-text">0%</div>
+        </div>
+    </div>
+</div>
