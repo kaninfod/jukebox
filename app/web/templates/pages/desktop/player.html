@@ -65,7 +65,7 @@
 {% block scripts %}
 <script>
     // WebSocket for live track info
-    const ws = new WebSocket(`wss://${window.location.host}/ws/mediaplayer/current_track`);
+    const ws = new WebSocket(`wss://${window.location.host}/ws/mediaplayer/status`);
     ws.onmessage = function(event) {
         const data = JSON.parse(event.data);
         if (data.status === 'ping') {
@@ -128,7 +128,7 @@
     }
 
     function control(action) {
-        fetch(`/api/mediaplayer/${action}`, { method: 'POST' })
+        apiFetch(`/api/mediaplayer/${action}`, { method: 'POST' })
             .then(response => response.json())
             .then(data => {
                 // Optionally show feedback

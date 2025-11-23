@@ -123,21 +123,21 @@ def startup_event():
         return
     # Step 1: Setup service container
     global_container = setup_service_container()
-    # Step 2: Resolve all main services
+    # Step 2: Resolve all main services (hardware_manager auto-initializes in factory)
     playback_service = global_container.get('playback_service')
-    screen_manager = global_container.get('screen_manager')
+    #screen_manager = global_container.get('screen_manager')
     hardware_manager = global_container.get('hardware_manager')
     subsonic_service = global_container.get('subsonic_service')
     # Step 3: Update hardware manager with references (cross-dependencies)
-    hardware_manager.screen_manager = screen_manager
+    #hardware_manager.screen_manager = screen_manager
     hardware_manager.playback_service = playback_service
     # Step 4: Initialize DynamicLoader for menu system
     from app.ui.menu.dynamic_loader import initialize_dynamic_loader
     initialize_dynamic_loader(subsonic_service)
     logging.info("✅ DynamicLoader initialized for menu system")
     # Step 5: Start the system
-    from app.ui.screens import IdleScreen
-    IdleScreen.show()
+    #from app.ui.screens import IdleScreen
+    #IdleScreen.show()
 
     import getpass, os
     logger.info(f"Running as user: {getpass.getuser()}")
@@ -158,9 +158,10 @@ def shutdown_event():
         except Exception:
             pass
         try:
-            screen_manager = global_container.get('screen_manager')
-            if screen_manager:
-                screen_manager.cleanup()
+            pass
+            #screen_manager = global_container.get('screen_manager')
+            #if screen_manager:
+            #    screen_manager.cleanup()
         except Exception:
             pass
     logging.info("Jukebox FastAPI app shutdown complete")

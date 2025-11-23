@@ -178,67 +178,101 @@ def play_album_from_albumid(albumid: str):
         }
 
 # Endpoint to get all info on the current track from JukeboxMediaPlayer
-@router.get("/api/mediaplayer/current_track")
+@router.get("/api/mediaplayer/status")
 def get_current_track_info():
-    """Get all info on the current track from JukeboxMediaPlayer."""
+    """Get all info on the current track from JukeboxMediaPlayer.
+
+    Kept function name for backwards compatibility; endpoint moved to
+    /api/mediaplayer/status.
+    """
     try:
         return _get_data_for_current_track()
-        
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 # Dedicated WebSocket route for current track updates (event-driven)
-@router.websocket("/ws/mediaplayer/current_track")
-async def websocket_current_track(websocket: WebSocket):
+@router.websocket("/ws/mediaplayer/status")
+async def websocket_status(websocket: WebSocket):
+    """Multipurpose websocket for publishing typed status messages.
+
+    This handler wires per-connection asyncio queue and registers
+    event-bus handlers created by `_make_ws_handlers` below. Handlers
+    are kept small and pluggable so new event types can be added
+    without changing the connection scaffolding.
+    """
     await websocket.accept()
-    import asyncio
     from app.core import event_bus, EventType
     from app.core.service_container import get_service
 
     q = asyncio.Queue()
     loop = asyncio.get_event_loop()
-    handler_active = True
+    handler_active = {"active": True}
 
-    def handler(event):
-        # Called in event bus thread (may be non-async)
-        try:
-            data = _get_data_for_current_track()
-            
-            if handler_active:
-                asyncio.run_coroutine_threadsafe(q.put(data), loop)
-        except Exception as e:
-            if handler_active:
-                asyncio.run_coroutine_threadsafe(q.put({"status": "error", "message": str(e)}), loop)
+    # Create per-connection handlers for events we care about.
+    handlers = _make_ws_handlers(q, loop, handler_active)
 
-    # Subscribe handler to TRACK_CHANGED
-    event_bus.subscribe(EventType.TRACK_CHANGED, handler)
-    event_bus.subscribe(EventType.VOLUME_CHANGED, handler)
+    # Subscribe all handlers
+    for evt_type, h in handlers.items():
+        event_bus.subscribe(evt_type, h)
 
     try:
-        # Send initial state
-        handler(None)
+        # Send an initial state by invoking the track handler if present
+        if EventType.TRACK_CHANGED in handlers:
+            handlers[EventType.TRACK_CHANGED](None)
+
         while True:
             try:
-                # Wait for new data from event handler (with timeout for ping)
-                data = await asyncio.wait_for(q.get(), timeout=60)
-                await websocket.send_json(data)
+                message = await asyncio.wait_for(q.get(), timeout=60)
+                await websocket.send_json(message)
             except asyncio.TimeoutError:
                 # Keep connection alive (ping)
-                await websocket.send_json({"status": "ping"})
+                await websocket.send_json({"type": "ping", "payload": {}})
     except WebSocketDisconnect:
         pass
     finally:
-        # Unsubscribe handler (cleanup)
-        handler_active = False
-        try:
-            event_bus._handlers[EventType.TRACK_CHANGED].remove(handler)
-        except Exception:
-            pass
-        try:
-            event_bus._handlers[EventType.VOLUME_CHANGED].remove(handler)
-        except Exception:
-            pass
+        # Unsubscribe and cleanup
+        handler_active["active"] = False
+        for evt_type, h in handlers.items():
+            try:
+                event_bus._handlers[evt_type].remove(h)
+            except Exception:
+                pass
 
+def _make_ws_handlers(q: "asyncio.Queue", loop, handler_active: dict):
+    """Factory for per-connection websocket handlers.
+
+    Returns a mapping of EventType -> callable(event).
+    Handlers will schedule messages onto the provided queue.
+    """
+    import asyncio
+    from app.core import EventType
+
+    def _push_message(message):
+        if handler_active.get("active"):
+            asyncio.run_coroutine_threadsafe(q.put(message), loop)
+
+    def track_handler(event):
+        try:
+            payload = _get_data_for_current_track()
+            message = {"type": "current_track", "payload": payload}
+            _push_message(message)
+        except Exception as e:
+            _push_message({"type": "error", "payload": {"message": str(e)}})
+
+    def volume_handler(event):
+        try:
+            # For volume changes we send the full status payload so clients
+            # have a consistent view. Could be optimized to send only delta.
+            payload = _get_data_for_current_track()
+            message = {"type": "volume_changed", "payload": payload}
+            _push_message(message)
+        except Exception as e:
+            _push_message({"type": "error", "payload": {"message": str(e)}})
+
+    return {
+        EventType.TRACK_CHANGED: track_handler,
+        EventType.VOLUME_CHANGED: volume_handler,
+    }
 
 def _get_data_for_current_track():
     from app.core.service_container import get_service
@@ -264,4 +298,3 @@ def _get_data_for_current_track():
         }
     else:
         return {"status": "error", "message": "No track loaded"}
-

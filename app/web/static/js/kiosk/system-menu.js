@@ -94,10 +94,16 @@
         `;
     }
     
-    // Auto-initialize when component loads
+    // Auto-initialize when component loads (only if required DOM elements exist)
+    function safeInit() {
+        if (document.getElementById('system-status')) {
+            window.initSystemMenu();
+        }
+    }
+    
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', window.initSystemMenu);
+        document.addEventListener('DOMContentLoaded', safeInit);
     } else {
-        window.initSystemMenu();
+        safeInit();
     }
 })();

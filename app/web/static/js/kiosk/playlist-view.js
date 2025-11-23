@@ -10,7 +10,7 @@
     window.initPlaylistView = async function() {
         // Fetch initial state from API
         try {
-            const response = await fetch('/api/mediaplayer/current_track');
+            const response = await fetch('/api/mediaplayer/status');
             if (response.ok) {
                 const data = await response.json();
                 updatePlaylistView(data);
@@ -21,14 +21,24 @@
         
         // Connect to WebSocket for live updates
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        playlistWs = new WebSocket(`${wsProtocol}//${window.location.host}/ws/mediaplayer/current_track`);
-        
+        playlistWs = new WebSocket(`${wsProtocol}//${window.location.host}/ws/mediaplayer/status`);
+
         playlistWs.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            if (data.status === 'ping') {
-                return;
+            const msg = JSON.parse(event.data);
+            // Support both new envelope {type, payload} and legacy direct payload
+            if (msg && msg.type) {
+                if (msg.type === 'ping') return;
+                if (msg.type === 'error') {
+                    console.error('Playlist WS error:', msg.payload && msg.payload.message);
+                    document.getElementById('kiosk-playlist-info').textContent = 'Connection error';
+                    return;
+                }
+                const payload = msg.payload || {};
+                updatePlaylistView(payload);
+            } else {
+                if (msg && msg.status === 'ping') return;
+                updatePlaylistView(msg);
             }
-            updatePlaylistView(data);
         };
         
         playlistWs.onerror = function(error) {
@@ -81,11 +91,17 @@
         return `${m}:${s.toString().padStart(2, '0')}`;
     }
     
-    // Auto-initialize when component loads
+    // Auto-initialize when component loads (only if required DOM elements exist)
+    function safeInit() {
+        if (document.getElementById('kiosk-playlist-container')) {
+            window.initPlaylistView();
+        }
+    }
+    
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', window.initPlaylistView);
+        document.addEventListener('DOMContentLoaded', safeInit);
     } else {
-        window.initPlaylistView();
+        safeInit();
     }
     
     // Clean up WebSocket on page unload

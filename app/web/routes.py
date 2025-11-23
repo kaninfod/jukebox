@@ -1,6 +1,4 @@
-
-
-from fastapi import APIRouter, Request, Form
+from fastapi import APIRouter, Request, Form, Query, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from app.config import config
@@ -27,18 +25,20 @@ async def status_page(request: Request, kiosk: bool = False):
     if kiosk:
         return templates.TemplateResponse("pages/kiosk/player.html", {
             "request": request,
-            "kiosk_mode": True
+            "kiosk_mode": True,
+            "config": config
         })
     else:
         return templates.TemplateResponse("pages/desktop/player.html", {
             "request": request,
-            "kiosk_mode": False
+            "kiosk_mode": False,
+            "config": config
         })
 
 # /nfc: NFC encoding status page (was /nfc-encoding/status-page)
 @router.get("/nfc", response_class=HTMLResponse)
 async def nfc_status(request: Request):
-    return templates.TemplateResponse("nfc_encoding_status.html", {"request": request})
+    return templates.TemplateResponse("nfc_encoding_status.html", {"request": request, "config": config})
 
 # /albums: Local Jukebox album catalog (was /jukebox/albums)
 @router.get("/albums", response_class=HTMLResponse)
@@ -90,7 +90,7 @@ async def albums(request: Request):
 
     return templates.TemplateResponse(
         "albums.html",
-        {"request": request, "albums": enriched}
+        {"request": request, "albums": enriched, "config": config}
     )
 
 # /library: Subsonic browsing entry (redirect to /library/artists)
@@ -109,7 +109,7 @@ async def library_artists(request: Request):
         )
         resp.raise_for_status()
         artists = resp.json()
-    return templates.TemplateResponse("subsonic_artists.html", {"request": request, "artists": artists})
+    return templates.TemplateResponse("subsonic_artists.html", {"request": request, "artists": artists, "config": config})
 
 # /library/artists/{artist_id}: Albums for artist (was /subsonic/albums/{artist_id})
 @router.get("/library/artists/{artist_id}", response_class=HTMLResponse)
@@ -122,7 +122,7 @@ async def library_artist_albums(request: Request, artist_id: str, artist_name: s
         )
         resp.raise_for_status()
         albums = resp.json()
-    return templates.TemplateResponse("subsonic_albums.html", {"request": request, "albums": albums, "artist_id": artist_id, "artist_name": artist_name})
+    return templates.TemplateResponse("subsonic_albums.html", {"request": request, "albums": albums, "artist_id": artist_id, "artist_name": artist_name, "config": config})
 
 # /library/albums/{album_id}: Songs for album (was /subsonic/album/{album_id})
 @router.get("/library/albums/{album_id}", response_class=HTMLResponse)
@@ -135,7 +135,7 @@ async def library_album_songs(request: Request, album_id: str, artist_id: str = 
         )
         resp.raise_for_status()
         songs = resp.json()
-    return templates.TemplateResponse("subsonic_album_songs.html", {"request": request, "songs": songs, "album_id": album_id, "artist_id": artist_id, "artist_name": artist_name, "album_name": album_name})
+    return templates.TemplateResponse("subsonic_album_songs.html", {"request": request, "songs": songs, "album_id": album_id, "artist_id": artist_id, "artist_name": artist_name, "album_name": album_name, "config": config})
 
 # Back-compat redirects from old paths to unified ones
 
@@ -206,8 +206,8 @@ async def update_audioPlaylistId(rfid: str = Form(...), audioPlaylistId: str = F
 
 
 # Kiosk API: Dynamic component loading
-@router.get("/api/kiosk/component/{component_name}", response_class=HTMLResponse)
-async def get_kiosk_component(component_name: str, request: Request):
+@router.get("/kiosk/html/component", response_class=HTMLResponse)
+async def get_kiosk_component(request: Request, component_name: str = Query(...)):
     """
     Returns HTML for a specific kiosk component.
     Used for dynamic content loading in kiosk mode.
@@ -219,11 +219,115 @@ async def get_kiosk_component(component_name: str, request: Request):
         'devices': 'components/kiosk/_device_selector.html',
         'system': 'components/kiosk/_system_menu.html',
     }
-    
+
     template_path = component_map.get(component_name)
     if not template_path:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail=f"Component '{component_name}' not found")
-    
-    return templates.TemplateResponse(template_path, {"request": request})
+
+    return templates.TemplateResponse(template_path, {"request": request, "config": config})
+
+@router.get("/kiosk/html/media_library/albums", response_class=HTMLResponse)
+async def kiosk_artist_albums(request: Request, artist_id: str = Query(...), artist_name: str = Query(...)):
+    """
+    Render all album cards for a given artist as HTML using the album partial.
+    """
+    subsonic_service = get_service("subsonic_service")
+    albums = subsonic_service.list_albums_for_artist(artist_id)
+    if not albums:
+        raise HTTPException(status_code=404, detail="No albums found for artist")
+    artist = {"name": artist_name}
+    return templates.TemplateResponse(
+        "components/kiosk/media_library/_albums_container.html",
+        {"request": request, "albums": albums, "artist": artist}
+    )
+
+
+@router.get("/kiosk/html/devices", response_class=HTMLResponse)
+async def kiosk_devices(request: Request):
+    """
+    Render available Chromecast devices as HTML using device partials.
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{LOCAL_API_BASE}/api/chromecast/status",
+            headers=FORWARDED_HEADERS,
+            follow_redirects=True,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    devices = data.get('available_devices', [])
+    active = data.get('active_device')
+
+    return templates.TemplateResponse(
+        "components/kiosk/device_selector/_devices_container.html",
+        {"request": request, "devices": devices, "active_device": active}
+    )
+
+
+@router.get("/kiosk/html/media_library/artists", response_class=HTMLResponse)
+async def kiosk_group_artists(request: Request, group_name: str = Query(...)):
+    """
+    Render all artist cards for a given group as HTML using the artist partial.
+    """
+    subsonic_service = get_service("subsonic_service")
+    all_artists = subsonic_service.list_artists()
+    if not all_artists:
+        raise HTTPException(status_code=404, detail="No artists found")
+
+    # Group ranges mirror the client-side grouping logic
+    group_ranges = {
+        'A-D': ['A', 'E'],
+        'E-H': ['E', 'I'],
+        'I-L': ['I', 'M'],
+        'M-P': ['M', 'Q'],
+        'Q-T': ['Q', 'U'],
+        'U-Z': ['U', '[']
+    }
+    group_range = group_ranges.get(group_name)
+    if not group_range:
+        raise HTTPException(status_code=400, detail="Invalid group name")
+
+    # Filter artists safely (support dict or object shapes)
+    filtered_artists = []
+    for a in all_artists:
+        name = a.get('name') if isinstance(a, dict) else getattr(a, 'name', '')
+        if not name:
+            continue
+        first = name.upper()[0]
+        if first >= group_range[0] and first < group_range[1]:
+            filtered_artists.append(a)
+
+    if not filtered_artists:
+        return HTMLResponse('<div class="text-center text-muted py-5">No artists found</div>')
+
+    return templates.TemplateResponse(
+        "components/kiosk/media_library/_artists_container.html",
+        {"request": request, "artists": filtered_artists}
+    )
+
+
+@router.get("/kiosk/html/playlist", response_class=HTMLResponse)
+async def kiosk_playlist(request: Request):
+    """
+    Render the current playlist as an HTML fragment for kiosk.
+    Calls the internal API `/api/mediaplayer/current_track` which returns
+    the playlist and current_track information.
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{LOCAL_API_BASE}/api/mediaplayer/current_track",
+            headers=FORWARDED_HEADERS,
+            follow_redirects=True,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    playlist = data.get("playlist", [])
+    current = data.get("current_track")
+
+    return templates.TemplateResponse(
+        "components/kiosk/playlist/_playlist_container.html",
+        {"request": request, "playlist": playlist, "current_track": current}
+    )
 

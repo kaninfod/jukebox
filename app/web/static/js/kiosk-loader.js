@@ -17,7 +17,7 @@ class KioskContentLoader {
      */
     async loadContent(componentName) {
         try {
-            const response = await fetch(`/api/kiosk/component/${componentName}`);
+            const response = await fetch(`/kiosk/html/component?component_name=${encodeURIComponent(componentName)}`);
             if (!response.ok) {
                 throw new Error(`Failed to load component: ${response.status}`);
             }
@@ -96,7 +96,9 @@ class KioskContentLoader {
      * Initialize device selector component
      */
     initDeviceSelector() {
-        // TODO: Add device selection functionality
+        if (typeof window.initDeviceSelector === 'function') {
+            window.initDeviceSelector();
+        }
     }
     
     /**
@@ -120,21 +122,10 @@ class KioskContentLoader {
     }
     
     /**
-     * Show error message
+     * Show error message (now uses unified toast)
      */
     showError(message) {
-        if (this.contentArea) {
-            this.contentArea.innerHTML = `
-                <div class="d-flex flex-column align-items-center justify-content-center h-100 text-center p-4">
-                    <i class="mdi mdi-alert-circle" style="font-size: 64px; color: #e74c3c;"></i>
-                    <h3 class="mt-3">Error</h3>
-                    <p class="text-muted">${message}</p>
-                    <button class="btn btn-primary mt-3" onclick="kioskLoader.loadContent('player')">
-                        Return to Player
-                    </button>
-                </div>
-            `;
-        }
+        showKioskToast(message, { theme: 'error', timeout: 5000 });
     }
 }
 

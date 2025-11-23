@@ -30,11 +30,21 @@
         <button id="stopBtn" class="btn" style="display:none;">Stop Encoding Session</button>
     </div>
     <script>
+        // Global API configuration (for standalone page)
+        const API_KEY = "{{ config.API_KEY }}";
+        function apiFetch(url, options = {}) {
+            const headers = options.headers || {};
+            if (API_KEY) {
+                headers['X-API-Key'] = API_KEY;
+            }
+            return fetch(url, { ...options, headers });
+        }
+        
         let polling = true;
         let pollInterval = null;
         async function fetchStatus() {
             if (!polling) return;
-            const resp = await fetch('/api/nfc-encoding/status');
+            const resp = await apiFetch('/api/nfc-encoding/status');
             const data = await resp.json();
             const statusDiv = document.getElementById('encodingStatus');
             const stopBtn = document.getElementById('stopBtn');
@@ -57,7 +67,7 @@
         }
         document.getElementById('stopBtn').onclick = async function() {
             this.disabled = true;
-            await fetch('/api/nfc-encoding/stop', { method: 'POST' });
+            await apiFetch('/api/nfc-encoding/stop', { method: 'POST' });
             await fetchStatus();
         };
         fetchStatus();

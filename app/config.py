@@ -109,6 +109,9 @@ class Config:
     # === API SECURITY ===
     # API key used to protect public API endpoints. If unset, only localhost is allowed by default.
     API_KEY: str = os.getenv("API_KEY", "")
+    # Web UI Basic Auth credentials (optional fallback authentication method)
+    WEB_BASIC_AUTH_USER: str = os.getenv("WEB_BASIC_AUTH_USER", "")
+    WEB_BASIC_AUTH_PASS: str = os.getenv("WEB_BASIC_AUTH_PASS", "")
     # Comma-separated list of allowed CORS origins, e.g. "https://example.com,https://www.example.com"
     CORS_ALLOW_ORIGINS: str = os.getenv("CORS_ALLOW_ORIGINS", "*")
     # Comma-separated list of allowed hosts for Host header, e.g. "example.com,www.example.com"
@@ -136,8 +139,10 @@ class Config:
     DISPLAY_GPIO_RST: int = int(os.getenv("DISPLAY_GPIO_RST", "5"))
     
     # Rotary encoder pins
-    ROTARY_ENCODER_PIN_A: int = int(os.getenv("ROTARY_ENCODER_PIN_A", "27"))
-    ROTARY_ENCODER_PIN_B: int = int(os.getenv("ROTARY_ENCODER_PIN_B", "22"))
+    # Physical wiring: CLK on GPIO 27, DT on GPIO 22
+    # Software pins swapped: PIN_A reads DT, PIN_B reads CLK for correct direction
+    ROTARY_ENCODER_PIN_A: int = int(os.getenv("ROTARY_ENCODER_PIN_A", "22"))  # Read DT
+    ROTARY_ENCODER_PIN_B: int = int(os.getenv("ROTARY_ENCODER_PIN_B", "27"))  # Read CLK
     
     # RFID reader pins
     RFID_CS_PIN: int = int(os.getenv("RFID_CS_PIN", "7"))

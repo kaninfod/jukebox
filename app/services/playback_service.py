@@ -85,22 +85,22 @@ class PlaybackService:
             logger.info(f"Next track: {result}")
         elif event.payload['button'] == 4:
             # Check if menu is currently active - if so, don't handle stop (let MenuController handle back navigation)
-            try:
-                if (self.screen_manager.menu_controller.is_active):
-                    return  # Let MenuController handle the back navigation
-            except Exception:
-                pass  # If we can't check menu state, proceed with stop
+            # try:
+            #     if (self.screen_manager.menu_controller.is_active):
+            #         return  # Let MenuController handle the back navigation
+            # except Exception:
+            #     pass  # If we can't check menu state, proceed with stop
             result = self.player.stop()
             logger.info(f"stop: {result}")
 
     def _handle_rotary_encoder_event(self, event):
         """Handle rotary encoder events for volume control when menu is not active"""
-        # Check if menu is currently active - if so, don't handle volume
-        try:
-            if (self.screen_manager.menu_controller.is_active):
-                return  # Let MenuController handle the event
-        except Exception:
-            pass  # If we can't check menu state, proceed with volume control
+        # # Check if menu is currently active - if so, don't handle volume
+        # try:
+        #     if (self.screen_manager.menu_controller.is_active):
+        #         return  # Let MenuController handle the event
+        # except Exception:
+        #     pass  # If we can't check menu state, proceed with volume control
             
         # Handle volume control
         if event.payload['direction'] == 'CW':

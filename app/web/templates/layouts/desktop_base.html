@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Jukeplayer{% endblock %}</title>
+    <link rel="icon" href="data:,">
     {% include '_global_styles.html' %}
     <link rel="stylesheet" href="/static/css/mdi.css">
     {% block head_extra %}{% endblock %}
@@ -19,6 +20,19 @@
       {% block content %}{% endblock %}
     </main>
 
+    <script>
+      // Global API configuration
+      const API_KEY = "{{ config.API_KEY }}";
+      
+      // Helper function for authenticated API calls
+      function apiFetch(url, options = {}) {
+        const headers = options.headers || {};
+        if (API_KEY) {
+          headers['X-API-Key'] = API_KEY;
+        }
+        return fetch(url, { ...options, headers });
+      }
+    </script>
     {% block scripts %}{% endblock %}
   </body>
 </html>

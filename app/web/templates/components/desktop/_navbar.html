@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     async function loadDevices() {
         try {
-            const response = await fetch('/api/chromecast/status');
+            const response = await apiFetch('/api/chromecast/status');
             if (!response.ok) {
                 console.error('Failed to load devices');
                 deviceList.innerHTML = '<li><span class="dropdown-item-text text-danger small">Failed to load devices</span></li>';
@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         try {
-            const response = await fetch(`/api/chromecast/switch?device_name=${encodeURIComponent(deviceName)}`, {
+            const response = await apiFetch(`/api/chromecast/switch?device_name=${encodeURIComponent(deviceName)}`, {
                 method: 'POST'
             });
 

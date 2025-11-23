@@ -2,9 +2,7 @@
 Hardware management module for the jukebox.
 Handles initialization and callbacks for all hardware devices.
 """
-import RPi.GPIO as GPIO
-
-from .devices.ili9488 import ILI9488
+#from .devices.ili9488 import ILI9488
 #from .devices.rfid import RC522Reader
 from .devices.pushbutton import PushButton
 from .devices.rotaryencoder import RotaryEncoder
@@ -27,12 +25,13 @@ class HardwareManager:
         # Inject dependencies - no more direct imports needed
         self.config = config
         self.event_bus = event_bus
-        self.screen_manager = screen_manager
+        #self.screen_manager = screen_manager
         self.playback_service = None
         
         # Hardware device instances
         self.display = None
         self.rfid_reader = None
+        self.rfid_switch = None
         self.encoder = None
         self.button0 = None
         self.button1 = None
@@ -52,25 +51,25 @@ class HardwareManager:
         
         try:
             # Initialize display
-            self.display = ILI9488()
+            
+            from .devices.mock_display import MockDisplay
+            #return MockDisplay()
+            self.display = MockDisplay()
+
 
             from .devices.pn532_rfid import PN532Reader
-            self.rfid_reader_class = PN532Reader
+            self.rfid_reader = PN532Reader
 
-            # Set up switch pin for RFID using RPi.GPIO for edge detection
-            import RPi.GPIO as GPIO
-            self.rfid_switch_pin = self.config.NFC_CARD_SWITCH_GPIO
-            GPIO.setwarnings(False)
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setup(self.rfid_switch_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            GPIO.add_event_detect(
-                self.rfid_switch_pin,
-                GPIO.FALLING,
-                callback=self._on_rfid_switch_activated,
-                bouncetime=200
+            # Set up RFID microswitch using CircuitPython PushButton
+            # Card insertion triggers press_callback immediately (not on release)
+            self.rfid_switch = PushButton(
+                pin=self.config.NFC_CARD_SWITCH_GPIO,
+                press_callback=self._on_rfid_switch_activated,  # Fire on press, not release
+                bouncetime=200,
+                pull_up_down=True  # Enable internal pull-up resistor
             )
 
-            # Initialize rotary encoder with callback using injected config (using lgpio)
+            # Initialize rotary encoder with callback using CircuitPython keypad
             self.encoder = RotaryEncoder(
                 pin_a=self.config.ROTARY_ENCODER_PIN_A,
                 pin_b=self.config.ROTARY_ENCODER_PIN_B,
@@ -96,20 +95,14 @@ class HardwareManager:
             
         except Exception as e:
             logger.error(f"❌ Hardware initialization failed: {e}")
-            logger.info("🖥️  Falling back to headless mode")
-            from .devices.mock_display import MockDisplay
-            return MockDisplay()
+            # logger.info("🖥️  Falling back to headless mode")
+            # from .devices.mock_display import MockDisplay
+            # return MockDisplay()
 
 
-    def _on_rfid_switch_activated(self, channel):
-        """Handle switch activation (card inserted) for RFID. Triggered by RPi.GPIO event detection."""
-        logger.info(f"RFID switch callback fired: channel={channel}")
-        # Only proceed if the pin is actually LOW (FALLING edge)
-        import RPi.GPIO as GPIO
-        if GPIO.input(channel) != 0:
-            logger.debug("RFID switch callback blocked: pin not LOW.")
-            return
-
+    def _on_rfid_switch_activated(self):
+        """Handle switch activation (card inserted) for RFID. Triggered by CircuitPython keypad event."""
+        logger.info("🃏 RFID switch activated - card detected")
         
         from app.core.service_container import get_service
         playback_service = get_service("playback_service")
@@ -126,7 +119,7 @@ class HardwareManager:
             if nfc_encoding_session.active:
                 album_id = nfc_encoding_session.album_id
                 data = {"album_id": album_id}
-                reader = self.rfid_reader_class()
+                reader = self.rfid_reader()
                 result = reader.write_data(data, result_callback=self._rfid_write_callback)
                 logger.info("PN532Reader.write_data returned (one-shot)")
 
@@ -150,7 +143,7 @@ class HardwareManager:
             logger.info("Triggering PN532 read due to switch activation")
             try:
                 logger.info("About to instantiate and call PN532Reader.start_reading...")
-                reader = self.rfid_reader_class()
+                reader = self.rfid_reader()
                 # Use lambda to pass encoding_mode and playback_service
                 reader.start_reading(result_callback= self._rfid_read_callback)
                 logger.info("PN532Reader.start_reading returned (one-shot)")
@@ -271,13 +264,18 @@ class HardwareManager:
         ))
 
     def _on_rotate(self, direction, position):
-        """Handle rotary encoder rotation"""
+        """
+        Handle rotary encoder rotation.
+        direction=1 means CW (position increased), direction=-1 means CCW (position decreased)
+        """
         if direction > 0:
+            # Clockwise rotation (turning right = volume up)
             self.event_bus.emit(Event(
                 type=EventType.ROTARY_ENCODER,
                 payload={"direction": "CW"}
             ))
         else:
+            # Counter-clockwise rotation (turning left = volume down)
             self.event_bus.emit(Event(
                 type=EventType.ROTARY_ENCODER,
                 payload={"direction": "CCW"}
@@ -292,9 +290,12 @@ class HardwareManager:
                 self.rfid_reader.stop()
             except Exception as e:
                 logger.error(f"RFID cleanup error: {e}")
-        # Remove RFID switch event detection
-        # RFID switch cleanup handled in rfid module (rpi.gpio)
-        # No lgpio cleanup needed for RFID switch
+        # Clean up RFID switch (CircuitPython PushButton)
+        if self.rfid_switch:
+            try:
+                self.rfid_switch.cleanup()
+            except Exception as e:
+                logger.error(f"RFID switch cleanup error: {e}")
                 
         if self.encoder:
             try:

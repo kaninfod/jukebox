@@ -1,9 +1,9 @@
 import threading
 import time
 import logging
-from digitalio import DigitalInOut
-import board
-import busio
+#from digitalio import DigitalInOut
+#import board
+#import busio
 from adafruit_pn532.i2c import PN532_I2C
 
 logger = logging.getLogger(__name__)

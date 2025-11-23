@@ -56,14 +56,16 @@ def create_hardware_manager(container):
     from app.hardware import HardwareManager
     config = container.get('config')
     event_bus = container.get('event_bus')
-    return HardwareManager(config, event_bus)
+    hardware_manager = HardwareManager(config, event_bus)
+    hardware_manager.initialize_hardware()
+    return hardware_manager
 
-def create_screen_manager(container):
-    from app.ui import ScreenManager
-    hardware_manager = container.get('hardware_manager')
-    event_bus = container.get('event_bus')
-    display = hardware_manager.initialize_hardware()
-    return ScreenManager(display, event_bus)
+# def create_screen_manager(container):
+#     from app.ui import ScreenManager
+#     hardware_manager = container.get('hardware_manager')
+#     event_bus = container.get('event_bus')
+#     display = hardware_manager.initialize_hardware()
+#     return ScreenManager(display, event_bus)
 
 def create_media_player_service(container):
     from app.services.media_player_service import MediaPlayerService
@@ -73,7 +75,7 @@ def create_media_player_service(container):
 def create_playback_service(container):
     from app.services.playback_service import PlaybackService
     return PlaybackService(
-        screen_manager=container.get('screen_manager'),
+        screen_manager=None,
         player=container.get('media_player_service'),
         album_db=container.get('album_database'),
         subsonic_service=container.get('subsonic_service'),
@@ -94,7 +96,7 @@ def setup_service_container():
     container.register_singleton('subsonic_service', create_subsonic_service)
     # Register hardware/UI services as singletons
     container.register_singleton('hardware_manager', create_hardware_manager)
-    container.register_singleton('screen_manager', create_screen_manager)
+    #container.register_singleton('screen_manager', create_screen_manager)
     container.register_singleton('media_player_service', create_media_player_service)
     container.register_singleton('playback_service', create_playback_service)
     # Legacy alias for backward compatibility during refactoring

@@ -6,17 +6,18 @@
  * 
  * Fixed Height Layout (720px total):
  * ┌─────────────────────────┐
- * │  Status Bar (50px)      │ <- Breadcrumb + Device Selector
- * ├───┬─────────────────────┤
- * │   │                     │
- * │ N │  Main Content       │ <- Album Art + Track Info (570px)
- * │ a │  (570px)            │
- * │ v │                     │
- * │   │                     │
- * ├───┴─────────────────────┤
+ * │  Status Bar (62px)      │ <- Breadcrumb + Device Selector (+25%)
+ * ├────┬────────────────────┤
+ * │    │                    │
+ * │ N  │  Main Content      │ <- Album Art + Track Info (558px)
+ * │ a  │  (558px)           │
+ * │ v  │                    │
+ * │(90)│                    │
+ * ├────┴────────────────────┤
  * │  Controls (100px)       │ <- Media Buttons
  * └─────────────────────────┘
- * Total: 50 + 570 + 100 = 720px
+ * Total: 62 + 558 + 100 = 720px
+ * Nav width: 90px (+50% for better touch)
  */
 
 /* ============================================
@@ -71,20 +72,20 @@ body.kiosk-layout {
 }
 
 /* ============================================
-   STATUS BAR (Top - 50px)
+   STATUS BAR (Top - 62px, increased by 25% for better touch targets)
    ============================================ */
 
 body.kiosk-layout .kiosk-status-bar,
 .kiosk-layout .kiosk-status-bar {
-    height: 50px !important;
-    max-height: 50px !important;
-    min-height: 50px !important;
+    height: 62px !important;
+    max-height: 62px !important;
+    min-height: 62px !important;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     display: flex !important;
     justify-content: space-between !important;
     align-items: center;
-    padding: 0 16px;
+    padding: 0 20px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     flex-shrink: 0 !important;
     flex: none !important;
@@ -93,8 +94,8 @@ body.kiosk-layout .kiosk-status-bar,
 .kiosk-breadcrumb {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 18px;
+    gap: 10px;
+    font-size: 20px;
     font-weight: 600;
     transition: opacity 0.2s;
     cursor: pointer;
@@ -105,19 +106,19 @@ body.kiosk-layout .kiosk-status-bar,
 }
 
 .kiosk-breadcrumb i {
-    font-size: 24px;
+    font-size: 28px;
 }
 
 .kiosk-device-selector {
     background: rgba(255,255,255,0.2);
     border: 1px solid rgba(255,255,255,0.3);
     color: white;
-    padding: 8px 16px;
-    border-radius: 20px;
+    padding: 10px 20px;
+    border-radius: 24px;
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 14px;
+    gap: 10px;
+    font-size: 16px;
     cursor: pointer;
     transition: all 0.2s;
 }
@@ -127,19 +128,19 @@ body.kiosk-layout .kiosk-status-bar,
 }
 
 .kiosk-device-selector i {
-    font-size: 18px;
+    font-size: 22px;
 }
 
 /* ============================================
    MAIN CONTENT AREA (Between status bar and controls)
-   570px = 720px - 50px (status) - 100px (controls)
+   558px = 720px - 62px (status) - 100px (controls)
    ============================================ */
 
 body.kiosk-layout .kiosk-main-content,
 .kiosk-layout .kiosk-main-content {
-    height: 570px !important;
-    max-height: 570px !important;
-    min-height: 570px !important;
+    height: 558px !important;
+    max-height: 558px !important;
+    min-height: 558px !important;
     display: flex !important;
     overflow: hidden !important;
     background: #f5f5f7;
@@ -147,16 +148,16 @@ body.kiosk-layout .kiosk-main-content,
 }
 
 /* ============================================
-   NAVIGATION SIDEBAR (Left - 60px)
+   NAVIGATION SIDEBAR (Left - 90px, increased by 50% for better touch targets)
    ============================================ */
 
 .kiosk-nav-sidebar {
-    width: 60px;
+    width: 90px;
     background: #2c3e50;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 16px 6px;
+    gap: 16px;
+    padding: 20px 8px;
     box-shadow: 2px 0 8px rgba(0,0,0,0.1);
     flex-shrink: 0;
 }
@@ -165,16 +166,16 @@ body.kiosk-layout .kiosk-main-content,
     background: rgba(255,255,255,0.1);
     border: none;
     color: white;
-    padding: 16px;
-    border-radius: 12px;
+    padding: 20px;
+    border-radius: 16px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s;
-    width: 48px;
-    height: 48px;
+    width: 74px;
+    height: 74px;
 }
 
 .kiosk-nav-btn:hover,
@@ -184,7 +185,7 @@ body.kiosk-layout .kiosk-main-content,
 }
 
 .kiosk-nav-btn i {
-    font-size: 32px;
+    font-size: 42px;
 }
 
 /* ============================================
@@ -460,7 +461,8 @@ body.kiosk-layout .kiosk-controls,
 
 .device-card {
     transition: transform 0.2s, box-shadow 0.2s;
-    min-height: 180px;
+    min-height: 220px; /* slightly larger for better touch targets */
+    cursor: pointer;
 }
 
 .device-card h5 {
@@ -486,6 +488,19 @@ body.kiosk-layout .kiosk-controls,
     color: #28a745 !important;
 }
 
+/* device icon sizing controlled here instead of inline style */
+.device-card .device-icon {
+    font-size: 48px;
+}
+
+/* Ensure the inner device row spans the full kiosk grid wrapper so
+   the Bootstrap row/cols can control item widths (prevents being
+   constrained to a single grid cell). */
+.device-grid-inner {
+    grid-column: 1 / -1;
+    width: 100%;
+}
+
 /* ============================================
    SYSTEM MENU COMPONENT
    ============================================ */
@@ -502,4 +517,142 @@ body.kiosk-layout .kiosk-controls,
 
 .system-action-card:active:not([style*="opacity: 0.5"]) {
     transform: translateY(-2px);
+}
+
+/* ============================================
+   MEDIA LIBRARY COMPONENT - CARD LAYOUTS
+   ============================================ */
+
+/* Container for library cards with scrolling */
+.library-cards-container {
+    max-height: 100%;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+/* Custom gap for library cards - 20px spacing */
+.library-cards-container .row {
+    --bs-gutter-x: 20px;
+    --bs-gutter-y: 20px;
+}
+
+/* Alphabet Group Cards (A-D, E-H, etc.) */
+.library-group-card {
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid #dee2e6;
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.library-group-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border-color: #0d6efd;
+}
+
+.library-group-card:active {
+    transform: translateY(-1px);
+}
+
+.library-group-card .card-body {
+    padding: 1.5rem;
+}
+
+.library-group-card h2 {
+    margin: 0;
+    font-weight: 700;
+    color: #495057;
+}
+
+/* Artist Cards */
+.library-artist-card {
+    cursor: pointer;
+    transition: all 0.2s;
+    border-left: 4px solid #0d6efd;
+    min-height: 80px;
+    display: flex;
+    align-items: center;
+}
+
+.library-artist-card:hover {
+    background-color: #f8f9fa;
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.library-artist-card:active {
+    transform: translateX(3px);
+}
+
+.library-artist-card .card-body {
+    padding: 1.25rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.library-artist-card h5 {
+    margin: 0;
+    font-size: 1.3rem;
+    font-weight: 600;
+}
+
+.library-artist-card .chevron-icon {
+    font-size: 1.5rem;
+    color: #6c757d;
+}
+
+/* Album Cards */
+.library-album-card {
+    cursor: pointer;
+    transition: all 0.2s;
+    height: 100%;
+}
+
+.library-album-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+}
+
+.library-album-card:active {
+    transform: translateY(-2px);
+}
+
+.library-album-card .card-img-top {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    background-color: #f8f9fa;
+    display: block;
+}
+
+.library-album-card .card-body {
+    padding: 0.75rem;
+}
+
+.library-album-card .card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    line-height: 1.2;
+}
+
+.library-album-card .card-text {
+    font-size: 1rem;
+    margin-bottom: 0.25rem;
+    line-height: 1.3;
+}
+
+.library-album-card .btn {
+    font-size: 0.9rem;
+    padding: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.library-album-card .btn i {
+    font-size: 1.1rem;
 }

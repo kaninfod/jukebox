@@ -125,7 +125,32 @@ echo "✅ Service installed with path: $JUKEBOX_PATH"
 
 # Create polkit rules for system control (shutdown/reboot)
 echo "🔐 Setting up polkit rules..."
-sudo tee /etc/polkit-1/localauthority/50-local.d/50-jukebox.pkla > /dev/null << EOF
+
+# Detect which polkit version is available
+if [ -d "/etc/polkit-1/rules.d" ]; then
+    # Modern polkit (0.106+) - uses JavaScript rules
+    echo "   Using modern polkit rules format..."
+    sudo tee /etc/polkit-1/rules.d/50-jukebox.rules > /dev/null << 'EOF'
+/* Allow pi user to manage jukebox service and system power */
+polkit.addRule(function(action, subject) {
+    if ((action.id == "org.freedesktop.systemd1.manage-units" &&
+         (action.lookup("unit") == "jukebox.service" ||
+          action.lookup("unit") == "poweroff.target" ||
+          action.lookup("unit") == "reboot.target")) &&
+        subject.user == "pi") {
+        return polkit.Result.YES;
+    }
+});
+EOF
+    if [ $? -eq 0 ]; then
+        echo "✅ Modern polkit rules installed"
+    else
+        echo "⚠️ Failed to install polkit rules (non-fatal)"
+    fi
+elif [ -d "/etc/polkit-1/localauthority/50-local.d" ]; then
+    # Legacy polkit - uses .pkla files
+    echo "   Using legacy polkit format..."
+    sudo tee /etc/polkit-1/localauthority/50-local.d/50-jukebox.pkla > /dev/null << EOF
 [Allow jukebox system control]
 Identity=unix-user:pi
 Action=org.freedesktop.systemd1.manage-units
@@ -138,6 +163,36 @@ Action=org.freedesktop.systemd1.manage-units
 ResultActive=yes
 Object=system:jukebox.service
 EOF
+    if [ $? -eq 0 ]; then
+        echo "✅ Legacy polkit rules installed"
+    else
+        echo "⚠️ Failed to install polkit rules (non-fatal)"
+    fi
+else
+    # Neither directory exists - try to create modern polkit directory
+    echo "   Creating polkit rules directory..."
+    if sudo mkdir -p /etc/polkit-1/rules.d; then
+        sudo tee /etc/polkit-1/rules.d/50-jukebox.rules > /dev/null << 'EOF'
+/* Allow pi user to manage jukebox service and system power */
+polkit.addRule(function(action, subject) {
+    if ((action.id == "org.freedesktop.systemd1.manage-units" &&
+         (action.lookup("unit") == "jukebox.service" ||
+          action.lookup("unit") == "poweroff.target" ||
+          action.lookup("unit") == "reboot.target")) &&
+        subject.user == "pi") {
+        return polkit.Result.YES;
+    }
+});
+EOF
+        if [ $? -eq 0 ]; then
+            echo "✅ Polkit rules installed (created directory)"
+        else
+            echo "⚠️ Failed to install polkit rules (non-fatal)"
+        fi
+    else
+        echo "⚠️ Could not create polkit directory - you may need to enter password for system operations"
+    fi
+fi
 
 # Enable jukebox service
 echo "🚀 Enabling jukebox service..."
