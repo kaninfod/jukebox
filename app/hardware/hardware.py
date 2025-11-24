@@ -287,7 +287,8 @@ class HardwareManager:
         # Clean up individual devices first (while GPIO mode is still set)               
         if self.rfid_reader:
             try:
-                self.rfid_reader.stop()
+                pass
+                #self.rfid_reader.stop()
             except Exception as e:
                 logger.error(f"RFID cleanup error: {e}")
         # Clean up RFID switch (CircuitPython PushButton)

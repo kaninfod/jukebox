@@ -24,7 +24,7 @@ class EventBus:
         results = []
 
         metrics.inc("event_emitted", event.type)
-        logger.info(f"Emitting event: type={event.type}, payload={event.payload}")
+        #logger.info(f"Emitting event: type={event.type}, payload={event.payload}")
         handlers = self._handlers.get(event.type, [])
         if not handlers:
             logger.warning(f"No handlers registered for event type: {event.type}")

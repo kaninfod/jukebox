@@ -79,7 +79,7 @@ function updateKioskTrackInfo(data) {
         }
     };
     
-    // WebSocket for live track info (wrapped in IIFE to avoid redeclaration)
+    // WebSocket for live track info
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/mediaplayer/status`);
     ws.onmessage = function(event) {
@@ -91,10 +91,20 @@ function updateKioskTrackInfo(data) {
                 console.error('Player status error:', msg.payload && msg.payload.message);
                 return;
             }
-            // for type 'current_track', payload contains the actual data
-            const payload = msg.payload || {};
-            if (typeof window.updateKioskTrackInfo === 'function') {
-                window.updateKioskTrackInfo(payload);
+            if (msg.type === 'notification') {
+                // Handle notification event (optional)
+                const payload = msg.payload || {};
+                console.log('Notification:', payload);
+                showKioskToast('Notification: ' + (payload.message || ''), { theme: 'info' });
+                return;
+            }
+            if (msg.type === 'current_track') {
+                // for type 'current_track', payload contains the actual data
+                const payload = msg.payload || {};
+                console.log('Current track update:', payload);
+                if (typeof window.updateKioskTrackInfo === 'function') {
+                    window.updateKioskTrackInfo(payload);
+                }
             }
         } else {
             // legacy format

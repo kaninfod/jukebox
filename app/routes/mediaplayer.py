@@ -186,7 +186,7 @@ def get_current_track_info():
     /api/mediaplayer/status.
     """
     try:
-        return _get_data_for_current_track()
+        return  {"type": "current_track", "payload": _get_data_for_current_track()}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -253,7 +253,13 @@ def _make_ws_handlers(q: "asyncio.Queue", loop, handler_active: dict):
 
     def track_handler(event):
         try:
-            payload = _get_data_for_current_track()
+            # If event is None (we invoke handler to send initial state),
+            # build payload from the current player state. Otherwise use the
+            # event.payload provided by the event bus.
+            if event is None:
+                payload = _get_data_for_current_track()
+            else:
+                payload = getattr(event, 'payload', None) or _get_data_for_current_track()
             message = {"type": "current_track", "payload": payload}
             _push_message(message)
         except Exception as e:
@@ -269,15 +275,26 @@ def _make_ws_handlers(q: "asyncio.Queue", loop, handler_active: dict):
         except Exception as e:
             _push_message({"type": "error", "payload": {"message": str(e)}})
 
+    def notification_handler(event):
+        try:
+            payload = event.payload
+            message = {"type": "notification", "payload": payload}
+            _push_message(message)
+        except Exception as e:
+            _push_message({"type": "error", "payload": {"message": str(e)}})
+
     return {
         EventType.TRACK_CHANGED: track_handler,
-        EventType.VOLUME_CHANGED: volume_handler,
+        EventType.VOLUME_CHANGED: track_handler,
+        EventType.NOTIFICATION: notification_handler,
     }
 
 def _get_data_for_current_track():
     from app.core.service_container import get_service
     playback_service = get_service("playback_service")
     player = playback_service.player 
+    return player.get_context()
+
     if player and player.current_track:
         return {
             "current_track": {

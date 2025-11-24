@@ -216,16 +216,7 @@ class PlaybackService:
             self.player.current_index = start_track_index
             self.player.play()
             self.event_bus.emit(
-                EventFactory.show_screen_queued(
-                    "message",
-                    context={
-                        "title": "Album Loaded",
-                        "icon_name": "contactless.png",
-                        "message": f"Playing {album_info.get('name', '')}",
-                        "theme": "message_info"
-                    },
-                    duration=3
-                )
+                EventFactory.notification({"message": f"Playing {album_info.get('name', '')}"})
             )
 
             return True
@@ -238,17 +229,9 @@ class PlaybackService:
         rfid = event.payload['rfid']
         album_id = event.payload['album_id']
         logger.info(f"RFID Card scanned with RFID: {rfid} and album_id: {album_id} ")
+        
         self.event_bus.emit(
-            EventFactory.show_screen_queued(
-                "message",
-                context={
-                    "title": "Getting Album Info...",
-                    "icon_name": "contactless.png",
-                    "message": "Reading card...",
-                    "theme": "message_info"
-                },
-                duration=3
-            )
+            EventFactory.notification({"message": f"RFID: {rfid}"})
         )
         
         if not album_id:
@@ -258,21 +241,12 @@ class PlaybackService:
         if not album_id:
             logger.info(f"No album mapping found for RFID {rfid} in DB")
             self.event_bus.emit(
-                EventFactory.show_screen_queued(
-                    "message",
-                    context={
-                        "title": "Album Not Found",
-                        "icon_name": "error.png",
-                        "message": "No album mapped to this RFID. You should fix that!",
-                        "theme": "message_info"
-                    },
-                    duration=3
-                )
+                EventFactory.notification({"message": f"No album mapped to this RFID. You should fix that!"})
             )
+            
         else:
             logger.info(f"Found album_id {album_id} for RFID {rfid}, loading album...")
             self.load_from_album_id(album_id)
-
         return True
 
     def _encode_card(self, event: Event) -> bool:

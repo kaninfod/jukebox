@@ -43,6 +43,7 @@ class EventType(Enum):
     CHROMECAST_DEVICE_CHANGED = "chromecast_device_changed"
     SHOW_SCREEN_QUEUED = "show_screen_queued"
     ENCODE_CARD = "encode_card"
+    NOTIFICATION = "notification"
 
 class EventFactory:
     @staticmethod
@@ -56,12 +57,12 @@ class EventFactory:
                 "duration": duration
             }
         )
-    # @staticmethod
-    # def track_changed(payload):
-    #     return Event(
-    #         type=EventType.TRACK_CHANGED.value,
-    #         payload=payload
-    #     )
+    @staticmethod
+    def notification(payload):
+        return Event(
+            type=EventType.NOTIFICATION.value,
+            payload=payload
+        )
 
     # @staticmethod
     # def volume_changed(payload):

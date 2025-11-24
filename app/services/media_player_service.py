@@ -373,12 +373,21 @@ class MediaPlayerService:
     
     def get_context(self):
         return {
-            'status': self.status.value,
-            'volume': self.current_volume,
-            'current_index': self.current_index,
-            'current_track': self.current_track,
-            'album_cover_filename': self.album_cover,
-            'cc_device': self.cc_service.device_name
+            "current_track": {
+                "artist": self.artist,
+                "title": self.title,
+                "duration": self.duration,
+                "album": self.album,
+                "year": self.year,
+                "track_id": self.track_id,
+                "track_number": self.track_number,
+                "thumb": self.thumb,
+                "thumb_abs": self.cc_cover_url
+            },
+            "status": self.status.value,
+            "playlist": self.playlist,
+            "volume": self.volume, 
+            "chromecast_device": self.cc_service.device_name
         }
 
     def get_status(self) -> Dict:
