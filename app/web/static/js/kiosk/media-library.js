@@ -156,6 +156,44 @@
         }
     };
     
+    console.log('[MediaLibrary] Defining startNfcEncoding...');
+    
+    // Start NFC encoding session for album
+    window.startNfcEncoding = async function(albumId, albumName) {
+        console.log('[MediaLibrary] startNfcEncoding called with:', albumId, albumName);
+        console.log('[Library] Starting NFC encoding for album:', albumName, '(id:', albumId, ')');
+        
+        try {
+            const response = await fetch('/api/nfc-encoding/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ album_id: albumId })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to start encoding session');
+            }
+            
+            console.log('[Library] Encoding session started, loading NFC component');
+            
+            // Load NFC encoding component
+            if (typeof kioskLoader !== 'undefined') {
+                kioskLoader.loadContent('nfc', { albumId, albumName });
+            } else {
+                console.error('[Library] kioskLoader not available');
+                if (typeof showKioskToast === 'function') {
+                    showKioskToast('Error: Component loader not available', { theme: 'error' });
+                }
+            }
+        } catch (error) {
+            console.error('[Library] Error starting NFC encoding:', error);
+            if (typeof showKioskToast === 'function') {
+                showKioskToast(`Error: ${error.message}`, { theme: 'error' });
+            }
+        }
+    };
+    
     function escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;

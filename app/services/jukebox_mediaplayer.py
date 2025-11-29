@@ -1,31 +1,29 @@
 """
+Backward compatibility module for the renamed MediaPlayerService.
 
-Backward compatibility module for the renamed MediaPlayerService.from importlib.metadata import metadata
+This module provides imports for code that uses the old jukebox_mediaplayer module name.
+All functionality has been moved to media_player_service.py.
+"""
 
 import time
+import logging
+from typing import List, Dict, Optional
 
-This module provides imports for code that uses the old jukebox_mediaplayer module name.from app.metrics.collector import play_counter
-
-All functionality has been moved to media_player_service.py.import logging
-
-"""from typing import List, Dict, Optional
-
+from importlib.metadata import metadata
+from app.metrics.collector import play_counter
 from app.services.chromecast_service import get_chromecast_service
+from app.services.media_player_service import MediaPlayerService
+from app.core import EventType, Event, PlayerStatus
 
-from app.services.media_player_service import MediaPlayerServicefrom app.core import EventType, Event
+logger = logging.getLogger(__name__)
 
-from app.core import PlayerStatusfrom app.core import PlayerStatus
-
-
-
-# Alias for backward compatibilitylogger = logging.getLogger(__name__)
-
+# Alias for backward compatibility
 JukeboxMediaPlayer = MediaPlayerService
-
-class JukeboxMediaPlayer:
 
 __all__ = ['MediaPlayerService', 'JukeboxMediaPlayer', 'PlayerStatus']
 
+
+class _JukeboxMediaPlayerImpl:
     def __init__(self, playlist: List[Dict], event_bus, chromecast_service=None):
         """
         Initialize JukeboxMediaPlayer with dependency injection.

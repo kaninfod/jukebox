@@ -218,13 +218,20 @@ async def get_kiosk_component(request: Request, component_name: str = Query(...)
         'playlist': 'components/kiosk/_playlist_view.html',
         'devices': 'components/kiosk/_device_selector.html',
         'system': 'components/kiosk/_system_menu.html',
+        'nfc': 'components/kiosk/_nfc_encoding.html',
     }
 
     template_path = component_map.get(component_name)
+    print(f"[DEBUG] get_kiosk_component called with: {component_name}, template_path: {template_path}")
+    
     if not template_path:
         raise HTTPException(status_code=404, detail=f"Component '{component_name}' not found")
 
-    return templates.TemplateResponse(template_path, {"request": request, "config": config})
+    try:
+        return templates.TemplateResponse(template_path, {"request": request, "config": config})
+    except Exception as e:
+        print(f"[DEBUG] Error loading template {template_path}: {e}")
+        raise HTTPException(status_code=404, detail=f"Failed to load template: {str(e)}")
 
 @router.get("/kiosk/html/media_library/albums", response_class=HTMLResponse)
 async def kiosk_artist_albums(request: Request, artist_id: str = Query(...), artist_name: str = Query(...)):

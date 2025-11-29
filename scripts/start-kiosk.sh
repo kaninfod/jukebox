@@ -55,7 +55,7 @@ echo "$(date -Is) start-kiosk: launching Firefox in kiosk mode" >> "$LOG"
 # Export DISPLAY if needed; usually set in the desktop session. Uncomment if required:
 # export DISPLAY=:0
 
-nohup firefox "$URL" --kiosk >> "$LOG" 2>&1 &
+nohup firefox "$URL" --kiosk --start-debugger-server 6000 >> "$LOG" 2>&1 &
 
 echo "$(date -Is) start-kiosk: firefox launched (pid $!)" >> "$LOG"
 exit 0

@@ -13,9 +13,9 @@ class KioskContentLoader {
     }
     
     /**
-     * Load a component into the content area
+     * Load a component into the content area with optional data
      */
-    async loadContent(componentName) {
+    async loadContent(componentName, data = {}) {
         try {
             const response = await fetch(`/kiosk/html/component?component_name=${encodeURIComponent(componentName)}`);
             if (!response.ok) {
@@ -29,8 +29,8 @@ class KioskContentLoader {
             
             this.currentView = componentName;
             
-            // Initialize component-specific functionality
-            this.initializeComponent(componentName);
+            // Initialize component-specific functionality with optional data
+            this.initializeComponent(componentName, data);
         } catch (error) {
             console.error('Error loading component:', error);
             this.showError('Failed to load content. Please try again.');
@@ -40,7 +40,7 @@ class KioskContentLoader {
     /**
      * Initialize component-specific JavaScript
      */
-    initializeComponent(name) {
+    initializeComponent(name, data = {}) {
         switch(name) {
             case 'player':
                 this.initPlayerStatus();
@@ -57,6 +57,9 @@ class KioskContentLoader {
             case 'system':
                 this.initSystemMenu();
                 break;
+            case 'nfc':
+                this.initNfcEncoding(data.albumId, data.albumName);
+                break;
             default:
                 console.warn(`No initializer for component: ${name}`);
         }
@@ -66,10 +69,8 @@ class KioskContentLoader {
      * Initialize player status component
      */
     initPlayerStatus() {
-        // Check if the component defined initPlayerStatus in global scope
-        if (typeof window.initPlayerStatus === 'function') {
-            window.initPlayerStatus();
-        }
+        // Do a full page reload to refresh the entire browser
+        window.location.reload(true);
     }
     
     /**
@@ -108,6 +109,16 @@ class KioskContentLoader {
         // Check if the component defined initSystemMenu in global scope
         if (typeof window.initSystemMenu === 'function') {
             window.initSystemMenu();
+        }
+    }
+    
+    /**
+     * Initialize NFC encoding component
+     */
+    initNfcEncoding(albumId, albumName) {
+        // Check if the component defined initNfcEncoding in global scope
+        if (typeof window.initNfcEncoding === 'function') {
+            window.initNfcEncoding(albumId, albumName);
         }
     }
     

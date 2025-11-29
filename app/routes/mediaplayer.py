@@ -2,8 +2,9 @@
 from fastapi import APIRouter, Body, Query, WebSocket, WebSocketDisconnect
 import asyncio
 from app.config import config
+import logging
 
-
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # def get_screen_manager():
@@ -19,6 +20,19 @@ def _abs_url(url: str):
     base = getattr(config, "PUBLIC_BASE_URL", "").rstrip("/")
     return f"{base}{url}" if base else url
 
+@router.post("/api/mediaplayer/previous_track")
+def previous_track():
+    from app.core import event_bus, EventType, Event
+    result = event_bus.emit(Event(
+        type=EventType.PREVIOUS_TRACK,
+        payload={}
+    ))
+
+    if result:
+        return {"status": "success", "message": result}
+    else:
+        return {"status": "error", "message": "Failed to go to previous track"}
+
 @router.post("/api/mediaplayer/next_track")
 def next_track():
     """Advance to the next track."""
@@ -32,19 +46,22 @@ def next_track():
         return {"status": "success", "message": result}
     else:
         return {"status": "error", "message": "Failed to advance to next track"}
-
-@router.post("/api/mediaplayer/previous_track")
-def previous_track():
+    
+@router.post("/api/mediaplayer/play_track")
+def play_track(track_index: int = Body(..., embed=True)):
+    """Play a specific track by index in the current playlist."""
     from app.core import event_bus, EventType, Event
     result = event_bus.emit(Event(
-        type=EventType.PREVIOUS_TRACK,
-        payload={}
+        type=EventType.PLAY_TRACK,
+        payload={"track_index": track_index}
     ))
 
     if result:
         return {"status": "success", "message": result}
     else:
-        return {"status": "error", "message": "Failed to go to previous track"}
+        return {"status": "error", "message": f"Failed to play track at index {track_index}"}
+
+    
 
 @router.post("/api/mediaplayer/play_pause")
 def play_pause():
@@ -66,7 +83,7 @@ def play():
     """Resume playback."""
     from app.core import event_bus, EventType, Event
     result = event_bus.emit(Event(
-        type=EventType.PLAY_PAUSE,
+        type=EventType.PLAY,
         payload={}
     ))
 
@@ -129,12 +146,31 @@ def volume_set(volume: int = Query(..., ge=0, le=100)):
         type=EventType.SET_VOLUME,
         payload={"volume": volume}
     ))
-
+    
+    logger.debug(f"Volume set event result: {result}")
+    
     if result is not None:
         return {"status": "success", "volume": volume}
     else:
         return {"status": "error", "message": "Failed to set volume"}
     
+
+@router.post("/api/mediaplayer/toggle_repeat_album")
+def toggle_repeat_album():
+    """Toggle repeat album mode in PlaybackManager."""
+    from app.core import event_bus, EventType, Event
+    result = event_bus.emit(Event(
+        type=EventType.TOGGLE_REPEAT_ALBUM,
+        payload={}
+    ))
+    
+    logger.debug(f"Toggle repeat album event result: {result}")
+
+    if result is not None:
+        return {"status": "success", "repeat_album": result}
+    else:
+        return {"status": "error", "message": "Failed to toggle repeat album mode"}
+
 
 @router.post("/api/mediaplayer/play_album_from_rfid/{rfid}")
 def play_album_from_rfid(rfid: str):
@@ -186,7 +222,9 @@ def get_current_track_info():
     /api/mediaplayer/status.
     """
     try:
-        return  {"type": "current_track", "payload": _get_data_for_current_track()}
+        payload = _get_data_for_current_track()
+        #logger.debug("status payload: %s", payload)
+        return  {"type": "current_track", "payload": payload}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -261,6 +299,7 @@ def _make_ws_handlers(q: "asyncio.Queue", loop, handler_active: dict):
             else:
                 payload = getattr(event, 'payload', None) or _get_data_for_current_track()
             message = {"type": "current_track", "payload": payload}
+            #logger.debug(f"Track changed event: {message}")
             _push_message(message)
         except Exception as e:
             _push_message({"type": "error", "payload": {"message": str(e)}})
@@ -271,6 +310,7 @@ def _make_ws_handlers(q: "asyncio.Queue", loop, handler_active: dict):
             # have a consistent view. Could be optimized to send only delta.
             payload = _get_data_for_current_track()
             message = {"type": "volume_changed", "payload": payload}
+            logger.debug(f"Volume changed event: {message}")
             _push_message(message)
         except Exception as e:
             _push_message({"type": "error", "payload": {"message": str(e)}})
@@ -279,6 +319,7 @@ def _make_ws_handlers(q: "asyncio.Queue", loop, handler_active: dict):
         try:
             payload = event.payload
             message = {"type": "notification", "payload": payload}
+            logger.debug(f"Notification event: {message}")
             _push_message(message)
         except Exception as e:
             _push_message({"type": "error", "payload": {"message": str(e)}})
@@ -294,24 +335,3 @@ def _get_data_for_current_track():
     playback_service = get_service("playback_service")
     player = playback_service.player 
     return player.get_context()
-
-    if player and player.current_track:
-        return {
-            "current_track": {
-                "artist": player.artist,
-                "title": player.title,
-                "duration": player.duration,
-                "album": player.album,
-                "year": player.year,
-                "track_id": player.track_id,
-                "track_number": player.track_number,
-                "thumb": player.thumb,
-                "thumb_abs": player.cc_cover_url
-            },
-            "status": player.status.value,
-            "playlist": player.playlist,
-            "volume": player.volume, 
-            "chromecast_device": playback_service.player.cc_service.device_name
-        }
-    else:
-        return {"status": "error", "message": "No track loaded"}

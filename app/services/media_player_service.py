@@ -33,7 +33,8 @@ class MediaPlayerService:
             # Use the singleton instance so all parts of the app share the same connection state
             from app.config import config
             self.cc_service = get_chromecast_service(config.DEFAULT_CHROMECAST_DEVICE)
-            
+
+        self._repeat_album = False            
         self.current_volume = 25
         self.track_timer = TrackTimer()
         self.sync_volume_from_chromecast()
@@ -102,7 +103,12 @@ class MediaPlayerService:
     def volume(self) -> int:
         """Return the current volume (0-100)."""
         return self.current_volume
-    
+
+    @property
+    def repeat_album(self) -> bool:
+        """Return whether repeat album is enabled."""
+        return self._repeat_album
+
     def sync_volume_from_chromecast(self):
         """Sync volume from Chromecast (0.0-1.0) to 0-100 scale."""
         cc_volume = self.cc_service.get_volume()
@@ -117,15 +123,42 @@ class MediaPlayerService:
         ))
         return self.current_volume
 
+    def toggle_repeat_album(self, event=None):
+        """Toggle repeat album setting."""
+        self._repeat_album = not self._repeat_album
+        logger.info(f"Repeat album set to: {self._repeat_album}")
+        return self._repeat_album
+
     def play(self, event=None):
         """Start playback of the current track (cast and set state)."""
-        if not self.playlist:
-            logging.warning("No playlist loaded.")
-            return
-        self.status = PlayerStatus.PLAY
-        self.cast_current_track()
-        self.track_timer.start()
-        return True
+
+        if self.status == PlayerStatus.PLAY:
+            self.track_timer.pause()
+            self.status = PlayerStatus.PAUSE
+            self.cc_service.pause()
+            status = self.status
+        elif self.status == PlayerStatus.PAUSE:
+            self.track_timer.resume()
+            self.status = PlayerStatus.PLAY
+            self.cc_service.resume()
+            status = self.status
+        elif self.status == PlayerStatus.STOP:
+            if len(self.playlist) > 0:
+                self.current_index = 0  # Reset to start if at end of playlist
+                self.status = PlayerStatus.PLAY
+                self.cast_current_track()
+                status = self.status
+            else:
+                logging.warning("No playlist loaded.")
+                status = False
+        
+        self.event_bus.emit(Event(
+            type=EventType.TRACK_CHANGED,
+            payload=self.get_context()
+        ))
+
+        return status
+
 
     def play_pause(self, event=None):
         # Toggle pause/resume timer based on current status
@@ -145,13 +178,9 @@ class MediaPlayerService:
         return True
 
     def stop(self, event=None):
-        # Log actual vs expected duration before stopping
-        elapsed = self.track_timer.get_elapsed()
-        expected = self.current_track.get('duration') if self.current_track else None
-        logging.info(f"[TrackTimer] Track '{self.title}' expected duration: {expected}, played: {elapsed:.2f} seconds (stop)")
-        self.cc_service.stop()
-        
+        self.cc_service.stop()        
         self.status = PlayerStatus.STOP
+        self.current_index = 0  # Reset to start of playlist
         self.track_timer.reset()
                 
         self.event_bus.emit(Event(
@@ -160,6 +189,45 @@ class MediaPlayerService:
         ))
 
         return True
+
+    def previous_track(self, event=None):
+        if self.current_index > 0:
+            self.current_index -= 1
+            self.cast_current_track()
+            return True
+
+    def next_track(self, event=None, force=False):
+        if self.current_index < len(self.playlist) - 1:
+            self.current_index += 1
+            self.cast_current_track()
+            return True
+        elif self.repeat_album:
+            self.current_index = 0
+            self.cast_current_track ()
+            return True
+        else:
+            self.stop()
+            #self.playlist = []  # Clear playlist at end
+            return False
+
+    def play_track(self, event=None):
+        """Play a specific track by index from the event payload."""
+        if event is None or not hasattr(event, "payload"):
+            logger.error("play_track called without valid event payload.")
+            return False
+        
+        track_index = event.payload.get("track_index")
+        if track_index is None or not isinstance(track_index, int):
+            logger.error(f"play_track: Invalid track_index in payload: {track_index}")
+            return False
+        
+        if 0 <= track_index < len(self.playlist):
+            self.current_index = track_index
+            self.cast_current_track()
+            return track_index
+        else:
+            logger.error(f"play_track: track_index {track_index} out of bounds (playlist size: {len(self.playlist)})")
+            return False
 
     def set_volume(self, volume=None, event=None):
         """Set volume (0-100) and sync with Chromecast.
@@ -204,96 +272,11 @@ class MediaPlayerService:
         self.set_volume(self.current_volume - 5)
         return True
 
-    def next_track(self, event=None, force=False):
-        # Log actual vs expected duration before advancing
-        elapsed = self.track_timer.get_elapsed()
-        expected_str = self.current_track.get('duration') if self.current_track else None
-            
-        # Convert expected duration (mm:ss or m:ss) to seconds
-        def duration_to_seconds(dur):
-            if not dur:
-                return None
-            try:
-                parts = dur.split(":")
-                if len(parts) == 2:
-                    return int(parts[0]) * 60 + int(parts[1])
-                elif len(parts) == 3:
-                    return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-            except Exception:
-                return None
-            return None
-
-        if force == False:
-            expected_sec = duration_to_seconds(expected_str)
-            debounce_threshold = 0.8  # 80%
-            if expected_sec:
-                min_play_time = expected_sec * debounce_threshold
-            else:
-                min_play_time = 0
-            if elapsed < min_play_time:
-                logger.info(f"[Debounce] Track '{self.title}' skipped after only {elapsed:.2f}s (<80% of {expected_sec}s). Debounce: not advancing.")
-                # Do nothing: ignore the request to advance
-                return
-            logger.info(f"[Debounce] Track '{self.title}' played {elapsed:.2f}s (>=80% of {expected_sec}s). Advancing to next track.")
-
-        if self.current_index < len(self.playlist) - 1:
-            self.current_index += 1
-            self.play()
-            return True
-        else:
-            self.stop()
-            self.current_index = 0  # Reset to start of playlist
-            self.playlist = []  # Clear playlist at end
-            return False
-
-    def previous_track(self, event=None):
-        if self.current_index > 0:
-            self.current_index -= 1
-            self.play()
-            return True
-
-    def get_track_elapsed(self):
-        """Return the elapsed play time (seconds) for the current track."""
-        return self.track_timer.get_elapsed()
-    
-    def update_metrics(self, track: Dict) -> Dict[str, str]:
-        """
-        Returns a dict with Subsonic IDs for artist, album, and track using SubsonicService.get_song_info.
-        If not available, returns 'unknown'.
-        """
-        track_id = track.get('track_id')
-        if not track_id:
-            return {'artist': 'unknown', 'album': 'unknown', 'track': 'unknown'}
-        from app.core.service_container import get_service
-        service = get_service('subsonic_service')
-        song_info = service.get_song_info(track_id)
-        if not song_info:
-            return {'artist': 'unknown', 'album': 'unknown', 'track': track_id}
-
-        ids = {
-            'artist': song_info.get('artistId', 'unknown'),
-            'album': song_info.get('albumId', 'unknown'),
-            'track': song_info.get('id', track_id)
-        }        
-        
-        play_counter.labels(
-            artist=track.get('artist', 'unknown'),
-            album=track.get('album', 'unknown'),
-            song=track.get('title', 'unknown')
-        ).inc()
-
-        return ids
-
     def cast_current_track(self):
         track = self.playlist[self.current_index]
-        
         ids = self.update_metrics(track)
-
-        logger.info(f"stream url for track: {track.get('stream_url')}")
         self.sync_volume_from_chromecast()
         if track['stream_url']:
-            logger.info(f"Casting stream URL for track {track.get('title')}, with url {track['stream_url']}")
-
             self.cc_service.play_media(
                 track['stream_url'], 
                 media_info={
@@ -313,7 +296,6 @@ class MediaPlayerService:
             )
             self.track_timer.reset()
             self.track_timer.start()
-            logger.info(f"Casting track {self.current_index+1}/{len(self.playlist)}: {track.get('title')}")
             self.status = PlayerStatus.PLAY
             
             # Scrobble to Subsonic/Last.fm now that track is playing
@@ -326,6 +308,7 @@ class MediaPlayerService:
                 type=EventType.TRACK_CHANGED,
                 payload=self.get_context()
             ))
+            logger.info(f"Casting track {self.current_index+1}/{len(self.playlist)}: {track.get('title')}")
         else:
             logger.error("No stream_url for current track.")
 
@@ -369,7 +352,6 @@ class MediaPlayerService:
             logger.error(f"_scrobble_track_now_playing: Error scrobbling track '{track_title}': {e}")
             # Non-critical error - don't let scrobbling failures affect playback
     
-
     
     def get_context(self):
         return {
@@ -385,6 +367,8 @@ class MediaPlayerService:
                 "thumb_abs": self.cc_cover_url
             },
             "status": self.status.value,
+            "current_index": self.current_index,
+            "repeat_album": self._repeat_album,
             "playlist": self.playlist,
             "volume": self.volume, 
             "chromecast_device": self.cc_service.device_name
@@ -404,6 +388,38 @@ class MediaPlayerService:
     def cleanup(self):
         logger.info("MediaPlayerService cleanup called")
         # Add any additional cleanup logic here if needed        
+
+    def get_track_elapsed(self):
+        """Return the elapsed play time (seconds) for the current track."""
+        return self.track_timer.get_elapsed()
+    
+    def update_metrics(self, track: Dict) -> Dict[str, str]:
+        """
+        Returns a dict with Subsonic IDs for artist, album, and track using SubsonicService.get_song_info.
+        If not available, returns 'unknown'.
+        """
+        track_id = track.get('track_id')
+        if not track_id:
+            return {'artist': 'unknown', 'album': 'unknown', 'track': 'unknown'}
+        from app.core.service_container import get_service
+        service = get_service('subsonic_service')
+        song_info = service.get_song_info(track_id)
+        if not song_info:
+            return {'artist': 'unknown', 'album': 'unknown', 'track': track_id}
+
+        ids = {
+            'artist': song_info.get('artistId', 'unknown'),
+            'album': song_info.get('albumId', 'unknown'),
+            'track': song_info.get('id', track_id)
+        }        
+        
+        play_counter.labels(
+            artist=track.get('artist', 'unknown'),
+            album=track.get('album', 'unknown'),
+            song=track.get('title', 'unknown')
+        ).inc()
+
+        return ids
 
 
 class TrackTimer:

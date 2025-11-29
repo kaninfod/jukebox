@@ -103,10 +103,6 @@ if os.path.isdir(web_static_dir):
 else:
     logger.warning(f"Web static directory not found: {web_static_dir}")
 
-
-
-
-
 # Service container import and eager initialization
 from app.core.service_container import setup_service_container, container as global_container
 if global_container is None:
@@ -132,9 +128,9 @@ def startup_event():
     #hardware_manager.screen_manager = screen_manager
     hardware_manager.playback_service = playback_service
     # Step 4: Initialize DynamicLoader for menu system
-    from app.ui.menu.dynamic_loader import initialize_dynamic_loader
-    initialize_dynamic_loader(subsonic_service)
-    logging.info("✅ DynamicLoader initialized for menu system")
+    #from app.ui.menu.dynamic_loader import initialize_dynamic_loader
+    #initialize_dynamic_loader(subsonic_service)
+    #logging.info("✅ DynamicLoader initialized for menu system")
     # Step 5: Start the system
     #from app.ui.screens import IdleScreen
     #IdleScreen.show()

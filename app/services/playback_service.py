@@ -60,15 +60,19 @@ class PlaybackService:
         self.event_bus.subscribe(EventType.ENCODE_CARD, self._encode_card)
         self.event_bus.subscribe(EventType.BUTTON_PRESSED, self._handle_button_pressed_event)
         self.event_bus.subscribe(EventType.ROTARY_ENCODER, self._handle_rotary_encoder_event)
-        self.event_bus.subscribe(EventType.NEXT_TRACK, self.player.next_track)
+        
+        self.event_bus.subscribe(EventType.TOGGLE_REPEAT_ALBUM, self.player.toggle_repeat_album)
         self.event_bus.subscribe(EventType.TRACK_FINISHED, self.player.next_track)
         self.event_bus.subscribe(EventType.PREVIOUS_TRACK, self.player.previous_track)
+        self.event_bus.subscribe(EventType.NEXT_TRACK, self.player.next_track)
+        self.event_bus.subscribe(EventType.PLAY_TRACK, self.player.play_track)
         self.event_bus.subscribe(EventType.PLAY_PAUSE, self.player.play_pause)
         self.event_bus.subscribe(EventType.PLAY, self.player.play)
         self.event_bus.subscribe(EventType.STOP, self.player.stop)
         self.event_bus.subscribe(EventType.VOLUME_UP, self.player.volume_up)
         self.event_bus.subscribe(EventType.VOLUME_DOWN, self.player.volume_down)
         self.event_bus.subscribe(EventType.SET_VOLUME, self.player.set_volume)
+        
         self.event_bus.subscribe(EventType.PLAY_ALBUM, self._handle_play_album_event)
         self.event_bus.subscribe(EventType.CHROMECAST_DEVICE_CHANGED, self._handle_device_changed_event)
 
@@ -78,18 +82,12 @@ class PlaybackService:
             result = self.player.previous_track()
             logger.info(f"Previous track: {result}")
         elif event.payload['button'] == 2:
-            result = self.player.play_pause()
-            logger.info(f"Play/Pause: {result}")
+            result = self.player.play()
+            logger.info(f"Play: {result}")
         elif event.payload['button'] == 3:
             result = self.player.next_track(force=True)
             logger.info(f"Next track: {result}")
         elif event.payload['button'] == 4:
-            # Check if menu is currently active - if so, don't handle stop (let MenuController handle back navigation)
-            # try:
-            #     if (self.screen_manager.menu_controller.is_active):
-            #         return  # Let MenuController handle the back navigation
-            # except Exception:
-            #     pass  # If we can't check menu state, proceed with stop
             result = self.player.stop()
             logger.info(f"stop: {result}")
 

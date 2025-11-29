@@ -62,8 +62,9 @@
             for (let i = 0; i < data.playlist.length; i++) {
                 const track = data.playlist[i];
                 const isCurrent = data.current_track && (track.track_number === data.current_track.track_number);
-                
-                html += `<div class="list-group-item kiosk-playlist-item d-flex justify-content-between align-items-center ${isCurrent ? 'active' : ''}">` +
+
+                html += `<div class="list-group-item kiosk-playlist-item d-flex justify-content-between align-items-center ${isCurrent ? 'active' : ''}"
+                    onclick="window.playTrackAtIndex(${i})" style="cursor:pointer;">` +
                     `<div class="d-flex align-items-center gap-3 flex-grow-1">` +
                         `<div class="track-number">${track.track_number || i+1}</div>` +
                         `<div class="flex-grow-1">` +
@@ -75,6 +76,21 @@
                 `</div>`;
             }
             container.innerHTML = html;
+            // Play a track at the given index
+            window.playTrackAtIndex = async function(index) {
+                try {
+                    const response = await fetch('/api/mediaplayer/play_track', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ track_index: index })
+                    });
+                    if (!response.ok) {
+                        console.error('Failed to play track at index', index);
+                    }
+                } catch (error) {
+                    console.error('Error playing track at index', index, error);
+                }
+            };
         } else {
             infoDiv.textContent = 'No tracks';
             container.innerHTML = `<div class="text-center text-muted py-5">

@@ -8,6 +8,7 @@ class EventType(Enum):
     SYSTEM_REBOOT_CANCELLED = "system_reboot_cancelled"
     SYSTEM_SHUTDOWN_CANCELLED = "system_shutdown_cancelled"
     SYSTEM_RESTART_CANCELLED = "system_restart_cancelled"
+
     TRACK_CHANGED = "track_changed"
     VOLUME_CHANGED = "volume_changed"
     STATUS_CHANGED = "status_changed"
@@ -16,14 +17,15 @@ class EventType(Enum):
     TRACK_RESUMED = "track_resumed"
     NEXT_TRACK = "next_track"
     PREVIOUS_TRACK = "previous_track"
+    PLAY_TRACK = "play_track"
     PLAY_PAUSE = "play_pause"
-    #PLAY_PAUSE = "play_pause"
     PLAY = "play"
-    PLAY_ALBUM = "play_album"
     STOP = "stop"
     VOLUME_UP = "volume_up"
     VOLUME_DOWN = "volume_down"
     SET_VOLUME = "set_volume"
+    PLAY_ALBUM = "play_album"
+    
     CLEAR_ERROR = "clear_error"
     BUTTON_PRESSED = "button_pressed"
     ROTARY_ENCODER = "RotaryEncoder"
@@ -44,6 +46,7 @@ class EventType(Enum):
     SHOW_SCREEN_QUEUED = "show_screen_queued"
     ENCODE_CARD = "encode_card"
     NOTIFICATION = "notification"
+    TOGGLE_REPEAT_ALBUM = "toggle_repeat_album"
 
 class EventFactory:
     @staticmethod
