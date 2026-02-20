@@ -67,15 +67,11 @@ class PlaybackService:
         self.event_bus.subscribe(EventType.NEXT_TRACK, self.player.next_track)
         self.event_bus.subscribe(EventType.PLAY_TRACK, self.player.play_track)
         self.event_bus.subscribe(EventType.PLAY_PAUSE, self.player.play_pause)
-        self.event_bus.subscribe(EventType.PLAY, self.player.play)
         self.event_bus.subscribe(EventType.STOP, self.player.stop)
         self.event_bus.subscribe(EventType.VOLUME_UP, self.player.volume_up)
         self.event_bus.subscribe(EventType.VOLUME_DOWN, self.player.volume_down)
         self.event_bus.subscribe(EventType.SET_VOLUME, self.player.set_volume)
         self.event_bus.subscribe(EventType.VOLUME_MUTE, self.player.volume_mute)
-        
-        self.event_bus.subscribe(EventType.PLAY_ALBUM, self._handle_play_album_event)
-        self.event_bus.subscribe(EventType.CHROMECAST_DEVICE_CHANGED, self._handle_device_changed_event)
 
 
     def _handle_button_pressed_event(self, event):
@@ -93,69 +89,12 @@ class PlaybackService:
             logger.info(f"stop: {result}")
 
     def _handle_rotary_encoder_event(self, event):
-        """Handle rotary encoder events for volume control when menu is not active"""
-        # # Check if menu is currently active - if so, don't handle volume
-        # try:
-        #     if (self.screen_manager.menu_controller.is_active):
-        #         return  # Let MenuController handle the event
-        # except Exception:
-        #     pass  # If we can't check menu state, proceed with volume control
-            
+        """Handle rotary encoder events for volume control."""
         # Handle volume control
         if event.payload['direction'] == 'CW':
             self.player.volume_up()
         elif event.payload['direction'] == 'CCW':
             self.player.volume_down()
-
-    def _handle_play_album_event(self, event):
-        """Handle PLAY_ALBUM event from menu system."""
-        album_id = event.payload.get('album_id')
-        album_name = event.payload.get('album_name', 'Unknown Album')
-        
-        if album_id:
-            logger.info(f"Playing album from menu: {album_name} (ID: {album_id})")
-            success = self.load_from_album_id(album_id)
-            if success:
-                logger.info(f"Successfully loaded and started playback for album: {album_name}")
-            else:
-                logger.error(f"Failed to load album: {album_name}")
-        else:
-            logger.warning("No audioPlaylistId provided in PLAY_ALBUM event")
-
-    def _handle_device_changed_event(self, event):
-        """Handle CHROMECAST_DEVICE_CHANGED event when user switches devices from menu."""
-        device_name = event.payload.get('device_name')
-        
-        if not device_name:
-            logger.warning("No device_name provided in CHROMECAST_DEVICE_CHANGED event")
-            return
-        
-        logger.info(f"Device changed to: {device_name}")
-
-        backend = getattr(self.player, "playback_backend", None)
-        if not backend:
-            logger.warning("No playback backend available for device switch")
-            return
-
-        if not hasattr(backend, "switch_and_resume_playback"):
-            logger.info("Current backend (%s) does not support device switching", type(backend).__name__)
-            return
-
-        # Delegate to backend to handle seamless device switch
-        try:
-            result = backend.switch_and_resume_playback(device_name)
-            
-            if result['status'] == 'switched':
-                logger.info(f"Device switch successful: {result['switched_from']} → {result['switched_to']}")
-                if result['playback_resumed']:
-                    logger.info(f"Playback resumed on new device from album {result['album_id']}, track {result['track_index']}")
-            else:
-                logger.error(f"Device switch failed: {result.get('error', 'Unknown error')}")
-        except Exception as e:
-            logger.error(f"Error during device switch: {e}")
-
-
-
 
     def get_stream_url_for_track(self, track: Dict) -> Optional[str]:
         return self.subsonic_service.get_stream_url(track)

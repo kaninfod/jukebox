@@ -79,8 +79,6 @@ class ScreenQueue:
 			self.screen_manager.show_idle_screen(context)
 		elif screen_type == "home":
 			self.screen_manager.show_home_screen(context)
-		elif screen_type == "menu":
-			self.screen_manager.show_menu_screen(context)
 		else:
 			logger.warning(f"[ScreenQueue] Unknown screen type: {screen_type}")
 

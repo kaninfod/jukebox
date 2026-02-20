@@ -35,11 +35,6 @@ from app.routes.display import router as display_router
 from app.services import system_service  # Ensures SystemService event handlers are registered
 from app.web.routes import router as web_router
 
-#from app.services.playback_service import PlaybackManager
-
-#from app.ui import ScreenManager
-#from app.hardware import HardwareManager
-
 import logging, os
 from app.core.logging_config import setup_logging
 
@@ -107,13 +102,6 @@ if os.path.isdir(web_static_dir):
 else:
     logger.warning(f"Web static directory not found: {web_static_dir}")
 
-# Service container import and eager initialization
-# from app.core.service_container import setup_service_container, container as global_container
-# if global_container is None:
-#     global_container = setup_service_container()
-
-
-
 @app.on_event("startup")
 def startup_event():
     """Initialize all systems using the service container"""
@@ -126,19 +114,9 @@ def startup_event():
     global_container = setup_service_container()
     # Step 2: Resolve all main services (hardware_manager auto-initializes in factory)
     playback_service = global_container.get('playback_service')
-    #screen_manager = global_container.get('screen_manager')
     hardware_manager = global_container.get('hardware_manager')
-    subsonic_service = global_container.get('subsonic_service')
     # Step 3: Update hardware manager with references (cross-dependencies)
-    #hardware_manager.screen_manager = screen_manager
     hardware_manager.playback_service = playback_service
-    # Step 4: Initialize DynamicLoader for menu system
-    #from app.ui.menu.dynamic_loader import initialize_dynamic_loader
-    #initialize_dynamic_loader(subsonic_service)
-    #logging.info("✅ DynamicLoader initialized for menu system")
-    # Step 5: Start the system
-    #from app.ui.screens import IdleScreen
-    #IdleScreen.show()
 
     import getpass, os
     logger.info(f"Running as user: {getpass.getuser()}")
@@ -160,9 +138,6 @@ def shutdown_event():
             pass
         try:
             pass
-            #screen_manager = global_container.get('screen_manager')
-            #if screen_manager:
-            #    screen_manager.cleanup()
         except Exception:
             pass
     logging.info("Jukebox FastAPI app shutdown complete")

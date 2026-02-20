@@ -34,16 +34,11 @@ class Config:
     
     # === TIMEOUT CONFIGURATION ===
     # Chromecast Operation Timeouts (seconds)
-    CHROMECAST_CONNECT_TIMEOUT: int = int(os.getenv("CHROMECAST_CONNECT_TIMEOUT", "10"))     # Time to wait for device connection
     CHROMECAST_DISCOVERY_TIMEOUT: int = int(os.getenv("CHROMECAST_DISCOVERY_TIMEOUT", "3"))  # Time to discover devices on network
     CHROMECAST_WAIT_TIMEOUT: int = int(os.getenv("CHROMECAST_WAIT_TIMEOUT", "10"))           # Time to wait for device to be ready
     
-    # User Interface Timeouts (seconds)  
-    MENU_AUTO_EXIT_TIMEOUT: int = int(os.getenv("MENU_AUTO_EXIT_TIMEOUT", "10"))             # Auto-exit menu after inactivity
-    
     # Network Request Timeouts (seconds)
     HTTP_REQUEST_TIMEOUT: int = int(os.getenv("HTTP_REQUEST_TIMEOUT", "10"))                 # HTTP requests (album covers, API calls)
-    SYSTEM_OPERATION_TIMEOUT: int = int(os.getenv("SYSTEM_OPERATION_TIMEOUT", "5"))          # System operations (restart, shutdown)
     
     # RFID Hardware Timeouts
     RFID_POLL_INTERVAL: float = float(os.getenv("RFID_POLL_INTERVAL", "1.0"))              # Seconds between RFID reads
@@ -77,6 +72,11 @@ class Config:
     MPV_STARTUP_TIMEOUT_SECONDS: int = int(os.getenv("MPV_STARTUP_TIMEOUT_SECONDS", "5"))
     MPV_MSG_LEVEL: str = os.getenv("MPV_MSG_LEVEL", "")
     MPV_LOG_FILE: str = os.getenv("MPV_LOG_FILE", "")
+    MPV_CACHE_ENABLED: bool = os.getenv("MPV_CACHE_ENABLED", "true").lower() == "true"
+    MPV_CACHE_SECS: int = int(os.getenv("MPV_CACHE_SECS", "90"))
+    MPV_DEMUXER_MAX_BYTES: str = os.getenv("MPV_DEMUXER_MAX_BYTES", "128MiB")
+    MPV_DEMUXER_MAX_BACK_BYTES: str = os.getenv("MPV_DEMUXER_MAX_BACK_BYTES", "32MiB")
+    MPV_AUDIO_BUFFER_SECONDS: float = float(os.getenv("MPV_AUDIO_BUFFER_SECONDS", "1.2"))
     MPV_DIAGNOSTIC_INTERVAL_SECONDS: int = int(os.getenv("MPV_DIAGNOSTIC_INTERVAL_SECONDS", "20"))
     MPV_STALL_WARNING_SECONDS: int = int(os.getenv("MPV_STALL_WARNING_SECONDS", "90"))
 
@@ -138,8 +138,6 @@ class Config:
     ALLOW_LOCAL_API_BYPASS: bool = os.getenv("ALLOW_LOCAL_API_BYPASS", "true").lower() == "true"
     # Toggle automatic HTTP -> HTTPS redirect (use when running behind TLS-terminating reverse proxy)
     ENABLE_HTTPS_REDIRECT: bool = os.getenv("ENABLE_HTTPS_REDIRECT", "false").lower() == "true"
-    # Allow exposing Prometheus metrics endpoint without auth
-    ALLOW_PUBLIC_METRICS: bool = os.getenv("ALLOW_PUBLIC_METRICS", "false").lower() == "true"
 
     # === WEB URL CONFIGURATION ===
     # Public base URL where this jukebox is reachable by browsers/Chromecast
@@ -178,10 +176,6 @@ class Config:
     # KY-040 rotary encoder: Optimized for detent-based counting
     ENCODER_BOUNCETIME: int = int(os.getenv("ENCODER_BOUNCETIME", "10"))
     BUTTON_BOUNCETIME: int = int(os.getenv("BUTTON_BOUNCETIME", "200"))
-
-    # === MEDIA PLAYER CONFIGURATION ===
-    # TODO: Remove hardcoded "living_room" - make configurable
-    MEDIA_PLAYER_ENTITY_ID: str = os.getenv("MEDIA_PLAYER_ENTITY_ID", "media_player.living_room")
 
     # === PATH CONFIGURATION ===
     STATIC_FILE_PATH: str = os.getenv("STATIC_FILE_PATH", "static_files")

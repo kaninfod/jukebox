@@ -204,11 +204,11 @@ class MPVService:
             "--really-quiet",
             "--force-window=no",
             "--audio-display=no",
-            "--cache=yes",
-            "--cache-secs=30",
-            "--demuxer-max-bytes=64MiB",
-            "--demuxer-max-back-bytes=16MiB",
-            "--audio-buffer=0.35",
+            f"--cache={'yes' if config.MPV_CACHE_ENABLED else 'no'}",
+            f"--cache-secs={max(5, int(config.MPV_CACHE_SECS))}",
+            f"--demuxer-max-bytes={config.MPV_DEMUXER_MAX_BYTES}",
+            f"--demuxer-max-back-bytes={config.MPV_DEMUXER_MAX_BACK_BYTES}",
+            f"--audio-buffer={max(0.2, float(config.MPV_AUDIO_BUFFER_SECONDS))}",
             f"--input-ipc-server={self._socket_path}",
         ]
 

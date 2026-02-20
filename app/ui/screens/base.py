@@ -9,7 +9,7 @@ class Screen:
         self.width = width
         self.height = height
 
-    def draw(self, draw_context, fonts, jukebox_mediaplayer=None):
+    def draw(self, draw_context, fonts, player=None):
         pass
     
 class Element():

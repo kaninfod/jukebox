@@ -6,7 +6,6 @@ from enum import Enum
 from app.core import PlayerStatus, EventType
 from app.ui.screen_queue import ScreenQueue
 from app.core.service_container import get_service
-from app.metrics.decorators import track_event_handler
 logger = logging.getLogger(__name__)
 
 class ScreenManager:
@@ -31,12 +30,9 @@ class ScreenManager:
         self.theme = UITheme(self.fonts)
         self.error_active = False  # Block screen changes while error is active
         self.screen_queue = ScreenQueue(self)
-        # Initialize menu controller
-        self.menu_controller = None
         
         logger.info("ScreenManager initialized with dependency injection")
         self._init_screens()
-        self._init_menu_controller()
         
         # Setup event subscriptions using injected event_bus
         self._setup_event_subscriptions()
@@ -62,12 +58,6 @@ class ScreenManager:
         elif self.screens:
             self.current_screen = next(iter(self.screens.values()))
 
-    def _init_menu_controller(self):
-        """Initialize the menu controller"""
-        from app.ui.menu.menu_controller import MenuController
-        self.menu_controller = MenuController()
-        logger.info("MenuController initialized")
-
     def add_screen(self, name, screen):
         self.screens[name] = screen
 
@@ -76,14 +66,11 @@ class ScreenManager:
         self.event_bus.subscribe(EventType.SHOW_IDLE, lambda event: self.show_idle_screen(event.payload))
         self.event_bus.subscribe(EventType.SHOW_MESSAGE, lambda event: self.show_message_screen(event.payload))
         self.event_bus.subscribe(EventType.SHOW_HOME, lambda event: self.show_home_screen(event.payload))
-        self.event_bus.subscribe(EventType.SHOW_MENU, lambda event: self.show_menu_screen(event.payload))
         self.event_bus.subscribe(EventType.TRACK_CHANGED, self._handle_player_changes)
         self.event_bus.subscribe(EventType.VOLUME_CHANGED, self._handle_player_changes)
-        self.event_bus.subscribe(EventType.STATUS_CHANGED, self._handle_player_changes)
         self.event_bus.subscribe(EventType.SHOW_SCREEN_QUEUED, self._handle_queued_screen)
 
 
-    @track_event_handler("SHOW_SCREEN_QUEUED")
     def _handle_queued_screen(self, event):
         """Handle queued screen events (add to queue)"""
         payload = event.payload
@@ -92,7 +79,6 @@ class ScreenManager:
         duration = payload.get('duration', 3.0)
         self.screen_queue.add_screen(screen_type, context, duration)
 
-    @track_event_handler("PLAYER_CHANGE")
     def _handle_player_changes(self, event):
         status = event.payload.get('status')
         try:
@@ -123,13 +109,6 @@ class ScreenManager:
             logger.info(f"Error screen active, ignoring message screen queue")
             return
         self.switch_to_screen("message_screen")
-        self.render(context=context)
-
-    def show_menu_screen(self, context=None):
-        if self.error_active:
-            logger.info(f"Error screen active, ignoring menu screen queue")
-            return
-        self.switch_to_screen("menu")
         self.render(context=context)
 
     def switch_to_screen(self, screen_name):

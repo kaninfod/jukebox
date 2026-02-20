@@ -1,7 +1,6 @@
 
 from importlib.metadata import metadata
 import time
-from app.metrics.collector import play_counter
 import logging
 from typing import List, Dict, Optional
 from app.services.playback_backend_factory import get_playback_backend
@@ -296,7 +295,6 @@ class MediaPlayerService:
 
     def play_current_track(self):
         track = self.playlist[self.current_index]
-        ids = self.update_metrics(track)
         self.sync_volume_from_backend()
         if track['stream_url']:
             played_ok = self.playback_backend.play_media(
@@ -447,6 +445,63 @@ class MediaPlayerService:
                 "previous_backend": previous_backend_name,
             }
 
+        is_current_chromecast = "chromecast" in previous_backend_name.lower()
+        requested_device = (device_name or "").strip() or None
+
+        # Fast no-op when backend and device are already active.
+        if target_backend == ("chromecast" if is_current_chromecast else "mpv"):
+            if target_backend == "chromecast":
+                if not requested_device or requested_device == previous_device:
+                    return {
+                        "status": "ok",
+                        "backend": "chromecast",
+                        "device_name": previous_device,
+                        "resumed": previous_status == PlayerStatus.PLAY,
+                        "track_index": previous_track_index,
+                        "track_id": previous_track_id,
+                        "rollback_applied": False,
+                        "previous_backend": previous_backend_name,
+                        "previous_device": previous_device,
+                    }
+            else:
+                return {
+                    "status": "ok",
+                    "backend": "mpv",
+                    "device_name": getattr(previous_backend, "device_name", None),
+                    "resumed": previous_status == PlayerStatus.PLAY,
+                    "track_index": previous_track_index,
+                    "track_id": previous_track_id,
+                    "rollback_applied": False,
+                    "previous_backend": previous_backend_name,
+                    "previous_device": previous_device,
+                }
+
+        # Same-backend Chromecast device switch must reconnect immediately.
+        if target_backend == "chromecast" and is_current_chromecast and requested_device and requested_device != previous_device:
+            if hasattr(previous_backend, "switch_and_resume_playback"):
+                result = previous_backend.switch_and_resume_playback(requested_device)
+                if result.get("status") == "switched":
+                    self.emit_update()
+                    return {
+                        "status": "ok",
+                        "backend": "chromecast",
+                        "device_name": requested_device,
+                        "resumed": bool(result.get("playback_resumed")),
+                        "track_index": result.get("track_index", previous_track_index),
+                        "track_id": previous_track_id,
+                        "rollback_applied": False,
+                        "previous_backend": previous_backend_name,
+                        "previous_device": previous_device,
+                    }
+                return {
+                    "status": "error",
+                    "code": "switch_failed",
+                    "message": result.get("error", "Failed to switch Chromecast device"),
+                    "rollback_applied": False,
+                    "previous_backend": previous_backend_name,
+                    "previous_device": previous_device,
+                }
+
         try:
             if previous_status in (PlayerStatus.PLAY, PlayerStatus.PAUSE):
                 try:
@@ -518,34 +573,6 @@ class MediaPlayerService:
     def get_track_elapsed(self):
         """Return the elapsed play time (seconds) for the current track."""
         return self.track_timer.get_elapsed()
-    
-    def update_metrics(self, track: Dict) -> Dict[str, str]:
-        """
-        Returns a dict with Subsonic IDs for artist, album, and track using SubsonicService.get_song_info.
-        If not available, returns 'unknown'.
-        """
-        track_id = track.get('track_id')
-        if not track_id:
-            return {'artist': 'unknown', 'album': 'unknown', 'track': 'unknown'}
-        from app.core.service_container import get_service
-        service = get_service('subsonic_service')
-        song_info = service.get_song_info(track_id)
-        if not song_info:
-            return {'artist': 'unknown', 'album': 'unknown', 'track': track_id}
-
-        ids = {
-            'artist': song_info.get('artistId', 'unknown'),
-            'album': song_info.get('albumId', 'unknown'),
-            'track': song_info.get('id', track_id)
-        }        
-        
-        play_counter.labels(
-            artist=track.get('artist', 'unknown'),
-            album=track.get('album', 'unknown'),
-            song=track.get('title', 'unknown')
-        ).inc()
-
-        return ids
 
 
 class TrackTimer:

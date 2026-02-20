@@ -377,10 +377,3 @@ async def cancel_shutdown() -> Dict[str, str]:
             detail=f"Failed to cancel shutdown: {str(e)}"
         )
 
-@router.get("/metrics")
-async def metrics_endpoint():
-    """
-    Expose Prometheus metrics for scraping.
-    """
-    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
-

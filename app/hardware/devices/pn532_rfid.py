@@ -118,12 +118,6 @@ class PN532Reader:
         self._i2c = None  # Instance reference (from cache)
         self._pn532 = None  # Fresh PN532 instance
         logger.debug("PN532Reader instance created")
-        # Metric: count PN532Reader object creations
-        try:
-            from app.metrics.collector import metrics
-            metrics.inc("pn532reader_created")
-        except Exception as e:
-            logger.debug(f"Metric increment failed: {e}")
 
     def _init_pn532(self, recovery_level=0):
         """

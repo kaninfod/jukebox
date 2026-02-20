@@ -125,12 +125,11 @@ class KioskContentLoader {
             window.initDeviceSelector();
         }
     }
-    
+
     /**
      * Initialize system menu component
      */
     initSystemMenu() {
-        // Check if the component defined initSystemMenu in global scope
         if (typeof window.initSystemMenu === 'function') {
             window.initSystemMenu();
         }

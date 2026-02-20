@@ -48,11 +48,6 @@ class ChromecastMediaStatusListener:
                 elif player_state == 'PLAYING':
                     logger.info(f"[{self.device_name}] ▶️  Started playing - Duration: {duration}s")
                 elif player_state == 'PAUSED':
-                    from app.core import event_bus, EventType, Event
-                    event_bus.emit(Event(
-                        type=EventType.TRACK_PAUSED,
-                        payload={}
-                    ))
                     logger.info(f"[{self.device_name}] ⏸️  Paused at {current_time}s")
                 elif player_state == 'BUFFERING':
                     logger.info(f"[{self.device_name}] ⏳ Buffering at {current_time}s")
