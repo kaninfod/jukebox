@@ -18,19 +18,24 @@
         {% include 'components/kiosk/_status_bar.html' %}
     </div>
 
-    <!-- Main content area with navigation and dynamic content -->
-    <div class="kiosk-main-content d-flex" style="height: 558px; min-height: 558px; max-height: 558px; flex-shrink: 0; flex-grow: 0; overflow: hidden;">
+    <!-- Main content area with navigation, dynamic content, and volume bar -->
+    <div class="kiosk-main-content d-flex">
         <!-- Left navigation sidebar (increased by 50% for better touch) -->
         {% include 'components/kiosk/_navigation.html' %}
         
         <!-- Dynamic content area -->
-        <div id="kiosk-content-area" class="flex-grow-1">
+        <div id="kiosk-content-area" class="flex-grow-1 position-relative">
             {% block kiosk_content %}{% endblock %}
+        </div>
+        
+        <!-- Right volume bar (can be toggled) -->
+        <div id="kiosk-volume-sidebar" class="kiosk-volume-sidebar">
+            {% include 'components/kiosk/_volume_bar.html' %}
         </div>
     </div>
 
-    <!-- Controls fixed at bottom -->
-    <div style="height: 100px; min-height: 100px; max-height: 100px; flex-shrink: 0;">
+    <!-- Controls fixed at bottom (can be toggled) -->
+    <div id="kiosk-controls-bar" style="height: 100px; min-height: 100px; max-height: 100px; flex-shrink: 0;">
         {% include 'components/kiosk/_controls.html' %}
     </div>
 
@@ -50,6 +55,27 @@
         }
         return fetch(url, { ...options, headers });
       }
+      
+      // Check URL parameters for UI visibility options
+      document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        // Hide controls if hidecontrols=1 parameter is present
+        if (urlParams.get('hidecontrols') === '1') {
+          const controlsBar = document.getElementById('kiosk-controls-bar');
+          if (controlsBar) {
+            controlsBar.classList.add('collapsed');
+          }
+        }
+        
+        // Hide volume if hidevolume=1 parameter is present
+        if (urlParams.get('hidevolume') === '1') {
+          const volumeSidebar = document.getElementById('kiosk-volume-sidebar');
+          if (volumeSidebar) {
+            volumeSidebar.classList.add('collapsed');
+          }
+        }
+      });
     </script>
     <script src="/static/js/kiosk-loader.js"></script>
     <!-- Load all kiosk component scripts upfront (small files, better for caching) -->

@@ -252,23 +252,61 @@ async def kiosk_artist_albums(request: Request, artist_id: str = Query(...), art
 @router.get("/kiosk/html/devices", response_class=HTMLResponse)
 async def kiosk_devices(request: Request):
     """
-    Render available Chromecast devices as HTML using device partials.
+    Render available output devices (Bluetooth/MPV + Chromecast) as HTML.
     """
     async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            f"{LOCAL_API_BASE}/api/chromecast/status",
+        status_resp = await client.get(
+            f"{LOCAL_API_BASE}/api/output/status",
             headers=FORWARDED_HEADERS,
             follow_redirects=True,
         )
-        resp.raise_for_status()
-        data = resp.json()
+        status_resp.raise_for_status()
+        status_data = status_resp.json()
 
-    devices = data.get('available_devices', [])
-    active = data.get('active_device')
+        options_resp = await client.get(
+            f"{LOCAL_API_BASE}/api/output/options",
+            headers=FORWARDED_HEADERS,
+            follow_redirects=True,
+        )
+        options_resp.raise_for_status()
+        options_data = options_resp.json()
+
+    active_backend = status_data.get("active_backend")
+    active_device = status_data.get("active_device")
+    readiness = status_data.get("output_readiness") or {}
+
+    bt_label = "Bluetooth Speaker"
+    if not config.BT_SPEAKER_MAC:
+        bt_label = "Local MPV Output"
+
+    devices = [
+        {
+            "name": bt_label,
+            "backend": "mpv",
+            "switch_device_name": None,
+            "icon": "mdi-bluetooth-audio",
+            "subtitle": "Local output",
+            "is_active": active_backend == "mpv",
+            "is_ready": readiness.get("ready", True),
+        }
+    ]
+
+    for device_name in options_data.get("chromecast_devices", []):
+        devices.append(
+            {
+                "name": device_name,
+                "backend": "chromecast",
+                "switch_device_name": device_name,
+                "icon": "mdi-cast",
+                "subtitle": "Chromecast",
+                "is_active": active_backend == "chromecast" and device_name == active_device,
+                "is_ready": True,
+            }
+        )
 
     return templates.TemplateResponse(
         "components/kiosk/device_selector/_devices_container.html",
-        {"request": request, "devices": devices, "active_device": active}
+        {"request": request, "devices": devices}
     )
 
 

@@ -185,7 +185,7 @@ class TestJukeboxMediaPlayer:
         player = MediaPlayerService(
             playlist=[],
             event_bus=mock_event_bus,
-            chromecast_service=mock_chromecast_service
+            playback_backend=mock_chromecast_service
         )
         
         assert player.event_bus == mock_event_bus
@@ -199,7 +199,7 @@ class TestJukeboxMediaPlayer:
         player = MediaPlayerService(
             playlist=[],
             event_bus=mock_event_bus,
-            chromecast_service=mock_chromecast_service
+            playback_backend=mock_chromecast_service
         )
         
         initial_volume = player.current_volume
@@ -219,7 +219,7 @@ class TestJukeboxMediaPlayer:
         player = MediaPlayerService(
             playlist=[],
             event_bus=mock_event_bus,
-            chromecast_service=mock_chromecast_service
+            playback_backend=mock_chromecast_service
         )
         
         # Test setting volume
@@ -241,7 +241,7 @@ class TestJukeboxMediaPlayer:
         player = MediaPlayerService(
             playlist=test_tracks,
             event_bus=mock_event_bus,
-            chromecast_service=mock_chromecast_service
+            playback_backend=mock_chromecast_service
         )
         
         assert len(player.playlist) == 2

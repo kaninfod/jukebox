@@ -4,7 +4,8 @@ import time
 from app.metrics.collector import play_counter
 import logging
 from typing import List, Dict, Optional
-from app.services.chromecast_service import get_chromecast_service
+from app.services.playback_backend_factory import get_playback_backend
+from app.services.playback_backend_factory import get_playback_backend_by_name
 from app.core import EventType, Event
 from app.core import PlayerStatus
 
@@ -12,34 +13,35 @@ logger = logging.getLogger(__name__)
 
 class MediaPlayerService:
 
-    def __init__(self, playlist: List[Dict], event_bus, chromecast_service=None):
+    def __init__(self, playlist: List[Dict], event_bus, playback_backend=None):
         """
         Initialize MediaPlayerService with dependency injection.
         
         Args:
             playlist: List of tracks to play
             event_bus: EventBus instance for event communication
-            chromecast_service: PyChromecastService instance for playback control (deprecated, use singleton)
+            playback_backend: Preferred backend implementation (chromecast/mpv)
         """
         self.playlist = playlist
         self.current_index = 0
         self.status = PlayerStatus.STOP
         
-        # Inject dependencies - use singleton get_chromecast_service() for shared state
         self.event_bus = event_bus
-        if chromecast_service:
-            self.cc_service = chromecast_service
+        if playback_backend:
+            self.playback_backend = playback_backend
         else:
-            # Use the singleton instance so all parts of the app share the same connection state
-            from app.config import config
-            self.cc_service = get_chromecast_service(config.DEFAULT_CHROMECAST_DEVICE)
+            self.playback_backend = get_playback_backend()
 
         self._repeat_album = False            
         self.current_volume = 25
         self.track_timer = TrackTimer()
-        self.sync_volume_from_chromecast()
+        self.sync_volume_from_backend()
         
-        logger.info(f"MediaPlayerService initialized with dependency injection. Chromecast device={self.cc_service.device_name}")
+        logger.info(
+            "MediaPlayerService initialized with playback backend=%s, device=%s",
+            type(self.playback_backend).__name__,
+            getattr(self.playback_backend, "device_name", "unknown"),
+        )
 
 
 
@@ -109,12 +111,12 @@ class MediaPlayerService:
         """Return whether repeat album is enabled."""
         return self._repeat_album
 
-    def sync_volume_from_chromecast(self):
-        """Sync volume from Chromecast (0.0-1.0) to 0-100 scale."""
-        cc_volume = self.cc_service.get_volume()
-        logger.debug(f"[sync_volume_from_chromecast] cc_volume from Chromecast: {cc_volume}")
+    def sync_volume_from_backend(self):
+        """Sync volume from active playback backend (0.0-1.0) to 0-100 scale."""
+        backend_volume = self.playback_backend.get_volume()
+        logger.debug(f"[sync_volume_from_backend] volume from backend: {backend_volume}")
         
-        value = int(cc_volume * 100) if cc_volume is not None else self.current_volume
+        value = int(backend_volume * 100) if backend_volume is not None else self.current_volume
         self.current_volume = value
         # Use injected event_bus instead of importing
         self.event_bus.emit(Event(
@@ -127,6 +129,7 @@ class MediaPlayerService:
         """Toggle repeat album setting."""
         self._repeat_album = not self._repeat_album
         logger.info(f"Repeat album set to: {self._repeat_album}")
+        self.emit_update()
         return self._repeat_album
 
     def play(self, event=None):
@@ -135,27 +138,24 @@ class MediaPlayerService:
         if self.status == PlayerStatus.PLAY:
             self.track_timer.pause()
             self.status = PlayerStatus.PAUSE
-            self.cc_service.pause()
+            self.playback_backend.pause()
             status = self.status
         elif self.status == PlayerStatus.PAUSE:
             self.track_timer.resume()
             self.status = PlayerStatus.PLAY
-            self.cc_service.resume()
+            self.playback_backend.resume()
             status = self.status
         elif self.status == PlayerStatus.STOP:
             if len(self.playlist) > 0:
                 self.current_index = 0  # Reset to start if at end of playlist
                 self.status = PlayerStatus.PLAY
-                self.cast_current_track()
+                self.play_current_track()
                 status = self.status
             else:
                 logging.warning("No playlist loaded.")
                 status = False
         
-        self.event_bus.emit(Event(
-            type=EventType.TRACK_CHANGED,
-            payload=self.get_context()
-        ))
+        self.emit_update()
 
         return status
 
@@ -165,45 +165,38 @@ class MediaPlayerService:
         if self.status == PlayerStatus.PLAY:
             self.track_timer.pause()
             self.status = PlayerStatus.PAUSE
-            self.cc_service.pause()
+            self.playback_backend.pause()
         elif self.status == PlayerStatus.PAUSE:
             self.track_timer.resume()
             self.status = PlayerStatus.PLAY
-            self.cc_service.resume()
+            self.playback_backend.resume()
 
-        self.event_bus.emit(Event(
-            type=EventType.TRACK_CHANGED,
-            payload=self.get_context()
-        ))
+        self.emit_update()
         return True
 
     def stop(self, event=None):
-        self.cc_service.stop()        
+        self.playback_backend.stop()
         self.status = PlayerStatus.STOP
         self.current_index = 0  # Reset to start of playlist
         self.track_timer.reset()
-                
-        self.event_bus.emit(Event(
-            type=EventType.TRACK_CHANGED,
-            payload=self.get_context()
-        ))
 
+        self.emit_update()                
         return True
 
     def previous_track(self, event=None):
         if self.current_index > 0:
             self.current_index -= 1
-            self.cast_current_track()
+            self.play_current_track()
             return True
 
     def next_track(self, event=None, force=False):
         if self.current_index < len(self.playlist) - 1:
             self.current_index += 1
-            self.cast_current_track()
+            self.play_current_track()
             return True
         elif self.repeat_album:
             self.current_index = 0
-            self.cast_current_track ()
+            self.play_current_track()
             return True
         else:
             self.stop()
@@ -223,14 +216,14 @@ class MediaPlayerService:
         
         if 0 <= track_index < len(self.playlist):
             self.current_index = track_index
-            self.cast_current_track()
+            self.play_current_track()
             return track_index
         else:
             logger.error(f"play_track: track_index {track_index} out of bounds (playlist size: {len(self.playlist)})")
             return False
 
     def set_volume(self, volume=None, event=None):
-        """Set volume (0-100) and sync with Chromecast.
+        """Set volume (0-100) and sync with playback backend.
 
         Supports two invocation styles:
         - Direct call with numeric volume (used by volume_up/down)
@@ -238,9 +231,12 @@ class MediaPlayerService:
         """
         # Normalize input volume from either direct call or event payload
         requested = None
-        if event is not None and hasattr(event, "payload"):
+        # Check if first argument is an Event object (EventBus call)
+        if hasattr(volume, "payload"):
+            requested = volume.payload.get("volume")
+        elif event is not None and hasattr(event, "payload"):
             requested = event.payload.get("volume")
-        elif volume is not None and volume >= 0:
+        elif volume is not None and isinstance(volume, (int, float)) and volume >= 0:
             requested = volume
 
         try:
@@ -253,7 +249,7 @@ class MediaPlayerService:
         normalized_volume = self.current_volume / 100.0 if self.current_volume is not None else None
 
         if normalized_volume is not None:
-            self.cc_service.set_volume(normalized_volume)
+            self.playback_backend.set_volume(normalized_volume)
 
         logger.debug(f"[set_volume] current_volume set to: {self.current_volume}")
         self.event_bus.emit(Event(
@@ -272,12 +268,38 @@ class MediaPlayerService:
         self.set_volume(self.current_volume - 5)
         return True
 
-    def cast_current_track(self):
+    def volume_mute(self, event=None):
+        """Toggle mute on the active playback backend."""
+        try:
+            # Get current mute state
+            current_muted = self.playback_backend.get_volume_muted()
+            if current_muted is None:
+                logger.error("Failed to get current mute state")
+                return {"success": False, "muted": None}
+            
+            # Toggle mute
+            new_muted = not current_muted
+            success = self.playback_backend.set_volume_muted(new_muted)
+            
+            if success:
+                logger.info(f"Volume {'muted' if new_muted else 'unmuted'}")
+                self.event_bus.emit(Event(
+                    type=EventType.VOLUME_CHANGED,
+                    payload=self.get_context()
+                ))
+                return {"success": True, "muted": new_muted}
+            else:
+                return {"success": False, "muted": current_muted}
+        except Exception as e:
+            logger.error(f"Failed to toggle mute: {e}")
+            return {"success": False, "muted": None}
+
+    def play_current_track(self):
         track = self.playlist[self.current_index]
         ids = self.update_metrics(track)
-        self.sync_volume_from_chromecast()
+        self.sync_volume_from_backend()
         if track['stream_url']:
-            self.cc_service.play_media(
+            played_ok = self.playback_backend.play_media(
                 track['stream_url'], 
                 media_info={
                     "title": track.get("title"),
@@ -294,6 +316,18 @@ class MediaPlayerService:
                     }
                 }
             )
+            if not played_ok:
+                logger.error(
+                    "Backend failed to start playback for track %s/%s: %s",
+                    self.current_index + 1,
+                    len(self.playlist),
+                    track.get('title'),
+                )
+                self.status = PlayerStatus.STOP
+                self.track_timer.reset()
+                self.emit_update()
+                return
+
             self.track_timer.reset()
             self.track_timer.start()
             self.status = PlayerStatus.PLAY
@@ -303,12 +337,8 @@ class MediaPlayerService:
             if track_id:
                 self._scrobble_track_now_playing(track_id, track.get('title'))
             
-            # Use injected event_bus instead of importing
-            self.event_bus.emit(Event(
-                type=EventType.TRACK_CHANGED,
-                payload=self.get_context()
-            ))
-            logger.info(f"Casting track {self.current_index+1}/{len(self.playlist)}: {track.get('title')}")
+            self.emit_update()
+            logger.info(f"Playing track {self.current_index+1}/{len(self.playlist)}: {track.get('title')}")
         else:
             logger.error("No stream_url for current track.")
 
@@ -326,7 +356,7 @@ class MediaPlayerService:
         """
         Notify Subsonic that a track is now playing (scrobble to Last.fm if configured).
         
-        This is called when playback starts on the Chromecast and sends a scrobble
+        This is called when playback starts and sends a scrobble
         notification to Subsonic, which forwards it to Last.fm if configured.
         
         Args:
@@ -352,6 +382,12 @@ class MediaPlayerService:
             logger.error(f"_scrobble_track_now_playing: Error scrobbling track '{track_title}': {e}")
             # Non-critical error - don't let scrobbling failures affect playback
     
+    def emit_update(self):
+        """Emit TRACK_CHANGED event with current context."""
+        self.event_bus.emit(Event(
+            type=EventType.TRACK_CHANGED,
+            payload=self.get_context()
+        ))
     
     def get_context(self):
         return {
@@ -370,8 +406,9 @@ class MediaPlayerService:
             "current_index": self.current_index,
             "repeat_album": self._repeat_album,
             "playlist": self.playlist,
-            "volume": self.volume, 
-            "chromecast_device": self.cc_service.device_name
+            "volume": self.volume,
+            "elapsed_time": self.track_timer.get_elapsed(),
+            "output_device": self.playback_backend.device_name
         }
 
     def get_status(self) -> Dict:
@@ -387,7 +424,96 @@ class MediaPlayerService:
 
     def cleanup(self):
         logger.info("MediaPlayerService cleanup called")
-        # Add any additional cleanup logic here if needed        
+        try:
+            self.playback_backend.cleanup()
+        except Exception:
+            pass
+
+    def switch_playback_backend(self, backend: str, device_name: Optional[str] = None) -> Dict:
+        previous_backend = self.playback_backend
+        previous_backend_name = type(previous_backend).__name__
+        previous_device = getattr(previous_backend, "device_name", None)
+        previous_status = self.status
+        previous_track_index = self.current_index
+        previous_track_id = self.track_id
+
+        target_backend = (backend or "").strip().lower()
+        if target_backend not in ("mpv", "chromecast"):
+            return {
+                "status": "error",
+                "code": "invalid_backend",
+                "message": f"Unsupported backend '{backend}'",
+                "rollback_applied": False,
+                "previous_backend": previous_backend_name,
+            }
+
+        try:
+            if previous_status in (PlayerStatus.PLAY, PlayerStatus.PAUSE):
+                try:
+                    previous_backend.stop()
+                except Exception:
+                    pass
+
+            new_backend = get_playback_backend_by_name(target_backend, device_name=device_name)
+            self.playback_backend = new_backend
+
+            backend_volume = self.current_volume / 100.0
+            self.playback_backend.set_volume(backend_volume)
+
+            muted_state = previous_backend.get_volume_muted()
+            if muted_state is not None:
+                self.playback_backend.set_volume_muted(bool(muted_state))
+
+            resumed = False
+            if self.playlist and 0 <= self.current_index < len(self.playlist):
+                if previous_status == PlayerStatus.PLAY:
+                    self.play_current_track()
+                    resumed = self.status == PlayerStatus.PLAY
+                elif previous_status == PlayerStatus.PAUSE:
+                    self.play_current_track()
+                    self.playback_backend.pause()
+                    self.track_timer.pause()
+                    self.status = PlayerStatus.PAUSE
+                    self.emit_update()
+
+            return {
+                "status": "ok",
+                "backend": target_backend,
+                "device_name": getattr(self.playback_backend, "device_name", None),
+                "resumed": resumed,
+                "track_index": previous_track_index,
+                "track_id": previous_track_id,
+                "rollback_applied": False,
+                "previous_backend": previous_backend_name,
+                "previous_device": previous_device,
+            }
+        except Exception as e:
+            logger.error("Failed to switch playback backend to %s: %s", target_backend, e)
+            self.playback_backend = previous_backend
+
+            rollback_applied = False
+            try:
+                if previous_status == PlayerStatus.PLAY and self.playlist and 0 <= self.current_index < len(self.playlist):
+                    self.play_current_track()
+                    rollback_applied = self.status == PlayerStatus.PLAY
+                elif previous_status == PlayerStatus.PAUSE and self.playlist and 0 <= self.current_index < len(self.playlist):
+                    self.play_current_track()
+                    self.playback_backend.pause()
+                    self.track_timer.pause()
+                    self.status = PlayerStatus.PAUSE
+                    self.emit_update()
+                    rollback_applied = True
+            except Exception:
+                rollback_applied = False
+
+            return {
+                "status": "error",
+                "code": "switch_failed",
+                "message": str(e),
+                "rollback_applied": rollback_applied,
+                "previous_backend": previous_backend_name,
+                "previous_device": previous_device,
+            }
 
     def get_track_elapsed(self):
         """Return the elapsed play time (seconds) for the current track."""

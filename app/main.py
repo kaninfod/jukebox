@@ -27,7 +27,9 @@ from app.routes.mediaplayer import router as mediaplayer_router
 from app.routes.system import router as system_router
 from app.routes.subsonic import router as subsonic_router
 from app.routes.chromecast import router as chromecast_router
+from app.routes.output import router as output_router
 from app.routes.nfc_encoding import router as nfc_encoding_router
+from app.routes.display import router as display_router
 
 # Import services to ensure event subscriptions are active
 from app.services import system_service  # Ensures SystemService event handlers are registered
@@ -89,9 +91,11 @@ app.mount("/assets", StaticFiles(directory=album_cover_dir), name="assets")
 # Include routers
 app.include_router(album_router)
 app.include_router(mediaplayer_router)
+app.include_router(display_router)
 app.include_router(system_router)
 app.include_router(subsonic_router)
 app.include_router(chromecast_router)
+app.include_router(output_router)
 app.include_router(nfc_encoding_router)
 app.include_router(web_router)
 
@@ -104,9 +108,9 @@ else:
     logger.warning(f"Web static directory not found: {web_static_dir}")
 
 # Service container import and eager initialization
-from app.core.service_container import setup_service_container, container as global_container
-if global_container is None:
-    global_container = setup_service_container()
+# from app.core.service_container import setup_service_container, container as global_container
+# if global_container is None:
+#     global_container = setup_service_container()
 
 
 
@@ -118,6 +122,7 @@ def startup_event():
         logging.error("❌ Configuration validation failed. Please check your .env file.")
         return
     # Step 1: Setup service container
+    from app.core.service_container import setup_service_container
     global_container = setup_service_container()
     # Step 2: Resolve all main services (hardware_manager auto-initializes in factory)
     playback_service = global_container.get('playback_service')

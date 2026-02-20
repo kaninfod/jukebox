@@ -11,6 +11,7 @@ class EventType(Enum):
 
     TRACK_CHANGED = "track_changed"
     VOLUME_CHANGED = "volume_changed"
+    BRIGHTNESS_CHANGED = "brightness_changed"
     STATUS_CHANGED = "status_changed"
     TRACK_FINISHED = "track_finished"
     TRACK_PAUSED = "track_paused"
@@ -24,6 +25,7 @@ class EventType(Enum):
     VOLUME_UP = "volume_up"
     VOLUME_DOWN = "volume_down"
     SET_VOLUME = "set_volume"
+    VOLUME_MUTE = "volume_mute"
     PLAY_ALBUM = "play_album"
     
     CLEAR_ERROR = "clear_error"

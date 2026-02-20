@@ -9,7 +9,31 @@ class KioskContentLoader {
     constructor() {
         this.contentArea = document.getElementById('kiosk-content-area');
         this.currentView = 'player';
+        this.controlsVisible = true;
+        this.volumeVisible = true;
         this.initializeListeners();
+    }
+    
+    /**
+     * Toggle visibility of controls bar
+     */
+    toggleControls() {
+        const controlsBar = document.getElementById('kiosk-controls-bar');
+        if (controlsBar) {
+            this.controlsVisible = !this.controlsVisible;
+            controlsBar.classList.toggle('collapsed');
+        }
+    }
+    
+    /**
+     * Toggle visibility of volume sidebar
+     */
+    toggleVolume() {
+        const volumeSidebar = document.getElementById('kiosk-volume-sidebar');
+        if (volumeSidebar) {
+            this.volumeVisible = !this.volumeVisible;
+            volumeSidebar.classList.toggle('collapsed');
+        }
     }
     
     /**

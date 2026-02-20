@@ -13,6 +13,9 @@ from app.config import config
 
 logger = logging.getLogger(__name__)
 
+
+DEFAULT_MEDIA_RECEIVER_APP_ID = "CC1AD845"
+
 class ChromecastMediaStatusListener:
     """
     Listener for Chromecast media status changes.
@@ -151,7 +154,7 @@ class ChromecastService:
                 'host': 'Unknown',
                 'uuid': 'Unknown'
             })
-        logger.info(f"Returning {len(devices)} configured Chromecast devices")
+        logger.debug(f"Returning {len(devices)} configured Chromecast devices")
         return devices
     
     def scan_network_for_devices(self, timeout: Optional[int] = None) -> List[Dict[str, str]]:
@@ -286,6 +289,7 @@ class ChromecastService:
                 self.mc = self.cast.media_controller
                 self.status_listener = ChromecastMediaStatusListener(self.cast.name)
                 self.mc.register_status_listener(self.status_listener)
+                self.device_name = self.cast.name
                 logger.info(f"Registered media status listener for {self.cast.name}")
                 logger.info(f"Successfully connected to {self.cast.name}")
                 logger.debug(f"Device status: {self.cast.status}")
@@ -340,12 +344,72 @@ class ChromecastService:
             return True
         logger.info("Connection lost, attempting to reconnect...")
         return self.connect()
+
+    def _is_cast_group(self) -> bool:
+        """Best-effort detection of cast groups.
+
+        We avoid force-taking over groups by default because they can have
+        different semantics and can impact multiple devices.
+        """
+        try:
+            cast_info = getattr(self.cast, "cast_info", None)
+            cast_type = getattr(cast_info, "cast_type", None)
+            if cast_type is None:
+                cast_type = getattr(self.cast, "cast_type", None)
+            return str(cast_type).lower() == "group"
+        except Exception:
+            return False
+
+    def _force_takeover_receiver_app_if_needed(self) -> None:
+        """Force the Chromecast to exit any active non-media receiver app.
+
+        This is intentionally aggressive: it will interrupt other senders.
+        """
+        if not self.cast or not getattr(self.cast, "status", None):
+            return
+
+        if self._is_cast_group():
+            logger.info(
+                "Skipping force takeover on cast group device: %s",
+                getattr(self.cast, "name", "unknown"),
+            )
+            return
+
+        app_id = getattr(self.cast.status, "app_id", None)
+        display_name = getattr(self.cast.status, "display_name", None)
+
+        # If no app_id is reported, the device is likely idle/backdrop.
+        if not app_id:
+            return
+
+        # Default Media Receiver is what we want for direct URL playback.
+        if app_id == DEFAULT_MEDIA_RECEIVER_APP_ID:
+            return
+
+        logger.warning(
+            "Force-taking over Chromecast '%s': quitting active app '%s' (app_id=%s)",
+            getattr(self.cast, "name", "unknown"),
+            display_name or "unknown",
+            app_id,
+        )
+        try:
+            # This will stop the current receiver app (e.g. YouTube Music).
+            self.cast.quit_app()
+        except Exception as e:
+            logger.warning("Failed to quit active Chromecast app (app_id=%s): %s", app_id, e)
+
+        # Give the device a moment to settle before we send LOAD.
+        time.sleep(0.8)
     
     def play_media(self, url: str, media_info: dict = None, content_type: str = "audio/mp3") -> bool:
         if not self.ensure_connected():
             logger.error("Cannot play media: no Chromecast connection")
             return False
         try:
+            # Aggressive takeover: if another sender has YouTube/Spotify/etc active,
+            # quit that receiver app before attempting playback.
+            self._force_takeover_receiver_app_if_needed()
+
             logger.info(f"Playing media on {self.cast.name}: {url} with {media_info}")
             if media_info:
                 title = media_info.get("title", "Unknown Title")
@@ -378,6 +442,7 @@ class ChromecastService:
             logger.error(f"Failed to play media: {e}")
             try:
                 logger.info("Attempting fallback playback without metadata")
+                self._force_takeover_receiver_app_if_needed()
                 self.mc.play_media(url, content_type)
                 self.mc.block_until_active(timeout=config.CHROMECAST_WAIT_TIMEOUT)
                 return True
@@ -425,6 +490,41 @@ class ChromecastService:
         except Exception as e:
             logger.error(f"Failed to set volume: {e}")
             return False
+    
+    def set_volume_muted(self, muted: bool) -> bool:
+        """Mute or unmute the Chromecast device.
+        
+        Args:
+            muted: True to mute, False to unmute
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.ensure_connected():
+            return False
+        try:
+            self.cast.set_volume_muted(muted)
+            logger.info(f"Volume {'muted' if muted else 'unmuted'}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to set mute: {e}")
+            return False
+    
+    def get_volume_muted(self) -> Optional[bool]:
+        """Get the current mute state of the Chromecast device.
+        
+        Returns:
+            True if muted, False if not muted, None if not connected
+        """
+        if not self.is_connected():
+            return None
+        try:
+            muted = self.cast.status.volume_muted
+            logger.debug(f"Volume muted: {muted}")
+            return muted
+        except Exception as e:
+            logger.error(f"Failed to get mute status: {e}")
+            return None
+    
     def get_volume(self) -> Optional[float]:
         if not self.is_connected():
             return None

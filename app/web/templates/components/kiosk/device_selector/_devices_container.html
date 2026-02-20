@@ -1,15 +1,15 @@
 {# Container partial for device cards #}
 {% if not devices %}
 <div style="grid-column: 1 / -1;" class="text-center text-muted py-5">
-    <i class="mdi mdi-cast-off" style="font-size: 48px;"></i>
-    <p class="mt-3">No Chromecast devices found</p>
+    <i class="mdi mdi-speaker-off" style="font-size: 48px;"></i>
+    <p class="mt-3">No output devices found</p>
 </div>
 {% else %}
 <div class="device-grid-inner">
   {# Use 3 columns on md and larger so 3 devices fit in a single row; each column is a flex container so the card can stretch #}
   <div class="row row-cols-1 row-cols-md-3 g-3 align-items-stretch justify-content-center">
     {% for device in devices %}
-      {% set is_active = (device.name == active_device) %}
+      {% set is_active = device.is_active %}
       <div class="col">
         {% include 'components/kiosk/device_selector/_device.html' %}
       </div>

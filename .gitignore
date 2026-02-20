@@ -77,6 +77,7 @@ secrets.json
 *.tmp
 *.temp
 .cache/
+tmp/
 
 # PI specific
 *.lgd-nfy0

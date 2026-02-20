@@ -166,11 +166,11 @@ class TestSystemStartup:
         player = MediaPlayerService(
             playlist=[],
             event_bus=mock_event_bus,
-            chromecast_service=mock_chromecast
+            playback_backend=mock_chromecast
         )
         
         assert player.event_bus == mock_event_bus
-        assert player.cc_service == mock_chromecast
+        assert player.playback_backend == mock_chromecast
         assert player.current_volume == 50  # 0.5 * 100
     
     def test_playback_service_initialization(self, mock_config, mock_event_bus):
@@ -259,7 +259,7 @@ class TestSystemIntegration:
             jukebox_mediaplayer = MediaPlayerService(
                 playlist=[],
                 event_bus=mock_event_bus,
-                chromecast_service=chromecast_service
+                playback_backend=chromecast_service
             )
             
             # Step 6: Initialize PlaybackService

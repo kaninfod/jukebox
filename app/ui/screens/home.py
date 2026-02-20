@@ -24,7 +24,7 @@ class HomeScreen(Screen):
         self._album_year = "----"
         self._track_title = "No Track"
         self._album_id = None
-        self._cc_device = "No Device"
+        self._output_device = "No Device"
         
     @staticmethod
     def show(context=None):
@@ -63,7 +63,8 @@ class HomeScreen(Screen):
                 self._album_year = str(current_track.get('year', '----'))
                 self._volume = self.player.volume if self.player.volume is not None else 25
                 self._player_status = self.player.status if self.player.status else PlayerStatus.STANDBY
-                self._cc_device = self.player.cc_service.device_name if self.player.cc_service else 'No Device'
+                backend = self.player.playback_backend if self.player else None
+                self._output_device = backend.device_name if backend else 'No Device'
         except Exception as e:
             logger.warning(f"Error fetching player state: {e}, No redraw of Home screen.")
             return {"dirty": False}
@@ -81,7 +82,7 @@ class HomeScreen(Screen):
         screen_title_element.draw(draw_context)
 
         box = (200, 10, 200, 50)
-        screen_title_element = TextElement(*box, self._cc_device, fonts["title"])
+        screen_title_element = TextElement(*box, self._output_device, fonts["title"])
         screen_title_element.draw(draw_context)
 
         box = (20, 60, 180, 180)
@@ -132,7 +133,7 @@ class HomeScreen(Screen):
         self._album_id = None
         self._album_name = 'Unknown Album'
         self._album_year = '----'
-        self._cc_device = 'No Device'
+        self._output_device = 'No Device'
         self._volume = 0
         self._player_status = PlayerStatus.STANDBY
 

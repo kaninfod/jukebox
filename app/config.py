@@ -65,6 +65,24 @@ class Config:
     CHROMECAST_FALLBACK_DEVICES: list = [
         device.strip() for device in os.getenv("CHROMECAST_FALLBACK_DEVICES", "Bedroom,Kitchen").split(",")
     ]
+
+    # Playback backend selection: chromecast | mpv
+    PLAYBACK_BACKEND: str = os.getenv("PLAYBACK_BACKEND", "chromecast").strip().lower()
+
+    # MPV local player configuration
+    MPV_BINARY: str = os.getenv("MPV_BINARY", "mpv")
+    MPV_IPC_SOCKET: str = os.getenv("MPV_IPC_SOCKET", "/tmp/jukebox-mpv.sock")
+    MPV_AUDIO_DEVICE: str = os.getenv("MPV_AUDIO_DEVICE", "")
+    MPV_EXTRA_ARGS: str = os.getenv("MPV_EXTRA_ARGS", "")
+    MPV_STARTUP_TIMEOUT_SECONDS: int = int(os.getenv("MPV_STARTUP_TIMEOUT_SECONDS", "5"))
+    MPV_MSG_LEVEL: str = os.getenv("MPV_MSG_LEVEL", "")
+    MPV_LOG_FILE: str = os.getenv("MPV_LOG_FILE", "")
+    MPV_DIAGNOSTIC_INTERVAL_SECONDS: int = int(os.getenv("MPV_DIAGNOSTIC_INTERVAL_SECONDS", "20"))
+    MPV_STALL_WARNING_SECONDS: int = int(os.getenv("MPV_STALL_WARNING_SECONDS", "90"))
+
+    # Optional Bluetooth speaker for local playback
+    BT_SPEAKER_MAC: str = os.getenv("BT_SPEAKER_MAC", "")
+    BT_AUTO_RECONNECT: bool = os.getenv("BT_AUTO_RECONNECT", "true").lower() == "true"
     
     # Display Configuration  
     DISPLAY_WIDTH: int = int(os.getenv("DISPLAY_WIDTH", "480"))

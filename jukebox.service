@@ -15,6 +15,8 @@ Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=PYTHONPATH=/home/pi/shared/jukebox:/home/pi/shared/jukebox/app
 Environment=VIRTUAL_ENV=/home/pi/shared/jukebox/venv
 Environment=PATH=/home/pi/shared/jukebox/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
 ExecStart=/home/pi/shared/jukebox/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info --proxy-headers --forwarded-allow-ips="*"
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=mixed

@@ -110,7 +110,7 @@ def full_system_setup():
         media_player_service = MediaPlayerService(
             playlist=[],
             event_bus=event_bus,
-            chromecast_service=chromecast_service
+            playback_backend=chromecast_service
         )
         
         playback_service = PlaybackService(

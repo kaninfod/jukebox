@@ -72,6 +72,7 @@ class PlaybackService:
         self.event_bus.subscribe(EventType.VOLUME_UP, self.player.volume_up)
         self.event_bus.subscribe(EventType.VOLUME_DOWN, self.player.volume_down)
         self.event_bus.subscribe(EventType.SET_VOLUME, self.player.set_volume)
+        self.event_bus.subscribe(EventType.VOLUME_MUTE, self.player.volume_mute)
         
         self.event_bus.subscribe(EventType.PLAY_ALBUM, self._handle_play_album_event)
         self.event_bus.subscribe(EventType.CHROMECAST_DEVICE_CHANGED, self._handle_device_changed_event)
@@ -130,12 +131,19 @@ class PlaybackService:
             return
         
         logger.info(f"Device changed to: {device_name}")
-        
-        # Delegate to ChromecastService to handle seamless device switch
+
+        backend = getattr(self.player, "playback_backend", None)
+        if not backend:
+            logger.warning("No playback backend available for device switch")
+            return
+
+        if not hasattr(backend, "switch_and_resume_playback"):
+            logger.info("Current backend (%s) does not support device switching", type(backend).__name__)
+            return
+
+        # Delegate to backend to handle seamless device switch
         try:
-            from app.services.chromecast_service import get_chromecast_service
-            chromecast_service = get_chromecast_service()
-            result = chromecast_service.switch_and_resume_playback(device_name)
+            result = backend.switch_and_resume_playback(device_name)
             
             if result['status'] == 'switched':
                 logger.info(f"Device switch successful: {result['switched_from']} → {result['switched_to']}")
@@ -212,7 +220,8 @@ class PlaybackService:
             logger.info(f"Prepared playlist with {len(playlist_metadata)} tracks for album_id {album_id}")
             self.player.playlist = playlist_metadata
             self.player.current_index = start_track_index
-            self.player.play()
+            self.player._repeat_album = False
+            self.player.play_current_track()
             self.event_bus.emit(
                 EventFactory.notification({"message": f"Playing {album_info.get('name', '')}"})
             )
@@ -244,6 +253,7 @@ class PlaybackService:
             
         else:
             logger.info(f"Found album_id {album_id} for RFID {rfid}, loading album...")
+            self.album_db.set_album_mapping(str(rfid), album_id)
             self.load_from_album_id(album_id)
         return True
 

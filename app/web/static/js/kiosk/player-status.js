@@ -21,6 +21,59 @@ function safeInit() {
     }
 }
 
+// Progress bar state
+let progressInterval = null;
+let trackDuration = 0;
+let currentPosition = 0;
+let lastUpdateTime = Date.now();
+
+function formatTime(seconds) {
+    if (!seconds || seconds < 0) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function renderProgress() {
+    const progressFill = document.getElementById('kiosk-progress-fill');
+    const progressTime = document.getElementById('kiosk-progress-time');
+    
+    if (progressFill && progressTime && trackDuration > 0) {
+        const percent = Math.min(100, (currentPosition / trackDuration) * 100);
+        progressFill.style.width = percent + '%';
+        progressTime.textContent = `${formatTime(currentPosition)} / ${formatTime(trackDuration)}`;
+    }
+}
+
+function syncProgress(serverPosition, duration, isPlaying) {
+    trackDuration = duration || 0;
+    currentPosition = serverPosition || 0;
+    lastUpdateTime = Date.now();
+    
+    renderProgress();
+    
+    // Clear any existing interval
+    if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+    }
+    
+    // Start new interval only if playing
+    if (isPlaying && trackDuration > 0) {
+        progressInterval = setInterval(() => {
+            const elapsed = (Date.now() - lastUpdateTime) / 1000;
+            currentPosition = (serverPosition || 0) + elapsed;
+            
+            if (currentPosition >= trackDuration) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+                currentPosition = trackDuration;
+            }
+            renderProgress();
+        }, 1000);
+    }
+}
+
 function updateKioskTrackInfo(data) {
     const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
     console.log(`[${timestamp}] UPDATE: Received data:`, data);
@@ -63,15 +116,30 @@ function updateKioskTrackInfo(data) {
             console.error(`[${timestamp}] UPDATE: MISSING REQUIRED FIELDS - Cannot render. artist: "${data.current_track.artist}", album: "${data.current_track.album}", year: "${data.current_track.year}", playlist: ${!!data.playlist}`);
         }
         
+        if (data.status == 'playing') {
+            statusStr = '▶ Playing';
+        } else if (data.status == 'paused') {
+            statusStr = '❙❙ Paused @';
+        } else if (data.status == 'idle') {
+            statusStr = '■ Stopped - will play ';
+        } else {
+            statusStr = data.status;
+        }
+
+        if (data.repeat_album) {
+            repeatStr = 'on';
+        } else {
+            repeatStr = 'off';
+        }
+
         kioskInfoDiv.innerHTML = `
-            <div class="kiosk-status">
-                <span><i class="mdi mdi-music-note"></i> Track ${data.current_track.track_number} of ${data.playlist.length}</span>
-            </div>
+            <div class="kiosk-status">${statusStr} track ${data.current_track.track_number} of ${data.playlist.length}</div>            
             <div class="kiosk-artist">${data.current_track.artist}</div>
             <div class="kiosk-title">${data.current_track.title}</div>
             <div class="kiosk-album">${data.current_track.album} (${data.current_track.year})</div>
+            <div class="kiosk-status">Repeat album is ${repeatStr}</div>
         `;
-        console.log(`[${timestamp}] UPDATE: Track info rendered successfully`);
+        console.log(`[${timestamp}] UPDATE: Track info rendered successfully  - original`);
         
         let thumbUrl = data.current_track.thumb;
         if (thumbUrl) {
@@ -81,10 +149,20 @@ function updateKioskTrackInfo(data) {
             console.log(`[${timestamp}] UPDATE: No thumb URL, showing placeholder`);
             kioskThumbDiv.innerHTML = '<div class="kiosk-no-cover"><i class="mdi mdi-music"></i></div>';
         }
+        
+        // Update progress bar
+        const duration = data.current_track.duration || 0;
+        const elapsed = data.elapsed_time || 0;
+        const isPlaying = data.status === 'playing';
+        console.log(`[${timestamp}] UPDATE: Progress - duration: ${duration}s, elapsed: ${elapsed}s, playing: ${isPlaying}`);
+        syncProgress(elapsed, duration, isPlaying);
     } else {
         console.warn(`[${timestamp}] UPDATE: No current_track in data. data.message: "${data.message}"`);
         kioskInfoDiv.innerHTML = '<div class="kiosk-no-track">' + (data.message || 'No track loaded') + '</div>';
         kioskThumbDiv.innerHTML = '<div class="kiosk-no-cover"><i class="mdi mdi-music"></i></div>';
+        
+        // Clear progress bar when no track
+        syncProgress(0, 0, false);
     }
 }
 

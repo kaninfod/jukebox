@@ -10,7 +10,7 @@ set -euo pipefail
 
 # Configuration
 SERVICE="jukebox"
-URL="http://192.168.68.104:8000/status?kiosk=1"
+URL="http://192.168.68.104:8000/status?kiosk=1&hidecontrols=1"
 LOG="/home/pi/shared/jukebox/scripts/start-kiosk.log"
 TIMEOUT=300     # seconds to wait before giving up
 INTERVAL=2      # polling interval (seconds)

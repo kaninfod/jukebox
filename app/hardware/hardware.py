@@ -60,14 +60,6 @@ class HardwareManager:
             from .devices.pn532_rfid import PN532Reader
             self.rfid_reader = PN532Reader
 
-            # Set up RFID microswitch 
-            self.rfid_switch = PushButton(
-                pin=self.config.NFC_CARD_SWITCH_GPIO,
-                press_callback=self._on_rfid_switch_activated,  # Fire on press, not release
-                bouncetime=200,
-                pull_up_down=True  # Enable internal pull-up resistor
-            )
-
             # Initialize rotary encoder with callback using CircuitPython keypad
             self.encoder = RotaryEncoder(
                 pin_a=self.config.ROTARY_ENCODER_PIN_A,
@@ -76,18 +68,56 @@ class HardwareManager:
                 bouncetime=self.config.ENCODER_BOUNCETIME
             )
 
-            # Initialize push buttons with callbacks using injected config
-            self.button1 = PushButton(self.config.BUTTON_1_GPIO, callback=self._on_button1_press, bouncetime=self.config.BUTTON_BOUNCETIME, pull_up_down=None)
-            self.button2 = PushButton(self.config.BUTTON_2_GPIO, callback=self._on_button2_press, bouncetime=self.config.BUTTON_BOUNCETIME, pull_up_down=None)
-            self.button3 = PushButton(self.config.BUTTON_3_GPIO, callback=self._on_button3_press, bouncetime=self.config.BUTTON_BOUNCETIME, pull_up_down=None)
-            self.button4 = PushButton(
-                self.config.BUTTON_4_GPIO,
-                callback=self._on_button4_press,
-                long_press_callback=self._on_button4_long_press,
-                long_press_threshold=5,
-                bouncetime=self.config.BUTTON_BOUNCETIME
-            )
-            self.button5 = PushButton(self.config.BUTTON_5_GPIO, callback=self._on_button5_press, bouncetime=self.config.BUTTON_BOUNCETIME)
+            # Initialize ButtonManager with all buttons at once to avoid reinitialization
+            from .devices.pushbutton import ButtonManager
+            button_manager = ButtonManager()
+            
+            # Register all buttons at once before starting monitoring
+            button_configs = [
+                (self.config.NFC_CARD_SWITCH_GPIO, {
+                    'press_callback': self._on_rfid_switch_activated,
+                    'bouncetime': 200,
+                    'pull_up_down': True
+                }),
+                (self.config.BUTTON_1_GPIO, {
+                    'callback': self._on_button1_press,
+                    'bouncetime': self.config.BUTTON_BOUNCETIME,
+                    'pull_up_down': True
+                }),
+                (self.config.BUTTON_2_GPIO, {
+                    'callback': self._on_button2_press,
+                    'bouncetime': self.config.BUTTON_BOUNCETIME,
+                    'pull_up_down': True
+                }),
+                (self.config.BUTTON_3_GPIO, {
+                    'callback': self._on_button3_press,
+                    'bouncetime': self.config.BUTTON_BOUNCETIME,
+                    'pull_up_down': True
+                }),
+                (self.config.BUTTON_4_GPIO, {
+                    'callback': self._on_button4_press,
+                    'long_press_callback': self._on_button4_long_press,
+                    'long_press_threshold': 1.5,
+                    'bouncetime': self.config.BUTTON_BOUNCETIME,
+                    'pull_up_down': True
+                }),
+                (self.config.BUTTON_5_GPIO, {
+                    'callback': self._on_button5_press,
+                    'bouncetime': self.config.BUTTON_BOUNCETIME,
+                    'pull_up_down': True
+                }),
+            ]
+            
+            # Register all buttons at once (initializes keypad only once)
+            button_manager.register_all_buttons(button_configs)
+            
+            # Create PushButton wrappers (these won't trigger reinitialization)
+            self.rfid_switch = PushButton(pin=self.config.NFC_CARD_SWITCH_GPIO, press_callback=self._on_rfid_switch_activated, bouncetime=200, pull_up_down=True)
+            self.button1 = PushButton(pin=self.config.BUTTON_1_GPIO, callback=self._on_button1_press, bouncetime=self.config.BUTTON_BOUNCETIME, pull_up_down=True)
+            self.button2 = PushButton(pin=self.config.BUTTON_2_GPIO, callback=self._on_button2_press, bouncetime=self.config.BUTTON_BOUNCETIME, pull_up_down=True)
+            self.button3 = PushButton(pin=self.config.BUTTON_3_GPIO, callback=self._on_button3_press, bouncetime=self.config.BUTTON_BOUNCETIME, pull_up_down=True)
+            self.button4 = PushButton(pin=self.config.BUTTON_4_GPIO, callback=self._on_button4_press, long_press_callback=self._on_button4_long_press, long_press_threshold=5, bouncetime=self.config.BUTTON_BOUNCETIME, pull_up_down=True)
+            self.button5 = PushButton(pin=self.config.BUTTON_5_GPIO, callback=self._on_button5_press, bouncetime=self.config.BUTTON_BOUNCETIME, pull_up_down=True)
 
             logger.info("🔧 Hardware initialization complete")
             return self.display
@@ -267,7 +297,7 @@ class HardwareManager:
         """Handle button 4 long press - System Reboot"""
         logger.info("Button 4 long press detected (requesting system reboot)")
         self.event_bus.emit(Event(
-            type=EventType.SYSTEM_REBOOT_REQUESTED,
+            type=EventType.TOGGLE_REPEAT_ALBUM,
             payload={"button": 4}
         ))
 
@@ -300,6 +330,18 @@ class HardwareManager:
 
     def cleanup(self):
         """Clean up GPIO resources"""
+        def _safe_cleanup(device, label: str):
+            if not device:
+                return
+            cleanup_fn = getattr(device, "cleanup", None)
+            if not callable(cleanup_fn):
+                logger.debug("%s cleanup skipped: no cleanup()", label)
+                return
+            try:
+                cleanup_fn()
+            except Exception as e:
+                logger.error(f"{label} cleanup error: {e}")
+
         # Clean up individual devices first (while GPIO mode is still set)               
         if self.rfid_reader:
             try:
@@ -308,56 +350,25 @@ class HardwareManager:
             except Exception as e:
                 logger.error(f"RFID cleanup error: {e}")
         # Clean up RFID switch (CircuitPython PushButton)
-        if self.rfid_switch:
-            try:
-                self.rfid_switch.cleanup()
-            except Exception as e:
-                logger.error(f"RFID switch cleanup error: {e}")
+        _safe_cleanup(self.rfid_switch, "RFID switch")
                 
-        if self.encoder:
-            try:
-                self.encoder.cleanup()
-            except Exception as e:
-                logger.error(f"Encoder cleanup error: {e}")
+        _safe_cleanup(self.encoder, "Encoder")
         
         # Clean up buttons using their cleanup methods
-        if self.button0:
-            try:
-                self.button0.cleanup()
-            except Exception as e:
-                logger.error(f"Button 0 cleanup error: {e}")
+        _safe_cleanup(self.button0, "Button 0")
             
-        if self.button1:
-            try:
-                self.button1.cleanup()
-            except Exception as e:
-                logger.error(f"Button 1 cleanup error: {e}")
+        _safe_cleanup(self.button1, "Button 1")
 
-        if self.button2:
-            try:
-                self.button2.cleanup()
-            except Exception as e:
-                logger.error(f"Button 2 cleanup error: {e}")
+        _safe_cleanup(self.button2, "Button 2")
 
-        if self.button3:
-            try:
-                self.button3.cleanup()
-            except Exception as e:
-                logger.error(f"Button 3 cleanup error: {e}")
+        _safe_cleanup(self.button3, "Button 3")
 
         if self.button4:
-            try:
-                self.button4.cleanup()
-            except Exception as e:
-                logger.error(f"Button 4 cleanup error: {e}")
+            _safe_cleanup(self.button4, "Button 4")
         else:
             logger.info("Button 4 cleanup skipped - was used as RFID switch")
 
-        if self.button5:
-            try:
-                self.button5.cleanup()
-            except Exception as e:
-                logger.error(f"Button 5 cleanup error: {e}")
+        _safe_cleanup(self.button5, "Button 5")
 
         # Clean up display last
         if self.display:

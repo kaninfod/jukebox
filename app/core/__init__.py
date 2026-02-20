@@ -1,5 +1,15 @@
-from .event_bus import event_bus, Event
-from .event_factory import EventType, EventFactory
-from .player_status import PlayerStatus
+"""
+Core module exports for event system and shared utilities.
+"""
 
-__all__ = ["PlayerStatus", "EventType", "EventFactory", "Event", "event_bus"]
+from app.core.event_bus import Event, EventBus, event_bus
+from app.core.event_factory import EventType
+from app.core.player_status import PlayerStatus
+
+__all__ = [
+    'Event',
+    'EventBus',
+    'event_bus',
+    'EventType',
+    'PlayerStatus',
+]

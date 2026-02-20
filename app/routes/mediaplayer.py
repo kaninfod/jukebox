@@ -77,21 +77,6 @@ def play_pause():
     else:
         return {"status": "error", "message": "Failed to toggle playback"}
 
-
-@router.post("/api/mediaplayer/play")
-def play():
-    """Resume playback."""
-    from app.core import event_bus, EventType, Event
-    result = event_bus.emit(Event(
-        type=EventType.PLAY,
-        payload={}
-    ))
-
-    if result:
-        return {"status": "success", "message": result}
-    else:
-        return {"status": "error", "message": "Failed to start playback"}
-
 @router.post("/api/mediaplayer/stop")
 def stop():
     """Stop playback."""
@@ -153,6 +138,31 @@ def volume_set(volume: int = Query(..., ge=0, le=100)):
         return {"status": "success", "volume": volume}
     else:
         return {"status": "error", "message": "Failed to set volume"}
+
+
+@router.post("/api/mediaplayer/volume_mute")
+def volume_mute():
+    """Toggle mute on the Chromecast device."""
+    from app.core import event_bus, EventType, Event
+    
+    result = event_bus.emit(Event(
+        type=EventType.VOLUME_MUTE,
+        payload={}
+    ))
+    
+    logger.debug(f"Volume mute event result: {result}")
+    
+    if result and len(result) > 0:
+        mute_result = result[0]
+        if isinstance(mute_result, dict) and mute_result.get("success"):
+            muted = mute_result.get("muted")
+            return {
+                "status": "success", 
+                "message": f"Volume {'muted' if muted else 'unmuted'}",
+                "muted": muted
+            }
+    
+    return {"status": "error", "message": "Failed to toggle mute"}
     
 
 @router.post("/api/mediaplayer/toggle_repeat_album")
@@ -170,6 +180,38 @@ def toggle_repeat_album():
         return {"status": "success", "repeat_album": result}
     else:
         return {"status": "error", "message": "Failed to toggle repeat album mode"}
+
+
+@router.get("/api/mediaplayer/output_readiness")
+def output_readiness():
+    """Inspect active playback backend and output readiness (including BT for MPV)."""
+    try:
+        from app.core.service_container import get_service
+
+        player = get_service("media_player_service")
+        backend = getattr(player, "playback_backend", None)
+
+        if not backend:
+            return {"status": "error", "message": "No playback backend available"}
+
+        backend_name = type(backend).__name__
+        status = backend.get_status() if hasattr(backend, "get_status") else None
+        readiness = (
+            backend.get_output_readiness()
+            if hasattr(backend, "get_output_readiness")
+            else {"ready": True, "message": "No backend-specific output readiness checks"}
+        )
+
+        return {
+            "status": "ok",
+            "backend": backend_name,
+            "device_name": getattr(backend, "device_name", None),
+            "backend_status": status,
+            "output_readiness": readiness,
+        }
+    except Exception as e:
+        logger.error(f"Failed to inspect output readiness: {e}")
+        return {"status": "error", "message": str(e)}
 
 
 @router.post("/api/mediaplayer/play_album_from_rfid/{rfid}")
@@ -190,17 +232,23 @@ def play_album_from_rfid(rfid: str):
 
 
 @router.post("/api/mediaplayer/play_album_from_albumid/{albumid}")
-def play_album_from_albumid(albumid: str):
-    """Play album from album_id using PlaybackManager."""
+def play_album_from_albumid(albumid: str, start_track_index: int = Query(0, ge=0)):
+    """Play album from album_id using PlaybackManager.
+    
+    Args:
+        albumid: The album ID to play
+        start_track_index: Optional track index to start playback from (default: 0)
+    """
     try:
         from app.core.service_container import get_service
         playback_service = get_service("playback_service")
-        result = playback_service.load_from_album_id(albumid)
+        result = playback_service.load_from_album_id(albumid, start_track_index=start_track_index)
         if result:
             return {
                 "status": "success",
-                "message": f"Successfully loaded album_id: {albumid}",
-                "album_id": albumid
+                "message": f"Successfully loaded album_id: {albumid} (starting at track {start_track_index})",
+                "album_id": albumid,
+                "start_track_index": start_track_index
             }
         else:
             return {
@@ -208,6 +256,7 @@ def play_album_from_albumid(albumid: str):
                 "message": f"Failed to load album_id: {albumid}"
             }
     except Exception as e:
+        logger.error(f"Exception while loading album_id {albumid}: {e}")
         return {
             "status": "error", 
             "message": f"Exception while loading album_id {albumid}: {str(e)}"
@@ -267,6 +316,9 @@ async def websocket_status(websocket: WebSocket):
                 await websocket.send_json({"type": "ping", "payload": {}})
     except WebSocketDisconnect:
         pass
+    except asyncio.CancelledError:
+        logger.info("WebSocket status handler cancelled during shutdown")
+        return
     finally:
         # Unsubscribe and cleanup
         handler_active["active"] = False

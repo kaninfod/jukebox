@@ -50,7 +50,7 @@ class SubsonicService:
         if extra_params:
             params.update(extra_params)
         url = f"{self.base_url}/rest/{endpoint}"
-        logger.info(f"SubsonicService: Requesting {url} with params {params}")
+        logger.debug(f"SubsonicService: Requesting {url}")
         auth = None
         if self.basic_user and self.basic_pass:
             auth = (self.basic_user, self.basic_pass)

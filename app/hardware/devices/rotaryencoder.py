@@ -14,7 +14,7 @@ class RotaryEncoder:
     The IncrementalEncoder handles all quadrature decoding and only reports
     position changes when a complete detent is registered.
     """
-    def __init__(self, pin_a, pin_b, callback=None, bouncetime=50):
+    def __init__(self, pin_a, pin_b, callback=None, bouncetime=80):
         self.pin_a = pin_a
         self.pin_b = pin_b
         self.callback = callback
@@ -76,9 +76,9 @@ class RotaryEncoder:
         1. Detect position changes and start debounce window
         2. After debounce, check for net movement from last reported position
         3. Lock into current direction, filtering out brief opposite-direction oscillations
-        4. Only switch directions after sufficient quiet time (500ms no opposite-direction movement)
+        4. Only switch directions after sufficient quiet time (800ms no opposite-direction movement)
         """
-        direction_lock_timeout = 0.5  # 500ms - time to allow direction reversal
+        direction_lock_timeout = 0.8  # 800ms - time to allow direction reversal
         
         while self._running and self.initialized:
             try:
