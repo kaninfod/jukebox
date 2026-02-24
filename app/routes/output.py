@@ -1,3 +1,4 @@
+
 from typing import Optional
 
 from fastapi import APIRouter
@@ -79,6 +80,18 @@ def output_status():
         },
     }
 
+
+@router.get("/api/output/devices")
+def output_devices():
+    """
+    Returns all available output devices (Chromecast and MPV/Bluetooth) as a JSON list.
+    Each device: {"backend": ..., "device": ..., "name": ...}
+    """
+    from app.services.playback_backend_factory import get_available_output_devices
+    return {
+        "status": "ok",
+        "devices": get_available_output_devices()
+    }
 
 @router.post("/api/output/switch")
 def output_switch(request: OutputSwitchRequest):

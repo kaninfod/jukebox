@@ -20,7 +20,7 @@
         showStatus('Restarting application...', 'info');
         
         try {
-            const response = await fetch('/api/system/restart/status', {
+            const response = await fetch('/api/system/restart', {
                 method: 'POST'
             });
             
@@ -46,7 +46,7 @@
         showStatus('Rebooting system...', 'warning');
         
         try {
-            const response = await fetch('/api/system/reboot/status', {
+            const response = await fetch('/api/system/reboot', {
                 method: 'POST'
             });
             

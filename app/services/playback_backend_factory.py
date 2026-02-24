@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import logging
@@ -26,3 +27,30 @@ def get_playback_backend_by_name(backend_name: str, device_name: str | None = No
 
 def get_playback_backend():
     return get_playback_backend_by_name(config.PLAYBACK_BACKEND)
+
+
+def get_available_output_devices():
+    """
+    Returns a list of all available output devices (Chromecast and MPV/Bluetooth) for selection in UI/API.
+    Each device is a dict: {"backend": ..., "device": ..., "name": ...}
+    """
+    devices = []
+    # Chromecast devices from config
+    for cc_name in (config.CHROMECAST_DEVICES or []):
+        name = cc_name.strip()
+        if name:
+            devices.append({
+                "backend": "chromecast",
+                "device": name,
+                "name": name
+            })
+    # MPV/Bluetooth device (if configured)
+    bt_mac = getattr(config, "BT_SPEAKER_MAC", None)
+    mpv_name = getattr(config, "MPV_DEVICE_NAME", None) or "MPV Device"
+    if bt_mac:
+        devices.append({
+            "backend": "mpv",
+            "device": bt_mac,
+            "name": mpv_name
+        })
+    return devices

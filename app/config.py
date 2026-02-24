@@ -72,6 +72,8 @@ class Config:
     MPV_STARTUP_TIMEOUT_SECONDS: int = int(os.getenv("MPV_STARTUP_TIMEOUT_SECONDS", "5"))
     MPV_MSG_LEVEL: str = os.getenv("MPV_MSG_LEVEL", "")
     MPV_LOG_FILE: str = os.getenv("MPV_LOG_FILE", "")
+    # Friendly name for MPV/Bluetooth device (for UI)
+    MPV_DEVICE_NAME: str = os.getenv("MPV_DEVICE_NAME", "MPV Device")
     MPV_CACHE_ENABLED: bool = os.getenv("MPV_CACHE_ENABLED", "true").lower() == "true"
     MPV_CACHE_SECS: int = int(os.getenv("MPV_CACHE_SECS", "90"))
     MPV_DEMUXER_MAX_BYTES: str = os.getenv("MPV_DEMUXER_MAX_BYTES", "128MiB")

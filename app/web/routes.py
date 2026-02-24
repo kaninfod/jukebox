@@ -35,6 +35,7 @@ async def get_kiosk_component(request: Request, component_name: str = Query(...)
     Returns HTML for a specific kiosk component.
     Used for dynamic content loading in kiosk mode.
     """
+    from app.services.playback_backend_factory import get_available_output_devices
     component_map = {
         'player': 'components/kiosk/_player_status.html',
         'library': 'components/kiosk/_media_library.html',
@@ -46,12 +47,21 @@ async def get_kiosk_component(request: Request, component_name: str = Query(...)
 
     template_path = component_map.get(component_name)
     print(f"[DEBUG] get_kiosk_component called with: {component_name}, template_path: {template_path}")
-    
+
     if not template_path:
         raise HTTPException(status_code=404, detail=f"Component '{component_name}' not found")
 
+    context = {"request": request, "config": config}
+    # Inject devices for the device selector component
+    if component_name == "devices":
+        devices = get_available_output_devices()
+        # Mark all as not active (server-rendered, no active info)
+        for d in devices:
+            d["is_active"] = False
+        context["devices"] = devices
+
     try:
-        return templates.TemplateResponse(template_path, {"request": request, "config": config})
+        return templates.TemplateResponse(template_path, context)
     except Exception as e:
         print(f"[DEBUG] Error loading template {template_path}: {e}")
         raise HTTPException(status_code=404, detail=f"Failed to load template: {str(e)}")
